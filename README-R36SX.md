@@ -12,6 +12,9 @@ images, save data, play history, or personal card logs**.
 
 ## Start here
 
+- [Download the ROM-free R36SX SD-card overlay](https://github.com/andrija95aki/treefrog-ui/releases/latest)
+- [Direct ZIP download](https://github.com/andrija95aki/treefrog-ui/releases/download/r36sx-v1.0.0/TreeFrogUI-Contributions-R36SX-HOS-1.2.zip)
+- [Browse the buildable source branch](https://github.com/andrija95aki/treefrog-ui/tree/r36sx-source-build)
 - [Install the prebuilt R36SX overlay](docs/r36sx/INSTALL.md)
 - [Build from source](docs/r36sx/BUILDING.md)
 - [Features and fixes](docs/r36sx/FEATURES.md)

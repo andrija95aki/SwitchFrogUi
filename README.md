@@ -6,6 +6,7 @@
 > the ROM-free R36SX v2.7/H.OS 1.2 build, source instructions, media-player
 > additions, hardware fixes, and release documentation. Screenshots will be
 > added after final device validation.
+> [Download the R36SX overlay](https://github.com/andrija95aki/treefrog-ui/releases/latest).
 
 A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds - R36SX, SF3000, SF3500, GB350 and more (full list below). It replaces the stock menu and runs hundreds of retro systems.
 
