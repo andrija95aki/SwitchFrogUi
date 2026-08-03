@@ -17,8 +17,8 @@ that band in TreeFrogUI, games, emulator menus, Rockbox, and standalone apps.
     <th width="50%">After — correction enabled</th>
   </tr>
   <tr>
-    <td><img src="screenshots/display-glitch-before-v2.jpeg" alt="R36SX screen before display-glitch correction"></td>
-    <td><img src="screenshots/display-glitch-after-v2.jpeg" alt="R36SX screen after one-pixel display-glitch correction"></td>
+    <td><img src="screenshots/display-glitch-before-image6.jpeg" alt="R36SX screen before display-glitch correction (original Image 6)"></td>
+    <td><img src="screenshots/display-glitch-after-image5.jpeg" alt="R36SX screen after one-pixel display-glitch correction (original Image 5)"></td>
   </tr>
   <tr>
     <td>The upper-left card edge exposes the displaced left display band.</td>

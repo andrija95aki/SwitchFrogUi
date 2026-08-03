@@ -29,8 +29,8 @@
     <th width="50%">After — persistent one-pixel correction</th>
   </tr>
   <tr>
-    <td><img src="docs/r36sx/screenshots/display-glitch-before-v2.jpeg" alt="Before R36SX display-glitch correction"></td>
-    <td><img src="docs/r36sx/screenshots/display-glitch-after-v2.jpeg" alt="After R36SX display-glitch correction"></td>
+    <td><img src="docs/r36sx/screenshots/display-glitch-before-image6.jpeg" alt="Before R36SX display-glitch correction (original Image 6)"></td>
+    <td><img src="docs/r36sx/screenshots/display-glitch-after-image5.jpeg" alt="After R36SX display-glitch correction (original Image 5)"></td>
   </tr>
 </table>
 
