@@ -4,9 +4,37 @@
 
 > **R36SX Contributions branch:** see [README-R36SX.md](README-R36SX.md) for
 > the ROM-free R36SX v2.7/H.OS 1.2 build, source instructions, media-player
-> additions, hardware fixes, and release documentation. Screenshots will be
-> added after final device validation.
+> additions, hardware fixes, release documentation, and
+> [annotated hardware screenshots](docs/r36sx/SCREENSHOTS.md).
 > [Download the R36SX overlay](https://github.com/andrija95aki/treefrog-ui/releases/latest).
+
+## R36SX Contributions screenshots
+
+<table>
+  <tr>
+    <th width="50%">Last-played Home cards</th>
+    <th width="50%">Platform artwork cards</th>
+  </tr>
+  <tr>
+    <td><img src="docs/r36sx/screenshots/home-last-played-games.jpeg" alt="TreeFrogUI Home with three last-played games"></td>
+    <td><img src="docs/r36sx/screenshots/home-platform-cards.jpeg" alt="TreeFrogUI GBA and NES platform cards"></td>
+  </tr>
+</table>
+
+### R36SX display-glitch fix
+
+<table>
+  <tr>
+    <th width="50%">Before — left 110-pixel band displaced</th>
+    <th width="50%">After — persistent one-pixel correction</th>
+  </tr>
+  <tr>
+    <td><img src="docs/r36sx/screenshots/display-glitch-before.jpeg" alt="Before R36SX display-glitch correction"></td>
+    <td><img src="docs/r36sx/screenshots/display-glitch-after.jpeg" alt="After R36SX display-glitch correction"></td>
+  </tr>
+</table>
+
+[View all annotated hardware screenshots →](docs/r36sx/SCREENSHOTS.md)
 
 A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds - R36SX, SF3000, SF3500, GB350 and more (full list below). It replaces the stock menu and runs hundreds of retro systems.
 

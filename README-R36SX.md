@@ -18,10 +18,15 @@ images, save data, play history, or personal card logs**.
 - [Install the prebuilt R36SX overlay](docs/r36sx/INSTALL.md)
 - [Build from source](docs/r36sx/BUILDING.md)
 - [Features and fixes](docs/r36sx/FEATURES.md)
+- [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
-Screenshots will be added after the device build has completed its final
-hardware test pass.
+<p align="center">
+  <img src="docs/r36sx/screenshots/home-last-played-games.jpeg" width="760" alt="TreeFrogUI Contributions Home screen on R36SX">
+</p>
+
+The gallery contains photographs of the build running on real R36SX v2.7
+hardware, including a side-by-side display-glitch correction comparison.
 
 ## Supported target
 
