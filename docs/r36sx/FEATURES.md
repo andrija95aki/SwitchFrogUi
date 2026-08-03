@@ -1,0 +1,72 @@
+# R36SX features and fixes
+
+## Home and game library
+
+- Console-style horizontal Home screen with three direct-launch last-played
+  games, Recent, Favourites, non-empty platform cards, Music, Videos, Files,
+  and Settings.
+- Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
+- Platform collections use box-art grids; START switches to a condensed
+  12-title list and L1/R1 changes pages quickly.
+- Search across a platform collection, smaller antialiased titles, square
+  antialiased cards, favourites stars, and save-data badges.
+- Game details show the full title, artwork, total play time, and save-state
+  playtime records before launch.
+- Existing artwork is found in `.res`, `images`, `Imgs`, `media`, and `boxart`
+  layouts, including nested ROM folders.
+- Static 15-pixel artwork-colour halo around the selected Home card, rendered
+  below neighbouring cards with no continuous animation cost.
+
+## Appearance and settings
+
+- Forty colour schemes, including ten bright R36SX additions.
+- Optional persistent solid background colour palette.
+- Cog-wheel Settings artwork and sliders for brightness, timeout, and master
+  volume.
+- All UI animations removed for responsiveness; B consistently returns to the
+  previous menu.
+- In-app Controls & Shortcuts reference.
+
+## R36SX hardware fixes
+
+- Persistent `R36SX Display glitch fix` for the left 110-pixel band with the
+  final one-pixel vertical correction.
+- The same optional correction is inherited by games, PCSX4ALL menus, Rockbox,
+  and other standalone applications without double-applying it in FrogUI.
+- Double-buffered panel presentation reduces PCSX4ALL menu text flicker.
+- Short power press is bridged from H.OS `cubevol` to FrogUI, blanks/restores
+  the display, and preserves the separate long-press shutdown path.
+- Configurable 10/20/30/60-second UI screen timeout; two minutes of blank time
+  can request sleep and the frontend rebuilds the display after resume.
+- Perceptual master-volume curve gives useful gradual control across all 21
+  volume positions instead of concentrating the change in the final levels.
+- Static/dirty-frame rendering, cached colour sampling and display maps, and
+  faster sorting reduce unnecessary CPU work.
+
+## Emulator fixes
+
+- Start+Select opens the in-game menu without the stock parent menu forcing a
+  return to Home.
+- Checksum-guarded PCSX4ALL patch maps Start+Select to its native menu while
+  retaining Select+L1.
+- Duplicate PS1 history/favourite routes are collapsed by ROM path so the slow
+  alternate core is not shown as a second copy of the same game.
+- Save-state markers and playtime metadata survive restarts.
+
+## Music, files, and video
+
+- Whole-card file browser with audio dispatch to Rockbox and video dispatch to
+  the hardware player.
+- Rockbox opens at the card root, uses intuitive A-confirm/B-back mapping,
+  follows the OS master volume, and inherits the display correction.
+- Dedicated Videos browser that navigates real folders without retriggering its
+  Home action.
+- Hardware-decoded video playback with pause, 10/60-second seek, 1x/2x/4x/8x
+  speed, 0/90/180/270-degree rotation, Fit/Fill/Stretch/Original scaling,
+  volume, audio-track and subtitle-track selection.
+- Sidecar SRT/ASS/SSA/SUB/IDX/VTT/SMI/SAMI subtitle discovery, including
+  language suffixes.
+- Per-video subtitle timing offsets in exact 100 ms steps, persisted across
+  reboots.
+- Direct standalone `exec` handoff avoids the intermittent PicoArch teardown
+  crash that previously prevented the video player from reaching `main()`.

@@ -1,0 +1,449 @@
+diff --git a/HCGE_NEAREST_TODO.md b/HCGE_NEAREST_TODO.md
+index 1f9b7f0..3f37a44 100644
+--- a/HCGE_NEAREST_TODO.md
++++ b/HCGE_NEAREST_TODO.md
+@@ -1,8 +1,8 @@
+ # TODO: HW nearest scaling (SF3000 / SF3500 / R36SX)
+ 
+-Status: **parked**. Shipping uses SW nearest + HW bilinear (driver.so). This
+-documents the attempt to get HW *nearest* scaling and why it stalled, so it can
+-be resumed without re-deriving everything.
++Status: **GMA implementation added, awaiting on-device verification**. The
++established SW-nearest/HW-bilinear paths remain as fallbacks. This documents the
++attempts and the current test point so work can resume without re-deriving them.
+ 
+ Experimental code lives on branch **`hcge-direct`** (`hcge_direct.c`,
+ `plat_sdl.c` gate, build-script entry). `main` is clean SW shipping.
+@@ -61,6 +61,65 @@ by the **`FBIO_SET_GMA_SCALE_INFO`** ioctl on `/dev/fb0` (handler at ~line 2161)
+ 
+ Refs: `bnister/PDK_GoBian` → `alifb/ali_fb.c` (GOBIAN_OSDSCALE block + FBIO_SET_GMA_SCALE_INFO @~2161), `ali_gma_m36f_lld.c` (gma_m36f_set_scale_param, GMA_SCALE_DUPLICATE), `ali_gma_filtgen.c` (the tap-filter coeff gen).
+ 
++### 2026-07-31 implementation
++
++The missing public ABI was recovered from
++`alidrivers/include/ali_video_common.h`:
++
++```c
++#define FBIO_SET_GMA_SCALE_INFO 0x460022
++
++enum ALIFB_GMA_SCALE_MODE {
++    GMA_RSZ_DISABLE       = 0,
++    GMA_RSZ_DIRECT_RESIZE = 4, /* duplicate / nearest */
++    GMA_RSZ_ALPHA_ONLY    = 5,
++    GMA_RSZ_COLOR_ONLY    = 6,
++    GMA_RSZ_ALPHA_COLOR   = 7  /* normal filtered mode */
++};
++
++struct alifbio_gma_scale_info_pars {
++    int scale_mode;
++    int h_dst, h_src;
++    int v_dst, v_src;
++    int tv_sys;
++    unsigned long uScaleCmd;
++    unsigned long uScaleParam;
++};
++```
++
++Implemented in `hwdisp.c`:
++
++- After `video_drivers_init`, Nearest calls ioctl `0x460022` on `/dev/fb0`
++  with mode `4`, framebuffer visible dimensions as source, and the detected
++  panel dimensions as destination.
++- Bilinear restores mode `7`, but only after a successful nearest call; normal
++  startup does not issue an unnecessary ioctl.
++- The parameter block uses fixed-width fields and a compile-time 32-byte size
++  check so host word size cannot silently alter the MIPS-o32 ABI.
++- `TF_GMA_SCALE_IOCTL=<number>` overrides the ioctl for a firmware variant.
++  `TF_GMA_NEAREST=0` disables the experiment without rebuilding.
++- Unsupported/failed ioctl: R36SX retains its existing SW-nearest fallback;
++  SF-class devices retain their safe filtered-HW fallback.
++- `plat_sdl.c` now passes the selected game filter to SF-class HW too. SF3000
++  panel-size/FrogUI frames remain on their proven safe path.
++
++On-device verification:
++
++1. Create `/mnt/sdcard/log.txt`, select Nearest, launch a small core.
++2. Look in the picoarch log for:
++   `DBG gma-scale: ioctl=0x460022 mode=4 ... rv=0 errno=0`.
++3. Confirm the image is point-sampled and frame rate matches Bilinear.
++4. Open/close the pause menu or switch back to Bilinear and confirm a mode `7`
++   log entry restores smoothing.
++5. If the call returns `-1`, record `errno` and trace the stock driver's fb0
++   ioctls to recover the firmware-specific command, then retry with
++   `TF_GMA_SCALE_IOCTL`.
++
++The Windows checkout now has a working portable cross-toolchain. This change
++successfully builds as stripped MIPS32r2 hard-float `picoarch` and
++`picoarch_hi` binaries compatible with the supplied H.OS 1.2 runtime. On-device
++verification is still required.
++
+ ---
+ 
+ ## The goal
+diff --git a/hwdisp.c b/hwdisp.c
+index 5367b21..b58751a 100644
+--- a/hwdisp.c
++++ b/hwdisp.c
+@@ -1,10 +1,9 @@
+ /* sf3000-hwdisp implementation. dlopen's driver.so, calls video_driver_*.
+  *
+- * Driver scales src dims → panel (854x480) via HCGE DMA with bilinear filter.
+- * Two filter modes:
+- *   - HW (default): pass src as-is, driver scales (bilinear).
+- *   - Nearest: SW nearest-upscale src to driver native (1280x720) framing,
+- *     so driver doesn't scale further → pixels stay sharp.
++ * Driver sends src through HCGE → GMA → panel. Filter modes:
++ *   - Bilinear: pass src as-is and retain the GMA filtered scaler.
++ *   - Nearest: select the GMA duplicate scaler when the firmware supports its
++ *     framebuffer ioctl; otherwise use the established device-safe fallback.
+  *
+  * Aspect-pad: when target aspect set, source is centered horizontally with
+  * black pillar-bars so driver's stretch becomes uniform. */
+@@ -15,6 +14,8 @@
+ #include <stdarg.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <strings.h>
++#include <errno.h>
+ #include <dlfcn.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+@@ -79,7 +80,7 @@ static int       g_pad_cap  = 0;
+ static int       g_pad_w    = 0;
+ static int       g_pad_h    = 0;
+ 
+-/* Nearest-upscale buffer (always 1280x720) */
++/* Software-nearest fallback buffer (always 1280x720) */
+ static uint16_t *g_near_buf = NULL;
+ 
+ static int g_aspect_num = 0;
+@@ -87,6 +88,170 @@ static int g_aspect_den = 0;
+ static int g_filter_nearest = 0;   /* SW-scale path (true nearest OR sharp) */
+ static int g_filter_sharp   = 0;   /* sharp variant: integer prescale + HW residual */
+ 
++/*
++ * ALi framebuffer GMA scaler ABI.
++ *
++ * The public M36F PDK defines FBIO_SET_GMA_SCALE_INFO as 0x460022 and the
++ * parameter block below as eight 32-bit words.  GMA_RSZ_DIRECT_RESIZE selects
++ * the hardware "duplicate" scaler (point/nearest); GMA_RSZ_ALPHA_COLOR selects
++ * the normal filtered scaler.  Keep fixed-width fields here: the target is
++ * MIPS o32, while host-side syntax builds may have 64-bit unsigned long.
++ *
++ * Firmware variants can override the command with TF_GMA_SCALE_IOCTL (base 0
++ * numeric syntax, e.g. 0x460022), or disable this probe with
++ * TF_GMA_NEAREST=0.  An unsupported command simply returns ENOTTY and leaves
++ * the established software/bilinear fallback in place.
++ */
++#define ALIFB_FBIO_SET_GMA_SCALE_INFO 0x460022UL
++#define ALIFB_GMA_RSZ_DIRECT_RESIZE   4
++#define ALIFB_GMA_RSZ_ALPHA_COLOR     7
++#define ALIFB_GE_SET_SCALE_PARAM      5
++
++struct alifb_gma_scale_info {
++    int32_t  scale_mode;
++    int32_t  h_dst;
++    int32_t  h_src;
++    int32_t  v_dst;
++    int32_t  v_src;
++    int32_t  tv_sys;
++    uint32_t scale_cmd;
++    uint32_t scale_param;
++};
++typedef char alifb_gma_scale_info_must_be_32_bytes[
++    sizeof(struct alifb_gma_scale_info) == 32 ? 1 : -1
++];
++
++static int g_gma_probe = -1;       /* -1 unknown, 0 unavailable/disabled, 1 works */
++static int g_gma_mode = -1;        /* last accepted ALIFB_GMA_RSZ_* mode */
++static int g_gma_hsrc, g_gma_vsrc, g_gma_hdst, g_gma_vdst;
++
++static unsigned long hwdisp_gma_ioctl_number(void)
++{
++    const char *s = getenv("TF_GMA_SCALE_IOCTL");
++    char *end = NULL;
++    unsigned long cmd;
++
++    if (!s || !*s)
++        return ALIFB_FBIO_SET_GMA_SCALE_INFO;
++    errno = 0;
++    cmd = strtoul(s, &end, 0);
++    if (errno || end == s || *end || !cmd) {
++        DBG("DBG gma-scale: invalid TF_GMA_SCALE_IOCTL='%s', using 0x%lx\n",
++            s, ALIFB_FBIO_SET_GMA_SCALE_INFO);
++        return ALIFB_FBIO_SET_GMA_SCALE_INFO;
++    }
++    return cmd;
++}
++
++static int hwdisp_gma_enabled(void)
++{
++    const char *s = getenv("TF_GMA_NEAREST");
++    return !(s && (!strcmp(s, "0") || !strcasecmp(s, "off") ||
++                  !strcasecmp(s, "false")));
++}
++
++static int hwdisp_set_gma_nearest(int nearest)
++{
++    struct alifb_gma_scale_info p;
++    struct fb_var_screeninfo vi;
++    unsigned long cmd;
++    int fd, panel_w, panel_h, mode, saved_errno, rv;
++
++    if (!g_active)
++        return 0;
++    if (!hwdisp_gma_enabled()) {
++        if (g_gma_probe != 0)
++            DBG("DBG gma-scale: disabled by TF_GMA_NEAREST\n");
++        g_gma_probe = 0;
++        g_gma_mode = -1;
++        return 0;
++    }
++    /* A normal driver init already selects filtered mode. Do not probe merely
++     * to re-assert that default, and do not hammer an unsupported ioctl once
++     * per frame. A successful nearest probe changes g_gma_probe to 1, at which
++     * point the filtered call below is required to restore bilinear mode. */
++    if ((!nearest && g_gma_probe < 1) || g_gma_probe == 0)
++        return 0;
++
++    fd = open("/dev/fb0", O_RDWR);
++    if (fd < 0) {
++        if (g_gma_probe != 0)
++            DBG("DBG gma-scale: open fb0 failed errno=%d\n", errno);
++        g_gma_probe = 0;
++        return 0;
++    }
++    memset(&vi, 0, sizeof(vi));
++    if (ioctl(fd, FBIOGET_VSCREENINFO, &vi) < 0 ||
++        vi.xres == 0 || vi.yres == 0) {
++        saved_errno = errno;
++        close(fd);
++        if (g_gma_probe != 0)
++            DBG("DBG gma-scale: FBIOGET_VSCREENINFO failed errno=%d\n",
++                saved_errno);
++        g_gma_probe = 0;
++        return 0;
++    }
++
++    extern int sf3000_panel_w(void);
++    extern int sf3000_panel_h(void);
++    panel_w = sf3000_panel_w();
++    panel_h = sf3000_panel_h();
++    /*
++     * GMA coordinates follow the framebuffer orientation.  Most HW init paths
++     * expose a landscape 1280x720 fb, but older SF firmware can retain the
++     * portrait 720x1280 layout and rotate later in DE.
++     */
++    if ((vi.xres < vi.yres) != (panel_w < panel_h)) {
++        int t = panel_w;
++        panel_w = panel_h;
++        panel_h = t;
++    }
++
++    mode = nearest ? ALIFB_GMA_RSZ_DIRECT_RESIZE
++                   : ALIFB_GMA_RSZ_ALPHA_COLOR;
++    if (g_gma_probe == 1 && g_gma_mode == mode &&
++        g_gma_hsrc == (int)vi.xres && g_gma_vsrc == (int)vi.yres &&
++        g_gma_hdst == panel_w && g_gma_vdst == panel_h) {
++        close(fd);
++        return nearest;
++    }
++
++    memset(&p, 0, sizeof(p));
++    p.scale_mode = mode;
++    p.h_src = (int32_t)vi.xres;
++    p.v_src = (int32_t)vi.yres;
++    p.h_dst = panel_w;
++    p.v_dst = panel_h;
++    p.scale_cmd = ALIFB_GE_SET_SCALE_PARAM;
++    p.scale_param = (uint32_t)mode;
++    cmd = hwdisp_gma_ioctl_number();
++    errno = 0;
++    rv = ioctl(fd, cmd, &p);
++    saved_errno = errno;
++    close(fd);
++
++    DBG("DBG gma-scale: ioctl=0x%lx mode=%d %dx%d->%dx%d rv=%d errno=%d\n",
++        cmd, mode, p.h_src, p.v_src, p.h_dst, p.v_dst, rv, saved_errno);
++    if (rv < 0) {
++        g_gma_probe = 0;
++        g_gma_mode = -1;
++        return 0;
++    }
++
++    g_gma_probe = 1;
++    g_gma_mode = mode;
++    g_gma_hsrc = p.h_src;
++    g_gma_vsrc = p.v_src;
++    g_gma_hdst = p.h_dst;
++    g_gma_vdst = p.v_dst;
++    return nearest;
++}
++
++int hwdisp_gma_nearest_active(void)
++{
++    return g_gma_probe == 1 && g_gma_mode == ALIFB_GMA_RSZ_DIRECT_RESIZE;
++}
++
+ /* Direct-fb present: after video_drivers_init the driver reconfigures fb0 to its
+  * native landscape geometry (R36SX: 1280x720 RGB565) and programs the display
+  * controller to scale fb0 → physical panel (640x480), rotate:0. The panel scans
+@@ -225,6 +390,8 @@ int hwdisp_init(void) {
+         if (p_setmode) { int sr = p_setmode(0, 0); DBG("DBG hwdisp: setmode(0,0) ret=%d\n", sr); }
+     }
+     g_sharpen = -1;   /* force re-apply on the next hwdisp_set_sharpen() */
++    g_gma_probe = -1;
++    g_gma_mode = -1;
+     sf3000_dump_fb_state("hwdisp_init/post");
+     /* fb0 for direct presents is mmap'd lazily by hwdisp_present_direct(). */
+     return 0;
+@@ -237,11 +404,19 @@ void hwdisp_set_target_aspect(int num, int den) {
+     g_aspect_den = den;
+ }
+ 
+-/* filter: scale_filter enum — 0 nearest, 1 bilinear, 2 sharp (integer prescale
+- * + HW residual). Nearest and Sharp both use the SW path; Sharp additionally
+- * sets g_filter_sharp so present_direct prescales instead of full-stretching. */
++/* filter: scale_filter enum — 0 nearest, 1 bilinear, 2 sharp.
++ * Nearest uses the GMA duplicate scaler when available. R36SX retains its SW
++ * fallback because its direct/panel paths are known-safe; SF-class fallback
++ * remains HW filtered because native-size SW staging mis-sizes those drivers.
++ * Sharp keeps the existing integer-prescale + filtered residual behavior. */
+ void hwdisp_set_filter(int filter) {
+-    g_filter_nearest = (filter != 1);   /* nearest(0) or sharp(2) */
++    extern int sf3000_is_r36sx(void);
++    int want_gma_nearest = (filter == 0);
++    int have_gma_nearest = hwdisp_set_gma_nearest(want_gma_nearest);
++
++    g_filter_nearest = (filter == 2) ||
++                       (want_gma_nearest && !have_gma_nearest &&
++                        sf3000_is_r36sx());
+     g_filter_sharp   = (filter == 2);
+     /* If switching to a SW-scale filter, ensure native buffer exists. */
+     if (g_filter_nearest && !g_near_buf) {
+@@ -623,7 +798,7 @@ void hwdisp_present(const void *src, int w, int h, int pitch_bytes) {
+     if (!g_active || !src) { if (lg) DBG("DBG present#%d: EARLY-RET\n", s_n); return; }
+     if (!p_disp) { if (lg) DBG("DBG present#%d: no p_disp\n", s_n); return; }
+     int rv;
+-    /* Nearest filter: SW upscale to 1280×720, driver does no further scale. */
++    /* Software-nearest fallback: upscale to 1280×720 before the driver. */
+     if (g_filter_nearest) {
+         if (!g_near_buf) {
+             g_near_buf = (uint16_t*)malloc(HW_BUFSZ);
+diff --git a/hwdisp.h b/hwdisp.h
+index 6e72d66..7f37246 100644
+--- a/hwdisp.h
++++ b/hwdisp.h
+@@ -1,5 +1,5 @@
+-/* sf3000-hwdisp — hardware display via driver.so + HCGE.
+- * Wraps SF3000 HiChip Graphics Engine for rotation+scale+present in HW.
++/* sf3000-hwdisp — hardware display via driver.so + HCGE/GMA.
++ * Wraps SF3000 hardware rotation, output scaling, and presentation.
+  * Falls back transparently if driver.so unavailable. */
+ #ifndef SF3000_HWDISP_H
+ #define SF3000_HWDISP_H
+@@ -23,10 +23,15 @@ int  hwdisp_active(void);
+  * 4:3 source ends up letter/pillar-boxed correctly. */
+ void hwdisp_set_target_aspect(int num, int den);
+ 
+-/* Filter mode (default 0 = HW bilinear via driver scale).
+- * 1 = SW nearest upscale to driver native (1280x720) before send — driver
+- *     does no further scaling, pixels stay sharp. Adds CPU cost. */
+-void hwdisp_set_filter(int nearest);
++/* Select a SCALE_FILTER_* value.
++ * Nearest first asks the ALi GMA output scaler for duplicate/point sampling.
++ * If that firmware ioctl is unavailable, R36SX falls back to the existing
++ * software-nearest path and SF-class devices retain their safe HW path. */
++void hwdisp_set_filter(int filter);
++
++/* True while the ALi GMA output scaler accepted duplicate/nearest mode.
++ * Useful for on-device diagnostics; false also covers unsupported firmware. */
++int hwdisp_gma_nearest_active(void);
+ 
+ /* Present an RGB565 frame to the panel via HW.
+  * src: RGB565 pixel buffer (16bpp)
+diff --git a/main.c b/main.c
+index 0366317..3301bce 100644
+--- a/main.c
++++ b/main.c
+@@ -9,6 +9,7 @@
+ #include <errno.h>
+ #include <sys/ioctl.h>
+ #include <sys/resource.h>
++#include <sys/stat.h>
+ #include <time.h>
+ 
+ #define FROGUI_CORE "/mnt/sdcard/cubegm/cores/frogui_libretro.so"
+diff --git a/plat_sdl.c b/plat_sdl.c
+index 9978411..18caf07 100644
+--- a/plat_sdl.c
++++ b/plat_sdl.c
+@@ -30,6 +30,16 @@ static SDL_Surface* screen;
+ 
+ int sf3000_use_hwdisp = 0;
+ 
++/* Runtime device detection is implemented below the framebuffer code, but the
++ * init path needs these declarations first. Keep the single implementation in
++ * this shared SDL platform unit. */
++void sf3000_detect_device(void);
++int sf3000_panel_w(void);
++int sf3000_panel_h(void);
++int sf3000_is_r36sx(void);
++int sf3000_is_sf3500(void);
++int sf3000_is_gb350(void);
++
+ /* Self-healing HW→SW fallback (SF3000-class disp_frame devices). Some units
+  * can't render via the HW path (black screen / hang after logo). zhijack sets
+  * TF_FORCE_SW=1 once it has detected that (watchdog + crash count) and dropped
+@@ -2139,8 +2149,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+         if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
+             return;
+     }
+-    /* Lazy-init HW: R36SX always (disp_frame hangs → fb-write for everything);
+-     * SF3000 only on bilinear frames (nearest games take the SW path). */
++    /* Lazy-init HW: R36SX/SF3500 always; SF3000 for bilinear or for a small
++     * nearest game frame. The latter now asks the GMA output scaler for native
++     * duplicate/point sampling, but panel-size SF3000 frames must still stay on
++     * the proven SW path because that driver aborts on such input. */
+     /* SF3500: always present via the real driver's disp_frame (decrypted driver
+      * handles panel-size frames cleanly — proven by rkgame's own FrogUI render).
+      * The SW transpose path is SF3000-geometry-tuned → squish + page-flip churn
+@@ -2152,7 +2164,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+     sf3000_detect_device();
+     if (!sf3000_use_hwdisp && !sf3000_force_sw() &&
+         (sf3000_is_r36sx() || sf3000_is_sf3500() ||
+-         scale_filter == SCALE_FILTER_BILINEAR)) {
++         scale_filter == SCALE_FILTER_BILINEAR ||
++         (scale_filter == SCALE_FILTER_NEAREST &&
++          src != screen->pixels &&
++          !(width == PANEL_W && height == PANEL_H)))) {
+         if (hwdisp_init() == 0) {
+             sf3000_use_hwdisp = 1;
+             fprintf(stderr, "sf3000_fb_blit: HW path active\n");
+@@ -2226,17 +2241,16 @@ if (sf3000_use_hwdisp) {
+         }
+         int aspect = (src == screen->pixels) || (scale_size != SCALE_SIZE_FULL);
+         hwdisp_set_target_aspect(aspect ? PANEL_ASPECT_NUM : 0, aspect ? PANEL_ASPECT_DEN : 0);
+-        /* Filter routing. The SW Nearest/Sharp paths are R36SX-only (present_direct
+-         * + panel_build); SF-class presents through the driver's disp_frame HW
+-         * scaler, where the SW-nearest upscale mis-sizes the frame - so SF-class
+-         * stays on HW bilinear regardless of the setting.
+-         *   R36SX game  → the chosen filter.
+-         *   R36SX menu  → Nearest (320x240 → 640x480 is exact 2x = crisp UI).
+-         *   SF-class    → always Bilinear (HW). */
++        /* Filter routing.
++         *   game frames → the chosen filter (Nearest now tries ALi GMA duplicate)
++         *   R36SX menu  → Nearest (320x240 → 640x480 exact fallback if needed)
++         *   SF menu     → Bilinear; their panel/menu staging is already final.
++         * hwdisp_set_filter retains the old safe fallback when the GMA ioctl is
++         * missing: SW nearest only on R36SX, filtered HW on SF-class firmware. */
+         int fmode;
+-        if (!sf3000_is_r36sx())            fmode = SCALE_FILTER_BILINEAR;
+-        else if (src != screen->pixels)    fmode = scale_filter;
+-        else                               fmode = SCALE_FILTER_NEAREST;
++        if (src != screen->pixels)         fmode = scale_filter;
++        else if (sf3000_is_r36sx())        fmode = SCALE_FILTER_NEAREST;
++        else                               fmode = SCALE_FILTER_BILINEAR;
+         hwdisp_set_filter(fmode);
+ 
+         /* FPS / overlay text: render into a copy of src (RGB565), since src

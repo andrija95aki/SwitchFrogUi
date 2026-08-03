@@ -22,10 +22,19 @@ ls -la libemu_tfhijack.so
 file libemu_tfhijack.so
 
 # nosleep — ptrace live-patcher that NOPs cubevol's sleep-arm stores in RAM
-# (opt-in "Disable Sleep"). Dynamic + stripped (libc is on-device); watcher mode.
+# First address becomes FrogUI's tap event; remaining unsafe sleep stores are
+# NOPed. Dynamic + stripped (libc is on-device); persistent watcher mode.
 $CC -mips32r2 -EL -O2 --sysroot="$SYSROOT" -o nosleep nosleep.c
 "${MIPS}strip" nosleep 2>/dev/null || true
 echo "built nosleep: $(ls -la nosleep | awk '{print $5}') bytes"
+
+# Optional R36SX panel compensation. Loaded only for games when the matching
+# persistent FrogUI setting is enabled; normal devices never load this shim.
+$CC $CFLAGS -shared -Wl,--gc-sections -EL --sysroot="$SYSROOT" \
+    -o r36sx_displayfix.so ../apps/r36sx_displayfix.c -ldl
+"${MIPS}strip" r36sx_displayfix.so 2>/dev/null || true
+echo "built r36sx_displayfix.so: $(ls -la r36sx_displayfix.so | awk '{print $5}') bytes"
+
 echo "=== exported retro_* symbols ==="
 "${MIPS}readelf" --dyn-syms libemu_tfhijack.so 2>/dev/null \
     | awk '$4=="FUNC"{print $8}' | grep '^retro_' | sort | tr '\n' ' '; echo

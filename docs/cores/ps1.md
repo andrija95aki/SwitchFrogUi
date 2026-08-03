@@ -19,7 +19,7 @@ Filenames are case-insensitive; `scph1001.bin`, `scph5501.bin`, `scph7001.bin`, 
 > in Core Settings" dance is gone; it was only needed because the file wasn't
 > being found. If you ever want to force HLE, delete the BIOS from `cubegm/bios/`.
 
-**Speed toggles:** for heavy 3D games (e.g. Tekken 3) that don't run full speed, open the PCSX4ALL menu with **`SELECT + L`** and turn on **Pixel Skip** and/or **Interlace** - they trade a little image quality for a real speed boost.
+**Speed toggles:** for heavy 3D games (e.g. Tekken 3) that don't run full speed, open the PCSX4ALL menu with **`START + SELECT`** (`SELECT + L1` also remains available) and turn on **Pixel Skip** and/or **Interlace** - they trade a little image quality for a real speed boost.
 
 ### Hi-Res Fix (for games that freeze or go black)
 
@@ -28,7 +28,7 @@ display driver can't present directly - the screen freezes or goes black while
 the game keeps running underneath. Known cases: **Colin McRae Rally 2.0**,
 **Worms Armageddon**.
 
-If a game does that, open the PCSX4ALL menu (**`SELECT + L`**) and turn **Hi-Res
+If a game does that, open the PCSX4ALL menu (**`START + SELECT`**) and turn **Hi-Res
 Fix** to **On**. It scales those hi-res frames down to something the driver can
 show, at a small per-frame CPU cost.
 

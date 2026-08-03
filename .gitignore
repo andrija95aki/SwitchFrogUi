@@ -7,3 +7,17 @@ sdcard/
 release/
 bios/
 bpreplay.zip
+/.r36sx-build/
+/dist/
+/release-r36sx/
+*.zip
+*.7z
+*.log
+/roms/
+/ROMS/
+/saves/
+/states/
+game_history.txt
+favorites.txt
+state_playtime.txt
+video_subtitle_offsets.txt

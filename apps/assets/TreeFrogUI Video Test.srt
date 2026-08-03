@@ -1,0 +1,19 @@
+1
+00:00:00,500 --> 00:00:02,400
+Subtitle 1: this should appear half a second after playback starts.
+
+2
+00:00:02,800 --> 00:00:04,800
+Hold SELECT and press LEFT or RIGHT to adjust timing by 100 ms.
+
+3
+00:00:05,200 --> 00:00:07,200
+LEFT makes subtitles earlier. RIGHT makes subtitles later.
+
+4
+00:00:07,600 --> 00:00:09,600
+Try A to pause, Y to rotate, and START to change scaling.
+
+5
+00:00:10,000 --> 00:00:11,800
+TreeFrogUI video and subtitle test complete.

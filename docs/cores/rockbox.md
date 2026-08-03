@@ -17,3 +17,12 @@ Put your music under `roms/rockbox/` (a `rockbox` entry then appears in the menu
 - **B** - back to the file browser (keeps playing)
 - **START** - main menu (**hold** for the context menu)
 - **SELECT + START** - quit back to TreeFrogUI
+
+**Controls (menus and file browser):**
+- **UP / DOWN** - move through items
+- **A** - confirm / open
+- **B** - return to the previous screen
+- **LEFT / RIGHT** - decrease / increase a setting
+
+On R36SX, Rockbox also follows TreeFrogUI's persistent **R36SX Display glitch
+fix** setting. Exit and reopen Rockbox after changing the setting.

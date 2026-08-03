@@ -101,13 +101,32 @@ sleep 0.5
 TF_NOSLEEP_ADDRS="@NOSLEEP@"
 if [ -n "$TF_NOSLEEP_ADDRS" ] && grep -q '^disable_sleep=on' /mnt/sdcard/frogui/settings.txt 2>/dev/null; then
     echo 0 > /proc/sys/kernel/yama/ptrace_scope 2>/dev/null
-    [ -f /mnt/sdcard/cubegm/nosleep ] && /mnt/sdcard/cubegm/nosleep -w $TF_NOSLEEP_ADDRS >/dev/null 2>&1 &
+    [ -f /mnt/sdcard/cubegm/nosleep ] && /mnt/sdcard/cubegm/nosleep -w $TF_NOSLEEP_ADDRS >> "$LOG" 2>&1 &
 fi
 
 PICOARCH=/mnt/sdcard/cubegm/picoarch
 PICOARCH_HI=/mnt/sdcard/cubegm/picoarch_hi
 FROGUI_CORE=/mnt/sdcard/cubegm/cores/frogui_libretro.so
+R36SX_DISPLAYFIX=/mnt/sdcard/cubegm/r36sx_displayfix.so
 LAUNCH=/tmp/frogui_launch.txt
+
+# Picoarch launches games and standalone emulators with execl(), so a preload
+# added only after FrogUI exits is too late: the shell never regains control.
+# Put the optional panel shim on the first frontend process; every exec-chained
+# game inherits it. FrogUI sees the marker and skips its duplicate internal fix.
+if grep -q '^r36sx_display_glitch_fix=on' /mnt/sdcard/frogui/settings.txt 2>/dev/null &&
+   [ -f "$R36SX_DISPLAYFIX" ]; then
+    R36SX_DISPLAYFIX_ACTIVE=1
+    echo "R36SX Display glitch fix: active for frontend, games and emulator menus" >> "$LOG"
+fi
+run_with_displayfix() {
+    if [ "$R36SX_DISPLAYFIX_ACTIVE" = 1 ]; then
+        TF_R36SX_DISPLAYFIX_PRELOADED=1 \
+        LD_PRELOAD="$R36SX_DISPLAYFIX${LD_PRELOAD:+:$LD_PRELOAD}" "$@"
+    else
+        "$@"
+    fi
+}
 
 # Self-healing HW-render fallback (disp_frame devices, non-R36SX). A few units  #@HW@
 # can't drive the HW path and picoarch ABORTS on it (SIGABRT/SIGBUS) before it  #@HW@
@@ -139,7 +158,7 @@ while true; do
     rm -f "$LAUNCH"
     killall rkgame 2>/dev/null #@KILL@
     echo "--- iter $ITER: frogui ---" >> "$LOG"
-    "$PICOARCH" "$FROGUI_CORE" "$FROGUI_CORE" >> "$LOG" 2>&1
+    run_with_displayfix "$PICOARCH" "$FROGUI_CORE" "$FROGUI_CORE" >> "$LOG" 2>&1
     RC=$?
     echo "frogui exited rc=$RC" >> "$LOG"
     hw_crash_check "$RC"
@@ -167,7 +186,7 @@ while true; do
                 *gpsp*|*pcsx*|*ps1*) [ -f "$PICOARCH_HI" ] && BIN="$PICOARCH_HI" ;;
             esac
             echo "--- iter $ITER: game [$CORE_PATH] via $BIN ---" >> "$LOG"
-            "$BIN" "$CORE_PATH" "$ROM_PATH" >> "$LOG" 2>&1
+            run_with_displayfix "$BIN" "$CORE_PATH" "$ROM_PATH" >> "$LOG" 2>&1
             GRC=$?
             echo "game exited rc=$GRC" >> "$LOG"
             hw_crash_check "$GRC"

@@ -20,6 +20,7 @@ Current standalone apps:
 | `pico286`        | `cubegm/pico286`   | DOS / PC (8086-286), boots FreeDOS |
 | `lgpt`           | `cubegm/lgpt`      | LittleGPTracker (music tracker)    |
 | `rockbox`        | `cubegm/rockbox.sh`| Rockbox music player               |
+| Files: video     | `cubegm/video_player.sh` | H.OS hardware-decoded video player |
 | `Ebook`          | `cubegm/ebook`     | Ebook/document reader (MuPDF - EPUB/MOBI/PDF) - [guide](cores/ebook.md) |
 
 ## The launch contract

@@ -81,10 +81,11 @@ declare -A HJ=(
 )
 
 # Per-device cubevol sleep-arm text addresses for the nosleep live-patcher
-# (opt-in via FrogUI Settings -> "Disable Sleep"). NOPed in RAM so the on-disk
-# cubevol stays pristine (SF3500 boot-verifies it). Empty = not supported/tested
-# on that device (sleep lives elsewhere, or cubevol differs). Addresses are the
-# stores that ARM sleep: tap, idle-timeout, set_sleep_mode_state, msg-269 send.
+# (opt-in via FrogUI Settings -> "Safe Power Mode"). The first (tap) store is
+# redirected to FrogUI's power-event bridge; the remaining stores are NOPed in
+# RAM, so the on-disk cubevol stays pristine and long-press shutdown survives.
+# Empty = unsupported/untested on that device. Address order is significant:
+# tap, idle-timeout, set_sleep_mode_state, msg-269 send.
 declare -A NOSLEEP_ADDRS=(
   [r36sx]="0x406d24 0x40701c 0x406b50"
   [r36hd]="0x406d24 0x40701c 0x406b50"
@@ -107,13 +108,16 @@ cp_if_diff "$FROGUI"      "$STAGE/cubegm/cores/frogui_libretro.so"
 cp_if_diff "$TYRQUAKE"    "$STAGE/cubegm/cores/tyrquake_libretro.so"
 sh "$HIJACK/build_tfhijack.sh" >/dev/null
 cp_if_diff "$HIJACK/nosleep" "$STAGE/cubegm/nosleep"
+cp_if_diff "$HIJACK/r36sx_displayfix.so" "$STAGE/cubegm/r36sx_displayfix.so"
+cp_if_diff "apps/rockbox.sh" "$STAGE/cubegm/rockbox.sh"
+[ -f "apps/settings.png" ] && cp_if_diff "apps/settings.png" "$STAGE/frogui/settings.png"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/cubegm/cores" "$OUT/cubegm/lib" "$OUT/$(dirname "$DUMMY_REL")"
 
 # 1) Universal payload — our files only, NO stock, NO icube.
 cp -a "$STAGE/cubegm/cores/." "$OUT/cubegm/cores/"
-for f in picoarch picoarch_hi nosleep driver_r36sx.so driver_r36sx27.so driver_sf3000.so driver_sf3500.so driver_gb350.so; do
+for f in picoarch picoarch_hi nosleep r36sx_displayfix.so driver_r36sx.so driver_r36sx27.so driver_sf3000.so driver_sf3500.so driver_gb350.so; do
     cp "$STAGE/cubegm/$f" "$OUT/cubegm/$f"
 done
 # zhijack.sh is per-device (generated into install_first/<dev>/cubegm/ below) —
@@ -182,7 +186,8 @@ for dev in "${!STOCK[@]}"; do
     #      GB350) use the original; 854x480 panels (SF3000/HD/SF3100/SF3500) use the
     #      SF3000-format one. Shipping it here replaces the old fix_bootlogo script.
     case "$dev" in
-        r36sx|r36hd|gb350) logo="$STAGE/cubegm/xgame-logo.bmp" ;;
+        r36sx)       logo="frogui/res/xgame-logo-r36sx.bmp" ;;
+        r36hd|gb350) logo="$STAGE/cubegm/xgame-logo.bmp" ;;
         *)           logo="$STAGE/cubegm/xgame-logo-sf3000.bmp" ;;
     esac
     [ -f "$logo" ] && cp "$logo" "$dst/cubegm/xgame-logo.bmp"

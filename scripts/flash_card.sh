@@ -35,7 +35,7 @@ REL="$REPO/release"
 #            lives in a separate component (kernel evdev / another daemon), not
 #            cubevol. Left as stock; its sleep is a proper suspend/resume anyway.
 case "$1" in
-  r36sx)  BK="$WORK/R36SX_sdcard";                INST=r36sx;  LABEL=R36SX  ; NOSLEEP="6d24:bb18 701c:bb18" ;;
+  r36sx)  BK="$WORK/R36SX_sdcard";                INST=r36sx;  LABEL=R36SX  ; NOSLEEP="6d24:bb18 701c:bb18 6b50:bb18" ;;
   sf3000) BK="$WORK/SF3000_sdcard/SF3000_sdcard"; INST=sf3000; LABEL=SF3000 ; NOSLEEP="" ;;
   sf3500) BK="$WORK/SF3500_sdcard_v1.1";          INST=sf3500; LABEL=SF3500 ; NOSLEEP="" ;;
   *) echo "usage: sudo sh $0 <r36sx|sf3000|sf3500> [/dev/sdX]"; exit 1 ;;
