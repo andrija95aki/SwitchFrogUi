@@ -56,6 +56,8 @@ jobs:
           git clone --filter=blob:none https://github.com/tzubertowski/TreeFrogUI_pcsx4all.git "$RUNNER_TEMP/pcsx-port"
           git -C "$RUNNER_TEMP/pcsx-port" checkout "$PORT_COMMIT"
           rsync -a --exclude=.git/ "$RUNNER_TEMP/pcsx-port/" "$RUNNER_TEMP/pcsx4all/"
+          cp "$GITHUB_WORKSPACE/patches/pcsx4all/tf_driver.h" \
+            "$RUNNER_TEMP/pcsx4all/src/port/sf3000/tf_driver.h"
           git -C "$RUNNER_TEMP/pcsx4all" apply "$GITHUB_WORKSPACE/patches/r36sx-pcsx4all-runtime.patch"
 
       - name: Build GNU launcher and PCSX4ALL
