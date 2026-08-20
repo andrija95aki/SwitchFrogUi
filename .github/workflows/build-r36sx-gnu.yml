@@ -88,7 +88,7 @@ jobs:
           sources=(png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c pngrio.c \
             pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c pngwrite.c pngwtran.c pngwutil.c)
           for source in "${sources[@]}"; do
-            "$SF_GCC" --sysroot="$SF_SYSROOT" -O2 -mips32r2 -mhard-float -mfp32 \
+            "$SF_GCC" -EL --sysroot="$SF_SYSROOT" -O2 -mips32r2 -mhard-float -mfp32 \
               -I. -I"$SF_SYSROOT/usr/include" -c "$source" \
               -o "target-objects/${source%.c}.o"
           done
