@@ -118,4 +118,20 @@ Get-ChildItem -LiteralPath $output -File |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } |
     Set-Content -Encoding ascii (Join-Path $output 'SHA256SUMS.txt')
+
+# Also stage the files in their final SD-card layout. This keeps source builds
+# genuinely plug-and-play and ensures redistributable UI assets are not missed.
+$cardFiles = Join-Path $output 'card-files'
+$cardCore = Join-Path $cardFiles 'cubegm\cores'
+$cardFonts = Join-Path $cardFiles 'frogui\fonts'
+$cardSounds = Join-Path $cardFiles 'frogui\sounds'
+New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds | Out-Null
+Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
+Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
+$extraFonts = Join-Path $repoRoot 'assets\ui-fonts'
+if (Test-Path -LiteralPath $extraFonts) { Copy-Item -Recurse -Force -Path (Join-Path $extraFonts '*') -Destination $cardFonts }
+$uiSounds = Join-Path $repoRoot 'assets\sounds'
+if (Test-Path -LiteralPath $uiSounds) { Copy-Item -Recurse -Force -Path (Join-Path $uiSounds '*') -Destination $cardSounds }
 Write-Host "R36SX build complete: $output"

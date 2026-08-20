@@ -88,15 +88,17 @@ New-Item -ItemType Directory -Force -Path (Join-Path $sdRoot 'frogui') | Out-Nul
 Get-ChildItem -LiteralPath $frogSource -File |
     Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|bmp)$' -or $_.Name -eq 'keymap.txt' } |
     ForEach-Object { Copy-CardFile (Join-Path 'frogui' $_.Name) }
-foreach ($directory in @('frogui\fonts','frogui\wallpapers')) {
+foreach ($directory in @('frogui\fonts','frogui\sounds','frogui\wallpapers')) {
     if (Test-Path -LiteralPath (Join-Path $card $directory)) { Copy-CardDirectory $directory }
 }
 @(
     'theme=Switch Dark',
-    'background_color=theme',
+    'background=Theme / artwork',
+    'font_size=100',
     'brightness=75',
     'screen_timeout=30',
     'volume=50',
+    'ui_sound_pack=Classic',
     'r36sx_display_glitch_fix=off',
     'disable_sleep=on'
 ) | Set-Content -Encoding ascii (Join-Path $sdRoot 'frogui\settings.txt')

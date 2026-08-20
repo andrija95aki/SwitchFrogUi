@@ -331,10 +331,61 @@ index a23769d..5f4f157 100644
  int favorites_get_count(void);
  
 diff --git a/font.c b/font.c
-index 6a04e1d..31db3c4 100644
+index 6a04e1d..1c1cad7 100644
 --- a/font.c
 +++ b/font.c
-@@ -278,3 +278,24 @@ int font_measure_text(const char *text) {
+@@ -10,6 +10,7 @@ static stbtt_fontinfo font_info;
+ static unsigned char *font_buffer = NULL;
+ static float font_scale;
+ static int font_loaded = 0;
++static int font_size_percent = 100;
+ 
+ #ifndef UI_SCALE
+ #define UI_SCALE 100
+@@ -65,7 +66,8 @@ static int load_font_file(const char *font_filename) {
+     }
+ 
+     // Calculate scale for desired pixel height
+-    font_scale = stbtt_ScaleForPixelHeight(&font_info, FONT_SIZE);
++    font_scale = stbtt_ScaleForPixelHeight(&font_info,
++                 FONT_SIZE * (float)font_size_percent / 100.0f);
+     font_loaded = 1;
+     return 1;
+ }
+@@ -74,9 +76,21 @@ void font_load_file(const char *font_filename) {
+     if (!font_filename || !font_filename[0]) return;
+     load_font_file(font_filename);
+     if (font_loaded)
+-        font_scale = stbtt_ScaleForPixelHeight(&font_info, FONT_SIZE);
++        font_scale = stbtt_ScaleForPixelHeight(&font_info,
++                     FONT_SIZE * (float)font_size_percent / 100.0f);
+ }
+ 
++void font_set_size_percent(int percent) {
++    if (percent < 70) percent = 70;
++    if (percent > 130) percent = 130;
++    font_size_percent = percent;
++    if (font_loaded)
++        font_scale = stbtt_ScaleForPixelHeight(&font_info,
++                     FONT_SIZE * (float)font_size_percent / 100.0f);
++}
++
++int font_get_size_percent(void) { return font_size_percent; }
++
+ void font_load_from_settings(const char *font_name) {
+     const char *font_filename = NULL;
+     float custom_size = FONT_SIZE;
+@@ -92,7 +106,8 @@ void font_load_from_settings(const char *font_name) {
+     load_font_file(font_filename);
+ 
+     if (font_loaded) {
+-        font_scale = stbtt_ScaleForPixelHeight(&font_info, custom_size);
++        font_scale = stbtt_ScaleForPixelHeight(&font_info,
++                     custom_size * (float)font_size_percent / 100.0f);
+     }
+ }
+ 
+@@ -278,3 +293,24 @@ int font_measure_text(const char *text) {
  
      return width;
  }
@@ -360,10 +411,21 @@ index 6a04e1d..31db3c4 100644
 +    return width;
 +}
 diff --git a/font.h b/font.h
-index 4a0fa5e..2a8711d 100644
+index 4a0fa5e..16d5e44 100644
 --- a/font.h
 +++ b/font.h
-@@ -21,8 +21,15 @@ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
+@@ -13,6 +13,10 @@ void font_load_from_settings(const char *font_name);
+ // Searches the standard font directories. Used by the dynamic font picker.
+ void font_load_file(const char *font_filename);
+ 
++/* Runtime UI size, persisted by FrogUI. 100 is the original size. */
++void font_set_size_percent(int percent);
++int font_get_size_percent(void);
++
+ // Draw a single character at position (x, y) with given color
+ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height, 
+                    int x, int y, char c, uint16_t color);
+@@ -21,8 +25,15 @@ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
  void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
                     int x, int y, const char *text, uint16_t color);
  
@@ -379,7 +441,7 @@ index 4a0fa5e..2a8711d 100644
  
  // Vertical metrics for centering: baseline (top-of-cell to baseline) and
  // cap_height (pixel height of capitals = the visible ink band).
-@@ -36,4 +43,4 @@ void font_cap_metrics(int *baseline_out, int *cap_height_out);
+@@ -36,4 +47,4 @@ void font_cap_metrics(int *baseline_out, int *cap_height_out);
  #define FONT_CHAR_HEIGHT   (20 * UI_SCALE / 100)
  #define FONT_CHAR_SPACING  (13 * UI_SCALE / 100)
  
@@ -413,7 +475,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..4250f19 100644
+index a72c4e6..e7a8f7b 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,15 @@
@@ -462,7 +524,7 @@ index a72c4e6..4250f19 100644
  
  static DirEntry *entries    = NULL;
  static int entry_count      = 0;
-@@ -342,9 +352,28 @@ static char current_path[MAX_PATH_LEN] = ROMS_PATH_DEFAULT;
+@@ -342,9 +352,35 @@ static char current_path[MAX_PATH_LEN] = ROMS_PATH_DEFAULT;
  static int selected_index   = 0;
  static int scroll_offset    = 0;
  static uint16_t *framebuffer = NULL;
@@ -476,6 +538,8 @@ index a72c4e6..4250f19 100644
 +static int controls_help_scroll = 0;
 +static bool hardware_info_active = false;
 +static int hardware_info_scroll = 0;
++static bool theme_gallery_active = false;
++static int theme_gallery_idx = 0;
 +static bool game_details_active = false;
 +static bool compact_game_list = false;
 +static char game_details_path[MAX_PATH_LEN] = "";
@@ -484,14 +548,19 @@ index a72c4e6..4250f19 100644
 +static void render_hardware_info(void);
 +static const char *card_full_path(int index, char *out, size_t n);
 +
-+/* Generated UI tones use no asset files. */
++/* Configurable UI feedback: built-in fallback tones plus small CC0 WAV packs. */
 +static int ui_sound_frames = 0;
 +static unsigned ui_sound_phase = 0;
++typedef struct { int16_t *samples; int frames; } UiClip;
++static UiClip ui_clips[3];
++static const int16_t *ui_clip_playing = NULL;
++static int ui_clip_frames = 0, ui_clip_pos = 0;
++static int ui_loaded_sound_pack = -1;
 +static int ui_rendered_once = 0;
  
  /* Search (X button): on-screen keyboard → filtered results.
   * Scope = the folder you were in (ROMS_PATH root = search everything). */
-@@ -445,33 +474,60 @@ static void font_scan(void) {
+@@ -445,33 +481,67 @@ static void font_scan(void) {
  }
  
  static bool settings_menu_active = false;
@@ -500,6 +569,7 @@ index a72c4e6..4250f19 100644
  static int settings_theme_idx = 0;
 +static int settings_background_idx = 0; /* 0=theme/banner default, >0=solid custom background */
  static int settings_font_idx = 0;
++static int settings_font_size = 100;    /* 70..130%, step 5 */
  static int settings_brightness = 75;    /* 0..100, step 5 */
  static int settings_filter_idx = 1;     /* forced bilinear (option removed from menu) */
  static int settings_filter_idx_on_enter = 0;  /* snapshot for restart-on-change */
@@ -513,6 +583,7 @@ index a72c4e6..4250f19 100644
 +static int settings_disable_sleep = 1;  /* R36SX stock standby loses the display on wake; safe default is disabled. */
 +static int settings_r36sx_display_fix = 0; /* compensate the 110px left-band / 1px vertical panel fault */
 +static int settings_volume = 100;       /* perceptual master level, 0..100 */
++static int settings_sound_pack = 1;     /* 0=off, 1=classic tones, 2..4=CC0 packs */
 +static const int screen_timeout_seconds[] = {10, 20, 30, 60};
 +static int settings_screen_timeout_idx = 2;
 +static unsigned screen_idle_frames = 0;
@@ -535,6 +606,7 @@ index a72c4e6..4250f19 100644
  #define FILTER_COUNT 2
 +#define SCREEN_TIMEOUT_COUNT 4
  #define SETTINGS_BRIGHTNESS_STEP 5
++#define SETTINGS_FONT_SIZE_STEP 5
  /* Filter option removed from the menu — always bilinear (HW path). */
 -#define SETTINGS_ROW_COUNT 11
 -#define SETTINGS_ROW_AUTORESUME 3
@@ -545,27 +617,31 @@ index a72c4e6..4250f19 100644
 -#define SETTINGS_ROW_REMAP 8
 -#define SETTINGS_ROW_VOLUME 9
 -#define SETTINGS_ROW_NOSLEEP 10
-+#define SETTINGS_ROW_COUNT 15
++#define SETTINGS_ROW_COUNT 17
 +#define SETTINGS_ROW_THEME 0
 +#define SETTINGS_ROW_BACKGROUND 1
 +#define SETTINGS_ROW_FONT 2
-+#define SETTINGS_ROW_BRIGHTNESS 3
-+#define SETTINGS_ROW_TIMEOUT 4
-+#define SETTINGS_ROW_AUTORESUME 5
-+#define SETTINGS_ROW_HIDEEMPTY 6
-+#define SETTINGS_ROW_SWITCHER 7
-+#define SETTINGS_ROW_LOADRECENTS 8
-+#define SETTINGS_ROW_REMAP 9
-+#define SETTINGS_ROW_VOLUME 10
-+#define SETTINGS_ROW_NOSLEEP 11
-+#define SETTINGS_ROW_DISPLAYFIX 12
-+#define SETTINGS_ROW_HARDWARE 13
-+#define SETTINGS_ROW_CONTROLS 14
++#define SETTINGS_ROW_FONT_SIZE 3
++#define SETTINGS_ROW_BRIGHTNESS 4
++#define SETTINGS_ROW_TIMEOUT 5
++#define SETTINGS_ROW_AUTORESUME 6
++#define SETTINGS_ROW_HIDEEMPTY 7
++#define SETTINGS_ROW_SWITCHER 8
++#define SETTINGS_ROW_LOADRECENTS 9
++#define SETTINGS_ROW_REMAP 10
++#define SETTINGS_ROW_VOLUME 11
++#define SETTINGS_ROW_SOUNDS 12
++#define SETTINGS_ROW_NOSLEEP 13
++#define SETTINGS_ROW_DISPLAYFIX 14
++#define SETTINGS_ROW_HARDWARE 15
++#define SETTINGS_ROW_CONTROLS 16
 +#define HARDWARE_INFO_ROW_COUNT 11
++static const char *sound_pack_names[] = {"Off", "Classic", "Bright", "Soft", "Cyber"};
++#define SOUND_PACK_COUNT ((int)(sizeof(sound_pack_names)/sizeof(sound_pack_names[0])))
  
  static bool remap_wizard_active = false;
  static int  remap_step = 0;
-@@ -483,24 +539,49 @@ static void mkdir_p(const char *path) {
+@@ -483,24 +553,109 @@ static void mkdir_p(const char *path) {
      system(cmd);
  }
  
@@ -589,12 +665,70 @@ index a72c4e6..4250f19 100644
 +    return (low * (5 - remainder) + high * remainder + 2) / 5;
 +}
 +
++static unsigned wav_u16(const unsigned char *p) { return (unsigned)p[0] | ((unsigned)p[1] << 8); }
++static unsigned wav_u32(const unsigned char *p) {
++    return (unsigned)p[0] | ((unsigned)p[1] << 8) | ((unsigned)p[2] << 16) | ((unsigned)p[3] << 24);
++}
++
++static void ui_sound_free_clips(void) {
++    for (int i=0;i<3;i++) { free(ui_clips[i].samples); ui_clips[i].samples=NULL; ui_clips[i].frames=0; }
++    ui_clip_playing=NULL; ui_clip_frames=ui_clip_pos=0;
++}
++
++/* Load a small PCM16 WAV. Assets are normalized to mono/44.1 kHz at build
++ * time, but stereo is accepted so replacing a pack remains straightforward. */
++static int ui_sound_load_wav(const char *path, UiClip *clip) {
++    FILE *f=fopen(path,"rb");
++    if(!f) return 0;
++    unsigned char head[12];
++    if(fread(head,1,12,f)!=12 || memcmp(head,"RIFF",4) || memcmp(head+8,"WAVE",4)) { fclose(f); return 0; }
++    unsigned channels=0, rate=0, bits=0, format=0, data_size=0;
++    long data_pos=0;
++    for(;;) {
++        unsigned char ch[8];
++        if(fread(ch,1,8,f)!=8) break;
++        unsigned size=wav_u32(ch+4); long next=ftell(f)+(long)size+(size&1u);
++        if(!memcmp(ch,"fmt ",4) && size>=16) {
++            unsigned char fmt[16]; if(fread(fmt,1,16,f)!=16) break;
++            format=wav_u16(fmt); channels=wav_u16(fmt+2); rate=wav_u32(fmt+4); bits=wav_u16(fmt+14);
++        } else if(!memcmp(ch,"data",4)) { data_pos=ftell(f); data_size=size; }
++        fseek(f,next,SEEK_SET);
++        if(data_pos && format) break;
++    }
++    if(format!=1 || (channels!=1 && channels!=2) || rate!=44100 || bits!=16 || !data_pos || data_size<2) { fclose(f); return 0; }
++    int source_frames=(int)(data_size/(channels*2));
++    int16_t *source=(int16_t*)malloc(data_size), *mono=(int16_t*)malloc((size_t)source_frames*sizeof(int16_t));
++    if(!source || !mono) { free(source); free(mono); fclose(f); return 0; }
++    fseek(f,data_pos,SEEK_SET);
++    if(fread(source,1,data_size,f)!=data_size) { free(source); free(mono); fclose(f); return 0; }
++    fclose(f);
++    for(int i=0;i<source_frames;i++)
++        mono[i]=channels==1 ? source[i] : (int16_t)(((int)source[i*2]+(int)source[i*2+1])/2);
++    free(source); clip->samples=mono; clip->frames=source_frames; return 1;
++}
++
++static void ui_sound_load_pack(void) {
++    if(ui_loaded_sound_pack==settings_sound_pack) return;
++    ui_sound_free_clips(); ui_loaded_sound_pack=settings_sound_pack;
++    if(settings_sound_pack<2) return;
++    static const char *pack_dirs[]={"bright","soft","cyber"};
++    static const char *events[]={"move","confirm","back"};
++    int p=settings_sound_pack-2;
++    for(int i=0;i<3;i++) {
++        char path[160]; snprintf(path,sizeof(path),"/mnt/sdcard/frogui/sounds/%s_%s.wav",pack_dirs[p],events[i]);
++        ui_sound_load_wav(path,&ui_clips[i]);
++    }
++}
++
  static void settings_apply(void) {
      extern const int theme_count;
      if (settings_theme_idx < 0 || settings_theme_idx >= theme_count) settings_theme_idx = 0;
 +    if (settings_background_idx < 0 || settings_background_idx >= BACKGROUND_COUNT)
 +        settings_background_idx = 0;
      if (settings_font_idx < 0 || settings_font_idx >= font_count) settings_font_idx = 0;
++    if (settings_font_size < 70) settings_font_size = 70;
++    if (settings_font_size > 130) settings_font_size = 130;
++    if (settings_sound_pack < 0 || settings_sound_pack >= SOUND_PACK_COUNT) settings_sound_pack = 1;
      if (settings_brightness < 0)   settings_brightness = 0;
      if (settings_brightness > 100) settings_brightness = 100;
 +    if (settings_screen_timeout_idx < 0 || settings_screen_timeout_idx >= SCREEN_TIMEOUT_COUNT)
@@ -609,6 +743,8 @@ index a72c4e6..4250f19 100644
 -    /* Global output volume: there's no system mixer on this hardware, so every
 -     * frontend (picoarch, pcsx4all, lgpt) reads this percent from sndgain.txt and
 -     * scales its own audio. FrogUI is the single place to set it. */
++    font_set_size_percent(settings_font_size);
++    ui_sound_load_pack();
 +    if (!screen_blanked) cube_set_backlight(settings_brightness);
 +    /* Global software volume for frontends that consume sndgain.txt. */
      if (settings_volume < 0)   settings_volume = 0;
@@ -622,7 +758,7 @@ index a72c4e6..4250f19 100644
  }
  
  static void settings_load_file(void) {
-@@ -519,25 +600,32 @@ static void settings_load_file(void) {
+@@ -519,25 +674,37 @@ static void settings_load_file(void) {
          if (strcmp(line, "theme") == 0) {
              for (int i = 0; i < theme_count; i++)
                  if (strcmp(themes[i].name, val) == 0) { settings_theme_idx = i; break; }
@@ -633,6 +769,8 @@ index a72c4e6..4250f19 100644
              for (int i = 0; i < font_count; i++)
                  if (strcasecmp(font_files[i], val) == 0 ||
                      strcasecmp(font_disp[i], val) == 0) { settings_font_idx = i; break; }
++        } else if (strcmp(line, "font_size") == 0) {
++            settings_font_size = atoi(val);
          } else if (strcmp(line, "brightness") == 0) {
              settings_brightness = atoi(val);
 +        } else if (strcmp(line, "screen_timeout") == 0) {
@@ -641,6 +779,9 @@ index a72c4e6..4250f19 100644
 +                if (screen_timeout_seconds[i] == seconds) { settings_screen_timeout_idx = i; break; }
          } else if (strcmp(line, "volume") == 0) {
              settings_volume = atoi(val);
++        } else if (strcmp(line, "ui_sound_pack") == 0) {
++            for (int i = 0; i < SOUND_PACK_COUNT; i++)
++                if (strcasecmp(sound_pack_names[i], val) == 0) { settings_sound_pack = i; break; }
          } else if (strcmp(line, "filter") == 0) {
              for (int i = 0; i < FILTER_COUNT; i++)
                  if (strcmp(filter_names[i], val) == 0) { settings_filter_idx = i; break; }
@@ -658,15 +799,17 @@ index a72c4e6..4250f19 100644
          } else if (strcmp(line, "game_switcher") == 0) {
              settings_game_switcher = (strcmp(val, "on") == 0) ? 1 : 0;
          } else if (strcmp(line, "load_recents") == 0) {
-@@ -553,16 +641,18 @@ static void settings_save_file(void) {
+@@ -553,16 +720,20 @@ static void settings_save_file(void) {
      FILE *f = fopen(SETTINGS_FILE, "w");
      if (!f) { dbg("settings save: fopen failed"); return; }
      fprintf(f, "theme=%s\n", themes[settings_theme_idx].name);
 +    fprintf(f, "background=%s\n", background_names[settings_background_idx]);
      fprintf(f, "font=%s\n", font_count > 0 ? font_files[settings_font_idx] : "");
++    fprintf(f, "font_size=%d\n", settings_font_size);
      fprintf(f, "brightness=%d\n", settings_brightness);
 +    fprintf(f, "screen_timeout=%d\n", screen_timeout_seconds[settings_screen_timeout_idx]);
      fprintf(f, "volume=%d\n", settings_volume);
++    fprintf(f, "ui_sound_pack=%s\n", sound_pack_names[settings_sound_pack]);
      fprintf(f, "filter=%s\n", filter_names[settings_filter_idx]);
      fprintf(f, "auto_resume=%s\n", onoff_names[settings_auto_resume]);
 -    fprintf(f, "animations=%s\n", onoff_names[settings_anim]);
@@ -678,7 +821,7 @@ index a72c4e6..4250f19 100644
      fflush(f);
      fsync(fileno(f));
      fclose(f);
-@@ -572,6 +662,80 @@ static void settings_save_file(void) {
+@@ -572,6 +743,80 @@ static void settings_save_file(void) {
        dbg(buf); }
  }
  
@@ -759,7 +902,7 @@ index a72c4e6..4250f19 100644
  static const char* get_basename(const char *path) {
      const char *b = strrchr(path, '/');
      return b ? b+1 : path;
-@@ -596,9 +760,48 @@ static const char* get_console_folder(const char *path) {
+@@ -596,9 +841,48 @@ static const char* get_console_folder(const char *path) {
      return NULL;
  }
  
@@ -811,7 +954,7 @@ index a72c4e6..4250f19 100644
  
  #define BANNER_DIR SDCARD_BASE "/frogui"
  
-@@ -632,6 +835,20 @@ static void load_banner_for_view(const char *path, bool is_recents, bool is_favo
+@@ -632,6 +916,20 @@ static void load_banner_for_view(const char *path, bool is_recents, bool is_favo
      banner_clear();
  }
  
@@ -832,7 +975,7 @@ index a72c4e6..4250f19 100644
  /* True if `path` contains at least one game (any file that isn't artwork/metadata),
   * recursing into subfolders. Used to hide empty rom folders. Bounded depth. */
  static int folder_has_games(const char *path, int depth) {
-@@ -642,11 +859,19 @@ static int folder_has_games(const char *path, int depth) {
+@@ -642,11 +940,19 @@ static int folder_has_games(const char *path, int depth) {
      int found = 0;
      while ((e = readdir(d)) != NULL) {
          if (e->d_name[0] == '.') continue;
@@ -855,7 +998,7 @@ index a72c4e6..4250f19 100644
              if (folder_has_games(full, depth + 1)) { found = 1; break; }
          } else {
              size_t nlen = strlen(e->d_name);
-@@ -654,6 +879,7 @@ static int folder_has_games(const char *path, int depth) {
+@@ -654,6 +960,7 @@ static int folder_has_games(const char *path, int depth) {
              const char *ext = strrchr(e->d_name, '.');
              if (ext && !is_p8png &&
                  (strcasecmp(ext,".csv")==0 || strcasecmp(ext,".txt")==0 ||
@@ -863,7 +1006,7 @@ index a72c4e6..4250f19 100644
                   strcasecmp(ext,".xml")==0 || strcasecmp(ext,".jpg")==0 ||
                   strcasecmp(ext,".png")==0)) continue;
              found = 1; break;
-@@ -663,35 +889,150 @@ static int folder_has_games(const char *path, int depth) {
+@@ -663,35 +970,150 @@ static int folder_has_games(const char *path, int depth) {
      return found;
  }
  
@@ -1022,7 +1165,7 @@ index a72c4e6..4250f19 100644
              strcmp(path, ROMS_PATH) == 0 && !folder_has_games(full, 0)) continue;
          if (entry_count >= entry_capacity) {
              entry_capacity = entry_capacity ? entry_capacity*2 : INITIAL_ENTRIES_CAPACITY;
-@@ -700,48 +1041,62 @@ static void scan_directory(const char *path) {
+@@ -700,48 +1122,62 @@ static void scan_directory(const char *path) {
          }
          strncpy(entries[entry_count].name, e->d_name, 255);
          entries[entry_count].name[255] = '\0';
@@ -1118,7 +1261,7 @@ index a72c4e6..4250f19 100644
      }
  done:
      if (!entries) entry_count = 0;   /* belt: renderer must never walk NULL */
-@@ -838,9 +1193,8 @@ static void render_game_switcher(uint16_t *framebuffer) {
+@@ -838,9 +1274,8 @@ static void render_game_switcher(uint16_t *framebuffer) {
  
      int drawn = 0;
      char path[1024];
@@ -1129,7 +1272,7 @@ index a72c4e6..4250f19 100644
          switcher_blit565(framebuffer, tb.data, tb.alpha, tb.width, tb.height, bx, by, bw, bh);
          free_thumbnail(&tb); drawn = 1;
      }
-@@ -895,10 +1249,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
+@@ -895,10 +1330,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
      int ph   = bot - top;
      if (pw < UI_S(60) || ph < UI_S(60)) return;          /* too narrow to bother */
  
@@ -1141,7 +1284,7 @@ index a72c4e6..4250f19 100644
  
      int nameh = UI_S(22);
      int aw = pw, ah = ph - nameh;
-@@ -936,6 +1288,7 @@ static void enter_recents_view(void) {
+@@ -936,6 +1369,7 @@ static void enter_recents_view(void) {
          strncpy(entries[entry_count].name, rg[i].game_name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -1149,7 +1292,7 @@ index a72c4e6..4250f19 100644
          entry_count++;
      }
      viewing_recents = true;
-@@ -989,11 +1342,6 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
+@@ -989,11 +1423,6 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
  
  static void request_standalone_launch(const char *bin_path, const char *rom_path) {
      dbg("standalone_launch: start");
@@ -1161,7 +1304,7 @@ index a72c4e6..4250f19 100644
      const char *rom_base = strrchr(rom_path, '/');
      rom_base = rom_base ? rom_base + 1 : rom_path;
      char game_name[256];
-@@ -1003,9 +1351,35 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
+@@ -1003,9 +1432,35 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
      if (dot) *dot = '\0';
      dbg("standalone_launch: calling recent_games_add");
      recent_games_add(bin_path, game_name, rom_path);
@@ -1199,7 +1342,7 @@ index a72c4e6..4250f19 100644
  }
  
  static bool is_ps1_folder(const char *folder) {
-@@ -1028,7 +1402,26 @@ static bool is_standalone_bin(const char *name) {
+@@ -1028,7 +1483,26 @@ static bool is_standalone_bin(const char *name) {
      return name && (strcmp(name, PCSX4ALL_BIN) == 0 ||
                      strcmp(name, PICO286_BIN)  == 0 ||
                      strcmp(name, LGPT_BIN)     == 0 ||
@@ -1227,7 +1370,7 @@ index a72c4e6..4250f19 100644
  }
  
  /* ----------------------------- Search (X button) ----------------------------- */
-@@ -1079,9 +1472,8 @@ static void search_walk(const char *dir, int depth) {
+@@ -1079,9 +1553,8 @@ static void search_walk(const char *dir, int depth) {
          if (e->d_name[0] == '.') continue;
          char p[MAX_PATH_LEN];
          snprintf(p, sizeof(p), "%s/%s", dir, e->d_name);
@@ -1239,7 +1382,7 @@ index a72c4e6..4250f19 100644
              if (depth < 3) search_walk(p, depth + 1);
          } else if (str_icontains(e->d_name, search_query)) {
              search_add_result(e->d_name, p);
-@@ -1106,6 +1498,7 @@ static void run_search(void) {
+@@ -1106,6 +1579,7 @@ static void run_search(void) {
          strncpy(entries[entry_count].name, search_results[i].name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -1247,7 +1390,7 @@ index a72c4e6..4250f19 100644
          entry_count++;
      }
      viewing_search = true;
-@@ -1113,11 +1506,27 @@ static void run_search(void) {
+@@ -1113,11 +1587,27 @@ static void run_search(void) {
      selected_index = 0; scroll_offset = 0;
  }
  
@@ -1279,7 +1422,7 @@ index a72c4e6..4250f19 100644
      const char *core = ov ? ov : get_core_for_folder(folder);
      if (!core) core = get_core_for_extension(path);
      if (ov)
-@@ -1133,13 +1542,94 @@ static void search_launch(int idx) {
+@@ -1133,13 +1623,94 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -1375,7 +1518,21 @@ index a72c4e6..4250f19 100644
      /* Search keyboard overlay */
      if (search_kbd_active) {
          if (input_was_pressed(FROG_BTN_UP))    search_kbd_r = (search_kbd_r - 1 + KBD_NROWS) % KBD_NROWS;
-@@ -1202,20 +1692,22 @@ static void handle_input(void) {
+@@ -1182,11 +1753,11 @@ static void handle_input(void) {
+         }
+         if (input_was_pressed(FROG_BTN_LEFT)) {
+             core_picker_idx -= VISIBLE_ENTRIES;
+-            if (core_picker_idx < 0) core_picker_idx = 0;
++            if (core_picker_idx < 0) core_picker_idx = core_choice_count - 1;
+         }
+         if (input_was_pressed(FROG_BTN_RIGHT)) {
+             core_picker_idx += VISIBLE_ENTRIES;
+-            if (core_picker_idx >= core_choice_count) core_picker_idx = core_choice_count - 1;
++            if (core_picker_idx >= core_choice_count) core_picker_idx = 0;
+         }
+         if (core_picker_idx < core_picker_scroll)
+             core_picker_scroll = core_picker_idx;
+@@ -1202,20 +1773,22 @@ static void handle_input(void) {
          return;
      }
  
@@ -1406,16 +1563,15 @@ index a72c4e6..4250f19 100644
              remap_step++;
              if (remap_step >= FROG_BTN_COUNT) {
                  remap_wizard_active = false;
-@@ -1225,6 +1717,31 @@ static void handle_input(void) {
+@@ -1225,6 +1798,46 @@ static void handle_input(void) {
          return;
      }
  
 +    if (hardware_info_active) {
-+        if (input_was_pressed(FROG_BTN_UP) && hardware_info_scroll > 0)
-+            hardware_info_scroll--;
-+        if (input_was_pressed(FROG_BTN_DOWN) &&
-+            hardware_info_scroll < HARDWARE_INFO_ROW_COUNT - 7)
-+            hardware_info_scroll++;
++        if (input_was_pressed(FROG_BTN_UP))
++            hardware_info_scroll=hardware_info_scroll>0?hardware_info_scroll-1:HARDWARE_INFO_ROW_COUNT-7;
++        if (input_was_pressed(FROG_BTN_DOWN))
++            hardware_info_scroll=hardware_info_scroll<HARDWARE_INFO_ROW_COUNT-7?hardware_info_scroll+1:0;
 +        if (input_was_pressed(FROG_BTN_B) || input_was_pressed(FROG_BTN_A)) {
 +            hardware_info_active = false;
 +            settings_menu_active = true;
@@ -1424,10 +1580,10 @@ index a72c4e6..4250f19 100644
 +    }
 +
 +    if (controls_help_active) {
-+        if (input_was_pressed(FROG_BTN_UP) && controls_help_scroll > 0)
-+            controls_help_scroll--;
-+        if (input_was_pressed(FROG_BTN_DOWN) && controls_help_scroll < 12)
-+            controls_help_scroll++;
++        if (input_was_pressed(FROG_BTN_UP))
++            controls_help_scroll=controls_help_scroll>0?controls_help_scroll-1:12;
++        if (input_was_pressed(FROG_BTN_DOWN))
++            controls_help_scroll=controls_help_scroll<12?controls_help_scroll+1:0;
 +        if (input_was_pressed(FROG_BTN_B) || input_was_pressed(FROG_BTN_A)) {
 +            controls_help_active = false;
 +            settings_menu_active = true;
@@ -1435,24 +1591,43 @@ index a72c4e6..4250f19 100644
 +        return;
 +    }
 +
++    if (theme_gallery_active) {
++        extern const int theme_count;
++        if (input_was_pressed(FROG_BTN_UP) || input_was_pressed(FROG_BTN_LEFT))
++            theme_gallery_idx=(theme_gallery_idx-1+theme_count)%theme_count;
++        if (input_was_pressed(FROG_BTN_DOWN) || input_was_pressed(FROG_BTN_RIGHT))
++            theme_gallery_idx=(theme_gallery_idx+1)%theme_count;
++        if (input_was_pressed(FROG_BTN_A)) {
++            settings_theme_idx=theme_gallery_idx;
++            settings_apply(); settings_save_file();
++        }
++        if (input_was_pressed(FROG_BTN_B)) {
++            theme_gallery_active=false; settings_menu_active=true;
++        }
++        return;
++    }
++
      if (settings_menu_active) {
          extern const int theme_count;
          if (input_was_pressed(FROG_BTN_UP))
-@@ -1233,19 +1750,24 @@ static void handle_input(void) {
+@@ -1233,19 +1846,26 @@ static void handle_input(void) {
              settings_menu_idx = (settings_menu_idx + 1) % SETTINGS_ROW_COUNT;
          if (input_was_pressed(FROG_BTN_LEFT) || input_was_pressed(FROG_BTN_RIGHT)) {
              int delta = input_was_pressed(FROG_BTN_RIGHT) ? 1 : -1;
 -            if (settings_menu_idx == 0) {
-+            if (settings_menu_idx == SETTINGS_ROW_THEME) {
-                 settings_theme_idx = (settings_theme_idx + delta + theme_count) % theme_count;
+-                settings_theme_idx = (settings_theme_idx + delta + theme_count) % theme_count;
 -            } else if (settings_menu_idx == 1) {
-+            } else if (settings_menu_idx == SETTINGS_ROW_BACKGROUND) {
++            if (settings_menu_idx == SETTINGS_ROW_BACKGROUND) {
 +                settings_background_idx =
 +                    (settings_background_idx + delta + BACKGROUND_COUNT) % BACKGROUND_COUNT;
 +            } else if (settings_menu_idx == SETTINGS_ROW_FONT) {
                  if (font_count > 0)
                      settings_font_idx = (settings_font_idx + delta + font_count) % font_count;
 -            } else if (settings_menu_idx == 2) {
++            } else if (settings_menu_idx == SETTINGS_ROW_FONT_SIZE) {
++                settings_font_size += delta * SETTINGS_FONT_SIZE_STEP;
++                if (settings_font_size < 70) settings_font_size = 70;
++                if (settings_font_size > 130) settings_font_size = 130;
 +            } else if (settings_menu_idx == SETTINGS_ROW_BRIGHTNESS) {
                  settings_brightness += delta * SETTINGS_BRIGHTNESS_STEP;
                  if (settings_brightness < 0)   settings_brightness = 0;
@@ -1468,9 +1643,12 @@ index a72c4e6..4250f19 100644
              } else if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
                  settings_hide_empty = (settings_hide_empty + delta + 2) % 2;
              } else if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
-@@ -1257,7 +1779,9 @@ static void handle_input(void) {
+@@ -1256,11 +1876,21 @@ static void handle_input(void) {
+                 settings_volume += delta * 5;
                  if (settings_volume < 0)   settings_volume = 0;
                  if (settings_volume > 100) settings_volume = 100;
++            } else if (settings_menu_idx == SETTINGS_ROW_SOUNDS) {
++                settings_sound_pack=(settings_sound_pack+delta+SOUND_PACK_COUNT)%SOUND_PACK_COUNT;
              } else if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
 -                settings_disable_sleep = (settings_disable_sleep + delta + 2) % 2;
 +                settings_disable_sleep = 1;
@@ -1479,7 +1657,16 @@ index a72c4e6..4250f19 100644
              }
              settings_apply();
          }
-@@ -1268,7 +1792,21 @@ static void handle_input(void) {
++        if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_THEME) {
++            theme_gallery_idx=settings_theme_idx;
++            theme_gallery_active=true;
++            settings_menu_active=false;
++            return;
++        }
+         if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_REMAP) {
+             remap_step = 0;
+             remap_prev_raw = input_get_raw_state();
+@@ -1268,7 +1898,22 @@ static void handle_input(void) {
              settings_menu_active = false;
              return;
          }
@@ -1496,13 +1683,14 @@ index a72c4e6..4250f19 100644
 +            settings_menu_active = false;
 +            return;
 +        }
-+        if ((input_was_pressed(FROG_BTN_A) && settings_menu_idx != SETTINGS_ROW_REMAP &&
++        if ((input_was_pressed(FROG_BTN_A) && settings_menu_idx != SETTINGS_ROW_THEME &&
++             settings_menu_idx != SETTINGS_ROW_REMAP &&
 +             settings_menu_idx != SETTINGS_ROW_CONTROLS &&
 +             settings_menu_idx != SETTINGS_ROW_HARDWARE) ||
               input_was_pressed(FROG_BTN_B)) {
              settings_save_file();
              settings_menu_active = false;
-@@ -1281,7 +1819,7 @@ static void handle_input(void) {
+@@ -1281,7 +1926,7 @@ static void handle_input(void) {
      }
  
      /* X: open search. Scope = current folder (ROMS root → search everything). */
@@ -1511,7 +1699,7 @@ index a72c4e6..4250f19 100644
          search_query[0] = '\0';
          search_kbd_r = 0; search_kbd_c = 0;
          strncpy(search_scope, current_path, sizeof(search_scope)-1);
-@@ -1290,13 +1828,37 @@ static void handle_input(void) {
+@@ -1290,13 +1935,37 @@ static void handle_input(void) {
          goto input_done;
      }
  
@@ -1550,7 +1738,7 @@ index a72c4e6..4250f19 100644
          const char *cur;
          if (entries[selected_index].is_dir) {
              snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
-@@ -1332,6 +1894,7 @@ static void handle_input(void) {
+@@ -1332,6 +2001,7 @@ static void handle_input(void) {
                  strncpy(entries[entry_count].name, fl[i].game_name, 255);
                  entries[entry_count].name[255] = '\0';
                  entries[entry_count].is_dir = 0;
@@ -1558,7 +1746,7 @@ index a72c4e6..4250f19 100644
                  entry_count++;
              }
              if (selected_index >= entry_count && selected_index > 0)
-@@ -1342,7 +1905,8 @@ static void handle_input(void) {
+@@ -1342,7 +2012,8 @@ static void handle_input(void) {
                  scan_directory(ROMS_PATH);
                  strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
              }
@@ -1568,7 +1756,7 @@ index a72c4e6..4250f19 100644
                     strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
                     strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
                     strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
-@@ -1350,10 +1914,14 @@ static void handle_input(void) {
+@@ -1350,10 +2021,14 @@ static void handle_input(void) {
              const char *folder = get_console_folder(current_path);
              const char *core   = get_core_for_folder(folder);
              if (!core) core = get_core_for_extension(entries[selected_index].name);
@@ -1584,7 +1772,7 @@ index a72c4e6..4250f19 100644
              game_name[sizeof(game_name)-1] = '\0';
              char *dot = strrchr(game_name, '.');
              if (dot) *dot = '\0';
-@@ -1362,33 +1930,45 @@ static void handle_input(void) {
+@@ -1362,33 +2037,45 @@ static void handle_input(void) {
      }
  
      if (input_was_pressed(FROG_BTN_A) && selected_index < entry_count) {
@@ -1644,7 +1832,7 @@ index a72c4e6..4250f19 100644
              /* Enter favourites view */
              const FavoriteGame *fl = favorites_get_list();
              int fc = favorites_get_count();
-@@ -1402,11 +1982,12 @@ static void handle_input(void) {
+@@ -1402,11 +2089,12 @@ static void handle_input(void) {
                  strncpy(entries[entry_count].name, fl[i].game_name, 255);
                  entries[entry_count].name[255] = '\0';
                  entries[entry_count].is_dir = 0;
@@ -1658,7 +1846,7 @@ index a72c4e6..4250f19 100644
              enter_recents_view();
          } else if (entries[selected_index].is_dir) {
              char new_path[MAX_PATH_LEN];
-@@ -1419,6 +2000,16 @@ static void handle_input(void) {
+@@ -1419,6 +2107,16 @@ static void handle_input(void) {
                  settings_menu_active = true;
                  settings_menu_idx = 0;
                  settings_filter_idx_on_enter = settings_filter_idx;
@@ -1675,7 +1863,7 @@ index a72c4e6..4250f19 100644
              } else {
                  const char *folder = get_console_folder(current_path);
                  char rom_path[MAX_PATH_LEN];
-@@ -1454,18 +2045,40 @@ static void handle_input(void) {
+@@ -1454,53 +2152,134 @@ static void handle_input(void) {
              viewing_favourites = false;
              scan_directory(ROMS_PATH);
              strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
@@ -1691,60 +1879,78 @@ index a72c4e6..4250f19 100644
          }
      }
  
+-    if (input_was_pressed(FROG_BTN_UP) && selected_index > 0) {
+-        selected_index--;
+-        if (selected_index < scroll_offset) scroll_offset = selected_index;
 +    bool launcher = is_launcher_view();
 +    bool cards = is_game_card_view();
++    int nav_count = viewing_favourites ? favorites_get_count() :
++                    (viewing_recents ? recent_games_get_count() : entry_count);
 +    int card_page_size = compact_game_list ? 12 : 8;
-+    if (cards && input_was_pressed(FROG_BTN_L1)) {
-+        selected_index = selected_index >= card_page_size ? selected_index - card_page_size : 0;
-+    }
-+    if (cards && input_was_pressed(FROG_BTN_R1)) {
-+        int count = viewing_favourites ? favorites_get_count() : entry_count;
-+        if (count > 0) selected_index = min(selected_index + card_page_size, count - 1);
-+    }
-     if (input_was_pressed(FROG_BTN_UP) && selected_index > 0) {
--        selected_index--;
-+        selected_index = cards ? (compact_game_list ? selected_index - 1 :
-+                                  (selected_index >= 4 ? selected_index - 4 : selected_index))
-+                         : launcher ? (selected_index >= 3 ? selected_index - 3 : 0)
-+                                    : selected_index - 1;
-         if (selected_index < scroll_offset) scroll_offset = selected_index;
++    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_L1)) {
++        selected_index = selected_index >= card_page_size ? selected_index - card_page_size :
++                         ((nav_count-1)/card_page_size)*card_page_size;
      }
-     if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
+-    if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
 -        selected_index++;
-+        selected_index = cards ? (compact_game_list ? selected_index + 1 :
-+                                  min(selected_index + 4, entry_count - 1))
-+                         : launcher ? min(selected_index + 3, entry_count - 1)
-+                                    : selected_index + 1;
-         if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
-             scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
+-        if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
+-            scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
++    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_R1)) {
++        selected_index = selected_index + card_page_size < nav_count ?
++                         selected_index + card_page_size : 0;
++    }
++    if (nav_count>0 && input_was_pressed(FROG_BTN_UP)) {
++        selected_index = cards ? (compact_game_list ? (selected_index-1+nav_count)%nav_count :
++                                  (selected_index>=4 ? selected_index-4 : nav_count-1))
++                         : launcher ? (selected_index>=3 ? selected_index-3 : nav_count-1)
++                                    : (selected_index-1+nav_count)%nav_count;
++    }
++    if (nav_count>0 && input_was_pressed(FROG_BTN_DOWN)) {
++        selected_index = cards ? (compact_game_list ? (selected_index+1)%nav_count :
++                                  (selected_index+4<nav_count ? selected_index+4 : 0))
++                         : launcher ? (selected_index+3<nav_count ? selected_index+3 : 0)
++                                    : (selected_index+1)%nav_count;
      }
-@@ -1473,7 +2086,11 @@ static void handle_input(void) {
+     /* In the game switcher (one game on screen at a time), Left/Right step one
       * game like Up/Down — no page jumping. */
      bool switcher = viewing_recents && settings_game_switcher;
-     if (input_was_pressed(FROG_BTN_LEFT)) {
+-    if (input_was_pressed(FROG_BTN_LEFT)) {
 -        if (switcher) {
+-            if (selected_index > 0) selected_index--;
++    if (nav_count>0 && input_was_pressed(FROG_BTN_LEFT)) {
 +        if (cards) {
-+            if (selected_index > 0) selected_index--;
++            selected_index=(selected_index-1+nav_count)%nav_count;
 +        } else if (launcher) {
-+            if (selected_index > 0) selected_index--;
++            selected_index=(selected_index-1+nav_count)%nav_count;
 +        } else if (switcher) {
-             if (selected_index > 0) selected_index--;
++            selected_index=(selected_index-1+nav_count)%nav_count;
          } else {
-             selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : 0;
-@@ -1481,7 +2098,11 @@ static void handle_input(void) {
+-            selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : 0;
+-            if (selected_index < scroll_offset) scroll_offset = selected_index;
++            selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : nav_count-1;
          }
      }
-     if (input_was_pressed(FROG_BTN_RIGHT)) {
+-    if (input_was_pressed(FROG_BTN_RIGHT)) {
 -        if (switcher) {
+-            if (selected_index < entry_count-1) selected_index++;
++    if (nav_count>0 && input_was_pressed(FROG_BTN_RIGHT)) {
 +        if (cards) {
-+            if (selected_index < entry_count-1) selected_index++;
++            selected_index=(selected_index+1)%nav_count;
 +        } else if (launcher) {
-+            if (selected_index < entry_count-1) selected_index++;
++            selected_index=(selected_index+1)%nav_count;
 +        } else if (switcher) {
-             if (selected_index < entry_count-1) selected_index++;
++            selected_index=(selected_index+1)%nav_count;
          } else {
-             selected_index = (selected_index + VISIBLE_ENTRIES < entry_count) ? selected_index + VISIBLE_ENTRIES : entry_count - 1;
-@@ -1493,6 +2114,37 @@ static void handle_input(void) {
+-            selected_index = (selected_index + VISIBLE_ENTRIES < entry_count) ? selected_index + VISIBLE_ENTRIES : entry_count - 1;
+-            if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
+-                scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
++            selected_index = (selected_index + VISIBLE_ENTRIES < nav_count) ? selected_index + VISIBLE_ENTRIES : 0;
+         }
+     }
++    if(selected_index<scroll_offset) scroll_offset=selected_index;
++    if(selected_index>=scroll_offset+VISIBLE_ENTRIES)
++        scroll_offset=selected_index-VISIBLE_ENTRIES+1;
+ 
  input_done:;
  }
  
@@ -1753,10 +1959,26 @@ index a72c4e6..4250f19 100644
 +    ui_sound_phase = (unsigned)(pitch < 1 ? 900 : pitch);
 +}
 +
++static void ui_sound_play(int event) {
++    if(settings_sound_pack==0) return;
++    if(event<0 || event>2) event=0;
++    if(settings_sound_pack==1) {
++        static const int pitch[3]={1250,900,650};
++        ui_clip_playing=NULL; ui_sound_trigger(pitch[event]); return;
++    }
++    ui_sound_load_pack();
++    if(ui_clips[event].samples && ui_clips[event].frames>0) {
++        ui_sound_frames=0; ui_clip_playing=ui_clips[event].samples;
++        ui_clip_frames=ui_clips[event].frames; ui_clip_pos=0;
++    } else {
++        ui_sound_trigger(event==0?1250:(event==1?900:650));
++    }
++}
++
 +static void ui_audio_render(void) {
 +    if (!audio_batch_cb && !audio_cb) return;
 +    static const int16_t silence[735 * 2] = {0};
-+    if (ui_sound_frames <= 0) {
++    if (ui_sound_frames <= 0 && (!ui_clip_playing || ui_clip_pos>=ui_clip_frames)) {
 +        if (audio_batch_cb) audio_batch_cb(silence, 735);
 +        else for (int i = 0; i < 735; i++) audio_cb(0, 0);
 +        return;
@@ -1766,7 +1988,11 @@ index a72c4e6..4250f19 100644
 +    static unsigned phase = 0;
 +    for (int i = 0; i < 735; i++) {
 +        int16_t v = 0;
-+        if (ui_sound_frames > 0) {
++        if(ui_clip_playing && ui_clip_pos<ui_clip_frames) {
++            int sample=ui_clip_playing[ui_clip_pos++];
++            v=(int16_t)(sample*volume_output_gain(settings_volume)/100);
++            if(ui_clip_pos>=ui_clip_frames) ui_clip_playing=NULL;
++        } else if (ui_sound_frames > 0) {
 +            phase += step;
 +            int amp = 1100 * ui_sound_frames / 2205;
 +            amp = amp * volume_output_gain(settings_volume) / 100;
@@ -1782,7 +2008,17 @@ index a72c4e6..4250f19 100644
  /* ---- libretro API ---- */
  
  unsigned retro_api_version(void) { return RETRO_API_VERSION; }
-@@ -1526,8 +2178,8 @@ void retro_set_environment(retro_environment_t cb) {
+ 
+ void retro_get_system_info(struct retro_system_info *info) {
+     memset(info, 0, sizeof(*info));
+-    info->library_name     = "TreeFrogUI";
+-    info->library_version  = "1.0-sf3000";
++    info->library_name     = "SwitchFrogUI";
++    info->library_version  = "1.2-r36sx";
+     info->valid_extensions = "";
+     info->need_fullpath    = false;
+     info->block_extract    = false;
+@@ -1526,8 +2305,8 @@ void retro_set_environment(retro_environment_t cb) {
  }
  
  void retro_set_video_refresh(retro_video_refresh_t cb)          { video_cb      = cb; }
@@ -1793,7 +2029,7 @@ index a72c4e6..4250f19 100644
  void retro_set_input_poll(retro_input_poll_t cb)                { input_poll_cb = cb; }
  void retro_set_input_state(retro_input_state_t cb)              { input_state_cb = cb; }
  
-@@ -1547,6 +2199,7 @@ void retro_init(void) {
+@@ -1547,6 +2326,7 @@ void retro_init(void) {
          dbg("geometry set");
      }
      input_init();
@@ -1801,7 +2037,7 @@ index a72c4e6..4250f19 100644
      input_load_remap(KEYMAP_FILE);
      font_init();
      dbg("font_init done");
-@@ -1555,6 +2208,9 @@ void retro_init(void) {
+@@ -1555,6 +2335,9 @@ void retro_init(void) {
      theme_init();
      dbg("theme_init done");
      settings_load_file();
@@ -1811,7 +2047,7 @@ index a72c4e6..4250f19 100644
      fb1_set_visible(1);   /* restart cubevol for OSD overlay — also resets backlight */
      settings_apply();     /* apply AFTER cubevol restart so our brightness wins */
      dbg("settings loaded");
-@@ -1567,6 +2223,8 @@ void retro_init(void) {
+@@ -1567,6 +2350,8 @@ void retro_init(void) {
      dbg("core overrides loaded");
  
      framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
@@ -1820,7 +2056,7 @@ index a72c4e6..4250f19 100644
      dbg("calloc done");
      render_init(framebuffer);
      dbg("render_init done");
-@@ -1591,7 +2249,12 @@ void retro_init(void) {
+@@ -1591,7 +2376,14 @@ void retro_init(void) {
  }
  
  void retro_deinit(void) {
@@ -1828,12 +2064,14 @@ index a72c4e6..4250f19 100644
 +    screen_blanked = false;
 +    power_button_deinit();
 +    input_deinit();
++    ui_sound_free_clips();
++    ui_loaded_sound_pack = -1;
      free(framebuffer); framebuffer = NULL;
 +    free(displayfix_framebuffer); displayfix_framebuffer = NULL;
      free(entries);     entries = NULL;
      entry_count = entry_capacity = 0;
  }
-@@ -1603,106 +2266,6 @@ bool retro_load_game(const struct retro_game_info *info) {
+@@ -1603,106 +2395,6 @@ bool retro_load_game(const struct retro_game_info *info) {
  
  void retro_unload_game(void) {}
  
@@ -1940,7 +2178,7 @@ index a72c4e6..4250f19 100644
  static void render_remap_wizard(void) {
      if (banner_is_loaded())
          banner_render(framebuffer);
-@@ -1716,14 +2279,11 @@ static void render_remap_wizard(void) {
+@@ -1716,14 +2408,11 @@ static void render_remap_wizard(void) {
      font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, line, COLOR_TEXT);
  
      y += ITEM_HEIGHT;
@@ -1957,7 +2195,7 @@ index a72c4e6..4250f19 100644
      render_header(framebuffer, "SELECT CORE");
  
      int y = START_Y;
-@@ -1731,17 +2291,17 @@ static void render_core_picker(void) {
+@@ -1731,17 +2420,17 @@ static void render_core_picker(void) {
      font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, core_picker_title, COLOR_TEXT);
      y += ITEM_HEIGHT;
  
@@ -1984,7 +2222,7 @@ index a72c4e6..4250f19 100644
      }
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
-@@ -1774,7 +2334,793 @@ static void render_search_kbd(void) {
+@@ -1774,7 +2463,830 @@ static void render_search_kbd(void) {
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
@@ -2041,28 +2279,30 @@ index a72c4e6..4250f19 100644
 +static void render_settings_console(void) {
 +    extern const Theme themes[];
 +    const char *labels[SETTINGS_ROW_COUNT] = {
-+        "Theme", "Background color", "Typeface", "Brightness", "Screen timeout", "Quick Resume",
++        "Themes", "Background color", "Typeface", "Font size", "Brightness", "Screen timeout", "Quick Resume",
 +        "Hide Empty Platforms", "Game Switcher", "Start in Recent",
-+        "Button Remap", "Master Volume", "Safe Power Mode", "R36SX Display glitch fix",
++        "Button Remap", "Master Volume", "UI sound pack", "Safe Power Mode", "R36SX Display glitch fix",
 +        "Hardware Information", "Controls & Shortcuts"
 +    };
 +    char values[SETTINGS_ROW_COUNT][64];
 +    memset(values, 0, sizeof(values));
-+    snprintf(values[0],64,"< %s >",themes[settings_theme_idx].name);
++    snprintf(values[0],64,"A  OPEN");
 +    snprintf(values[1],64,"< %s >",background_names[settings_background_idx]);
 +    snprintf(values[2],64,"< %s >",font_count ? font_disp[settings_font_idx] : "None");
-+    snprintf(values[3],64,"%d%%",settings_brightness);
-+    snprintf(values[4],64,"%ds",screen_timeout_seconds[settings_screen_timeout_idx]);
-+    snprintf(values[5],64,"< %s >",onoff_names[settings_auto_resume]);
-+    snprintf(values[6],64,"< %s >",onoff_names[settings_hide_empty]);
-+    snprintf(values[7],64,"< %s >",onoff_names[settings_game_switcher]);
-+    snprintf(values[8],64,"< %s >",onoff_names[settings_load_recents]);
-+    snprintf(values[9],64,"A  OPEN");
-+    snprintf(values[10],64,"%d%%",settings_volume);
-+    snprintf(values[11],64,"TAP OFF / 2M SLEEP");
-+    snprintf(values[12],64,"< %s >",onoff_names[settings_r36sx_display_fix]);
-+    snprintf(values[13],64,"A  VIEW");
-+    snprintf(values[14],64,"A  VIEW");
++    snprintf(values[3],64,"%d%%",settings_font_size);
++    snprintf(values[4],64,"%d%%",settings_brightness);
++    snprintf(values[5],64,"%ds",screen_timeout_seconds[settings_screen_timeout_idx]);
++    snprintf(values[6],64,"< %s >",onoff_names[settings_auto_resume]);
++    snprintf(values[7],64,"< %s >",onoff_names[settings_hide_empty]);
++    snprintf(values[8],64,"< %s >",onoff_names[settings_game_switcher]);
++    snprintf(values[9],64,"< %s >",onoff_names[settings_load_recents]);
++    snprintf(values[10],64,"A  OPEN");
++    snprintf(values[11],64,"%d%%",settings_volume);
++    snprintf(values[12],64,"< %s >",sound_pack_names[settings_sound_pack]);
++    snprintf(values[13],64,"TAP OFF / 2M SLEEP");
++    snprintf(values[14],64,"< %s >",onoff_names[settings_r36sx_display_fix]);
++    snprintf(values[15],64,"A  VIEW");
++    snprintf(values[16],64,"A  VIEW");
 +
 +    render_clear_screen(framebuffer);
 +    render_header(framebuffer, "SETTINGS");
@@ -2073,13 +2313,48 @@ index a72c4e6..4250f19 100644
 +    for (int i=0;i<visible;i++) {
 +        int idx=first+i;
 +        int y=START_Y+i*UI_S(34);
-+        if(idx==SETTINGS_ROW_BRIGHTNESS) render_slider_row(labels[idx],values[idx],settings_brightness,100,y,idx==settings_menu_idx);
++        if(idx==SETTINGS_ROW_FONT_SIZE) render_slider_row(labels[idx],values[idx],settings_font_size-70,60,y,idx==settings_menu_idx);
++        else if(idx==SETTINGS_ROW_BRIGHTNESS) render_slider_row(labels[idx],values[idx],settings_brightness,100,y,idx==settings_menu_idx);
 +        else if(idx==SETTINGS_ROW_TIMEOUT) render_slider_row(labels[idx],values[idx],settings_screen_timeout_idx,SCREEN_TIMEOUT_COUNT-1,y,idx==settings_menu_idx);
 +        else if(idx==SETTINGS_ROW_VOLUME) render_slider_row(labels[idx],values[idx],settings_volume,100,y,idx==settings_menu_idx);
 +        else render_modern_row(labels[idx], values[idx], y, idx==settings_menu_idx);
 +    }
 +    font_draw_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
 +                   SCREEN_HEIGHT-UI_S(18),"A SELECT     B BACK     LEFT/RIGHT CHANGE",COLOR_LEGEND);
++}
++
++static void render_theme_sample(int x,int y,int w,int h,const Theme *t) {
++    int split=w*55/100;
++    for(int row=0;row<h;row++) {
++        uint16_t c=t->bg;
++        if(t->gradient) {
++            int d=h>1?h-1:1;
++            int ar=(t->bg>>11)&31,ag=(t->bg>>5)&63,ab=t->bg&31;
++            int br=(t->bg2>>11)&31,bg=(t->bg2>>5)&63,bb=t->bg2&31;
++            c=(uint16_t)((((ar*(d-row)+br*row)/d)<<11)|(((ag*(d-row)+bg*row)/d)<<5)|((ab*(d-row)+bb*row)/d));
++        }
++        render_fill_rect(framebuffer,x,y+row,split,1,c);
++    }
++    render_fill_rect(framebuffer,x+split,y,w-split,h,t->select_bg);
++    render_fill_rect(framebuffer,x+split+UI_S(4),y+UI_S(4),UI_S(8),h-UI_S(8),t->header);
++}
++
++static void render_theme_gallery(void) {
++    extern const Theme themes[]; extern const int theme_count;
++    render_clear_screen(framebuffer);
++    render_header(framebuffer,"THEMES");
++    const int visible=7;
++    int first=theme_gallery_idx-visible/2;
++    if(first<0) first=0;
++    if(first>theme_count-visible) first=theme_count-visible;
++    if(first<0) first=0;
++    for(int i=0;i<visible && first+i<theme_count;i++) {
++        int idx=first+i, y=START_Y+i*UI_S(34), selected=idx==theme_gallery_idx;
++        render_modern_row(themes[idx].name,idx==settings_theme_idx?"ACTIVE":"",y,selected);
++        render_theme_sample(SCREEN_WIDTH-PADDING-UI_S(112),y+UI_S(5),UI_S(74),UI_S(18),&themes[idx]);
++    }
++    font_draw_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,SCREEN_HEIGHT-UI_S(18),
++                   "A APPLY     B BACK     UP/DOWN BROWSE",COLOR_LEGEND);
 +}
 +
 +static void render_hardware_info(void) {
@@ -2778,7 +3053,7 @@ index a72c4e6..4250f19 100644
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1791,8 +3137,106 @@ void retro_run(void) {
+@@ -1791,8 +3303,110 @@ void retro_run(void) {
          #undef RB
          input_set_ext_raw(raw);
      }
@@ -2805,11 +3080,13 @@ index a72c4e6..4250f19 100644
 +    int old_kbd = search_kbd_r * 32 + search_kbd_c;
 +    int old_help = controls_help_scroll;
 +    int old_hardware_scroll = hardware_info_scroll;
++    int old_theme_gallery = theme_gallery_idx;
 +    int old_remap_step = remap_step;
 +    int old_count = entry_count;
 +    bool old_settings_active = settings_menu_active;
 +    bool old_controls_active = controls_help_active;
 +    bool old_hardware_active = hardware_info_active;
++    bool old_theme_gallery_active = theme_gallery_active;
 +    bool old_remap_active = remap_wizard_active;
 +    bool old_picker_active = core_picker_active;
 +    bool old_keyboard_active = search_kbd_active;
@@ -2829,11 +3106,13 @@ index a72c4e6..4250f19 100644
 +        settings_menu_idx != old_settings || core_picker_idx != old_core ||
 +        new_kbd != old_kbd || controls_help_scroll != old_help ||
 +        hardware_info_scroll != old_hardware_scroll ||
++        theme_gallery_idx != old_theme_gallery ||
 +        remap_step != old_remap_step;
 +    bool state_changed = navigation_changed || entry_count != old_count ||
 +        settings_menu_active != old_settings_active ||
 +        controls_help_active != old_controls_active ||
 +        hardware_info_active != old_hardware_active ||
++        theme_gallery_active != old_theme_gallery_active ||
 +        remap_wizard_active != old_remap_active ||
 +        core_picker_active != old_picker_active ||
 +        search_kbd_active != old_keyboard_active || viewing_search != old_search ||
@@ -2875,28 +3154,28 @@ index a72c4e6..4250f19 100644
 +    }
 +    bool redraw = !ui_rendered_once || state_changed || any_pressed;
 +    if (!screen_woke_this_frame && navigation_changed) {
-+        ui_sound_trigger(1250);
++        ui_sound_play(0);
 +    } else if (!screen_woke_this_frame &&
 +               (input_was_pressed(FROG_BTN_A) || input_was_pressed(FROG_BTN_B))) {
-+        ui_sound_trigger(input_was_pressed(FROG_BTN_A) ? 900 : 650);
++        ui_sound_play(input_was_pressed(FROG_BTN_A) ? 1 : 2);
 +    }
  
 +    if (redraw) {
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +3246,9 @@ void retro_run(void) {
+@@ -1802,7 +3416,9 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
 -        if (settings_menu_active) {
-+        if (viewing_files || viewing_videos || hardware_info_active || controls_help_active) {
++        if (viewing_files || viewing_videos || hardware_info_active || controls_help_active || theme_gallery_active) {
 +            banner_path = "";
 +        } else if (settings_menu_active) {
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +3264,8 @@ void retro_run(void) {
+@@ -1818,7 +3434,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -2906,13 +3185,15 @@ index a72c4e6..4250f19 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +3274,31 @@ void retro_run(void) {
+@@ -1827,20 +3444,33 @@ void retro_run(void) {
          }
      }
  
 -    if (search_kbd_active) {
 +    if (game_details_active) {
 +        render_game_details();
++    } else if (theme_gallery_active) {
++        render_theme_gallery();
 +    } else if (hardware_info_active) {
 +        render_hardware_info();
 +    } else if (controls_help_active) {
@@ -2941,7 +3222,7 @@ index a72c4e6..4250f19 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +3310,31 @@ void retro_run(void) {
+@@ -1852,22 +3482,31 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -2980,7 +3261,7 @@ index a72c4e6..4250f19 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +3363,22 @@ void retro_run(void) {
+@@ -1896,19 +3535,22 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -3006,7 +3287,7 @@ index a72c4e6..4250f19 100644
  
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1927,12 +3397,36 @@ void retro_run(void) {
+@@ -1927,12 +3569,36 @@ void retro_run(void) {
  
          render_legend(framebuffer, legend_mode, show_select, show_search);
      }
@@ -3035,7 +3316,7 @@ index a72c4e6..4250f19 100644
 +    game_details_active = false;
 +    compact_game_list = false;
 +    game_details_path[0] = '\0';
-+    settings_menu_active = controls_help_active = hardware_info_active = remap_wizard_active = false;
++    settings_menu_active = controls_help_active = hardware_info_active = theme_gallery_active = remap_wizard_active = false;
 +    search_kbd_active = core_picker_active = false;
 +    strncpy(current_path, ROMS_PATH, MAX_PATH_LEN - 1);
 +    current_path[MAX_PATH_LEN - 1] = '\0';
@@ -3132,10 +3413,41 @@ index 5c60324..1fee79d 100644
 \ No newline at end of file
 +}
 diff --git a/render.c b/render.c
-index 4494ce7..5a296c0 100644
+index 4494ce7..de9f0cf 100644
 --- a/render.c
 +++ b/render.c
-@@ -184,7 +184,7 @@ void render_legend(uint16_t *framebuffer, int x_button_mode, int show_select, in
+@@ -32,10 +32,26 @@ void render_init(uint16_t *framebuffer) {
+ 
+ void render_clear_screen(uint16_t *framebuffer) {
+     if (!framebuffer) return;
+-    
+-    // Fill with background color
+-    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
+-        framebuffer[i] = COLOR_BG;
++
++    if (!theme_has_gradient()) {
++        for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
++            framebuffer[i] = COLOR_BG;
++        return;
++    }
++
++    /* One RGB565 colour calculation per scanline keeps gradients cheap on the
++     * 400 MHz target. UI redraws are event-driven, so this has no idle cost. */
++    uint16_t top = theme_bg(), bottom = theme_bg2();
++    int tr=(top>>11)&31, tg=(top>>5)&63, tb=top&31;
++    int br=(bottom>>11)&31, bg=(bottom>>5)&63, bb=bottom&31;
++    int denom = SCREEN_HEIGHT > 1 ? SCREEN_HEIGHT - 1 : 1;
++    for (int y = 0; y < SCREEN_HEIGHT; y++) {
++        int r=(tr*(denom-y)+br*y)/denom;
++        int g=(tg*(denom-y)+bg*y)/denom;
++        int b=(tb*(denom-y)+bb*y)/denom;
++        uint16_t color=(uint16_t)((r<<11)|(g<<5)|b);
++        uint16_t *row=framebuffer+(size_t)y*SCREEN_WIDTH;
++        for (int x=0;x<SCREEN_WIDTH;x++) row[x]=color;
+     }
+ }
+ 
+@@ -184,7 +200,7 @@ void render_legend(uint16_t *framebuffer, int x_button_mode, int show_select, in
      }
  }
  
@@ -3144,7 +3456,7 @@ index 4494ce7..5a296c0 100644
  void render_menu_row(uint16_t *framebuffer, const char *name, int is_dir,
                       int is_selected, int is_favorited, int y) {
      if (!framebuffer || !name) return;
-@@ -320,6 +320,95 @@ int load_thumbnail(const char *base_path, Thumbnail *thumb) {
+@@ -320,6 +336,95 @@ int load_thumbnail(const char *base_path, Thumbnail *thumb) {
      return load_raw_rgb565(p, thumb);
  }
  
@@ -3240,7 +3552,7 @@ index 4494ce7..5a296c0 100644
  int load_raw_rgb565(const char *path, Thumbnail *thumb) {
      // Check if file exists
      if (access(path, F_OK) != 0) {
-@@ -442,4 +531,4 @@ void render_thumbnail(uint16_t *framebuffer, const Thumbnail *thumb) {
+@@ -442,4 +547,4 @@ void render_thumbnail(uint16_t *framebuffer, const Thumbnail *thumb) {
              }
          }
      }
@@ -3301,10 +3613,10 @@ index 0e98bc2..a417d0a 100644
 \ No newline at end of file
 +#endif // RENDER_H
 diff --git a/theme.c b/theme.c
-index f625756..4b941e0 100644
+index f625756..818c833 100644
 --- a/theme.c
 +++ b/theme.c
-@@ -362,6 +362,86 @@ const Theme themes[] = {
+@@ -362,6 +362,146 @@ const Theme themes[] = {
          .legend = RGB565(131, 148, 150),
          .legend_bg = RGB565(7, 54, 66),
          .disabled = RGB565(88, 110, 117)
@@ -3388,10 +3700,70 @@ index f625756..4b941e0 100644
 +        .header = RGB565(79, 225, 255), .folder = RGB565(255, 198, 71),
 +        .legend = RGB565(123, 255, 172), .legend_bg = RGB565(31, 34, 62),
 +        .disabled = RGB565(105, 110, 139)
++    },
++    {
++        .name="Aurora Gradient", .bg=RGB565(5,22,45), .bg2=RGB565(4,91,83), .gradient=1,
++        .text=RGB565(238,255,252), .select_bg=RGB565(74,255,198), .select_text=RGB565(3,39,42),
++        .header=RGB565(113,201,255), .folder=RGB565(102,255,218), .legend=RGB565(194,241,239),
++        .legend_bg=RGB565(4,42,55), .disabled=RGB565(91,145,148)
++    },
++    {
++        .name="Neon Sunset Gradient", .bg=RGB565(43,10,71), .bg2=RGB565(153,35,54), .gradient=1,
++        .text=RGB565(255,241,238), .select_bg=RGB565(255,91,132), .select_text=RGB565(255,255,255),
++        .header=RGB565(255,190,71), .folder=RGB565(255,132,181), .legend=RGB565(255,213,190),
++        .legend_bg=RGB565(67,17,61), .disabled=RGB565(170,111,137)
++    },
++    {
++        .name="Cyber Ice Gradient", .bg=RGB565(2,16,43), .bg2=RGB565(10,72,126), .gradient=1,
++        .text=RGB565(231,250,255), .select_bg=RGB565(42,226,255), .select_text=RGB565(0,37,63),
++        .header=RGB565(122,241,255), .folder=RGB565(92,221,255), .legend=RGB565(190,236,255),
++        .legend_bg=RGB565(3,37,71), .disabled=RGB565(82,134,166)
++    },
++    {
++        .name="Magenta Pulse Gradient", .bg=RGB565(36,5,48), .bg2=RGB565(116,12,102), .gradient=1,
++        .text=RGB565(255,235,255), .select_bg=RGB565(255,64,219), .select_text=RGB565(51,2,46),
++        .header=RGB565(255,151,239), .folder=RGB565(255,105,230), .legend=RGB565(242,190,242),
++        .legend_bg=RGB565(59,7,65), .disabled=RGB565(148,86,145)
++    },
++    {
++        .name="Ocean Depth Gradient", .bg=RGB565(1,17,33), .bg2=RGB565(0,75,99), .gradient=1,
++        .text=RGB565(229,253,255), .select_bg=RGB565(39,205,205), .select_text=RGB565(0,41,48),
++        .header=RGB565(116,238,232), .folder=RGB565(99,232,223), .legend=RGB565(185,230,232),
++        .legend_bg=RGB565(2,39,52), .disabled=RGB565(81,133,140)
++    },
++    {
++        .name="Mango Sky Gradient", .bg=RGB565(65,31,80), .bg2=RGB565(233,105,53), .gradient=1,
++        .text=RGB565(255,249,229), .select_bg=RGB565(255,205,83), .select_text=RGB565(72,35,24),
++        .header=RGB565(255,226,139), .folder=RGB565(255,204,126), .legend=RGB565(255,226,203),
++        .legend_bg=RGB565(93,45,72), .disabled=RGB565(190,141,132)
++    },
++    {
++        .name="Lime Circuit Gradient", .bg=RGB565(8,28,22), .bg2=RGB565(38,83,31), .gradient=1,
++        .text=RGB565(235,255,220), .select_bg=RGB565(174,255,73), .select_text=RGB565(23,48,12),
++        .header=RGB565(83,247,208), .folder=RGB565(193,255,107), .legend=RGB565(204,241,181),
++        .legend_bg=RGB565(18,48,25), .disabled=RGB565(103,147,91)
++    },
++    {
++        .name="Violet Storm Gradient", .bg=RGB565(18,13,51), .bg2=RGB565(76,45,125), .gradient=1,
++        .text=RGB565(242,236,255), .select_bg=RGB565(169,119,255), .select_text=RGB565(31,18,65),
++        .header=RGB565(220,178,255), .folder=RGB565(194,156,255), .legend=RGB565(213,200,244),
++        .legend_bg=RGB565(36,24,72), .disabled=RGB565(119,101,158)
++    },
++    {
++        .name="Cherry Night Gradient", .bg=RGB565(29,5,21), .bg2=RGB565(116,20,50), .gradient=1,
++        .text=RGB565(255,237,242), .select_bg=RGB565(255,77,113), .select_text=RGB565(54,4,18),
++        .header=RGB565(255,164,180), .folder=RGB565(255,119,148), .legend=RGB565(239,199,211),
++        .legend_bg=RGB565(56,8,30), .disabled=RGB565(145,88,107)
++    },
++    {
++        .name="Electric Dawn Gradient", .bg=RGB565(0,37,74), .bg2=RGB565(109,20,105), .gradient=1,
++        .text=RGB565(244,247,255), .select_bg=RGB565(64,233,255), .select_text=RGB565(4,40,57),
++        .header=RGB565(255,115,217), .folder=RGB565(117,239,255), .legend=RGB565(215,212,247),
++        .legend_bg=RGB565(33,28,78), .disabled=RGB565(112,107,157)
      }
  };
  
-@@ -369,10 +449,14 @@ const int theme_count = sizeof(themes) / sizeof(themes[0]);
+@@ -369,10 +509,14 @@ const int theme_count = sizeof(themes) / sizeof(themes[0]);
  
  static int current_theme_index = 0;
  static const Theme* current_theme = &themes[0];
@@ -3406,7 +3778,7 @@ index f625756..4b941e0 100644
  }
  
  int theme_load_from_settings(const char* theme_name) {
-@@ -398,6 +482,15 @@ void theme_apply(int theme_index) {
+@@ -398,6 +542,15 @@ void theme_apply(int theme_index) {
      }
  }
  
@@ -3422,20 +3794,32 @@ index f625756..4b941e0 100644
  const Theme* theme_get_current(void) {
      return current_theme;
  }
-@@ -414,7 +507,7 @@ const char* theme_get_name(int index) {
+@@ -414,7 +567,10 @@ const char* theme_get_name(int index) {
  }
  
  // Color accessors
 -uint16_t theme_bg(void) { return current_theme->bg; }
 +uint16_t theme_bg(void) { return background_override_enabled ? background_override_color : current_theme->bg; }
++uint16_t theme_bg2(void) { return background_override_enabled ? background_override_color :
++                                  (current_theme->gradient ? current_theme->bg2 : current_theme->bg); }
++int theme_has_gradient(void) { return !background_override_enabled && current_theme->gradient; }
  uint16_t theme_text(void) { return current_theme->text; }
  uint16_t theme_select_bg(void) { return current_theme->select_bg; }
  uint16_t theme_select_text(void) { return current_theme->select_text; }
 diff --git a/theme.h b/theme.h
-index 909f74b..5f554ee 100644
+index 909f74b..da3b659 100644
 --- a/theme.h
 +++ b/theme.h
-@@ -26,6 +26,8 @@ extern const int theme_count;
+@@ -7,6 +7,8 @@
+ typedef struct {
+     const char* name;
+     uint16_t bg;
++    uint16_t bg2;       /* lower gradient stop; ignored when gradient == 0 */
++    uint8_t gradient;
+     uint16_t text;
+     uint16_t select_bg;
+     uint16_t select_text;
+@@ -26,11 +28,15 @@ extern const int theme_count;
  void theme_init(void);
  int theme_load_from_settings(const char* theme_name);
  void theme_apply(int theme_index);
@@ -3444,3 +3828,10 @@ index 909f74b..5f554ee 100644
  const Theme* theme_get_current(void);
  int theme_get_current_index(void);
  const char* theme_get_name(int index);
+ 
+ uint16_t theme_bg(void);
++uint16_t theme_bg2(void);
++int theme_has_gradient(void);
+ uint16_t theme_text(void);
+ uint16_t theme_select_bg(void);
+ uint16_t theme_select_text(void);

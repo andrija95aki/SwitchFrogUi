@@ -16,6 +16,22 @@ The FrogUI-derived frontend is CC BY-NC-SA 4.0. PicoArch, libretro cores,
 Rockbox, PCSX4ALL, SDL, libpng, zlib, and other components retain their own
 licenses. Release packages include the corresponding notices and source links.
 
+## UI fonts
+
+The additional Atkinson Hyperlegible, Audiowide, Bungee, Chakra Petch,
+Quantico, Rajdhani, Righteous, Share Tech Mono, Space Mono, and Tomorrow fonts
+come from the official [Google Fonts repository](https://github.com/google/fonts)
+and are distributed under the SIL Open Font License 1.1. Each family's complete
+`OFL.txt` is included under `frogui/fonts/licenses/`.
+
+## UI interaction sounds
+
+The Bright, Soft, and Cyber sound packs use selected clips from Kenney's
+[UI Audio](https://kenney.nl/assets/ui-audio) pack, released under Creative
+Commons CC0. The original notice is included as `frogui/sounds/KENNEY-CC0.txt`.
+The pack names describe their use in SwitchFrogUI; they are not Nintendo or
+Sony recordings and are not affiliated with either company.
+
 ## Included sample recording
 
 `SwitchFrogUI Sample - Mozart - Piano Sonata No. 14.ogg`

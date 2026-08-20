@@ -19,7 +19,7 @@ No stock firmware, ROM, or BIOS file is committed to this repository.
 ## 1. Clone and prepare pinned sources
 
 ```powershell
-git clone --recurse-submodules https://github.com/<your-account>/treefrog-ui.git
+git clone --recurse-submodules https://github.com/andrija95aki/SwitchFrogUi.git
 cd treefrog-ui
 git switch r36sx-source-build
 powershell -ExecutionPolicy Bypass -File scripts/Prepare-R36SXSources.ps1
@@ -53,6 +53,11 @@ Outputs are written to `.r36sx-build/out`:
 - `libemu_tfhijack.so`
 - `nosleep`
 - `r36sx_displayfix.so`
+
+`out/card-files/` is also produced with the core, player wrapper, twelve UI
+fonts, their OFL notices, and the CC0 sound packs already arranged in their
+final SD-card paths. Merge that directory onto a test card after the base
+SwitchFrogUI overlay is installed.
 
 Pass `-BuildPicoarch` to also compile `picoarch` and `picoarch_hi`. The portable
 Zig PicoArch build passes static ABI checks but raised SIGFPE on the tested v2.7

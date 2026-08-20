@@ -12,6 +12,8 @@
   antialiased cards, favourites stars, and save-data badges.
 - Game details show the full title, artwork, total play time, and save-state
   playtime records before launch.
+- Home, grids, lists, settings, help pages, the core picker, and page buttons
+  wrap from the first item to the last and back again.
 - Existing artwork is found in `.res`, `images`, `Imgs`, `media`, and `boxart`
   layouts, including nested ROM folders.
 - Static 15-pixel artwork-colour halo around the selected Home card, rendered
@@ -19,10 +21,17 @@
 
 ## Appearance and settings
 
-- Forty colour schemes, including ten bright R36SX additions.
+- Fifty colour schemes: the original palette, ten bright R36SX additions, and
+  ten low-cost vertical-gradient themes.
+- Dedicated theme gallery with each theme name beside live background,
+  selection, and accent-colour samples.
 - Optional persistent solid background colour palette.
-- Cog-wheel Settings artwork and sliders for brightness, timeout, and master
-  volume.
+- Twelve bundled font choices spanning hyper-legible, modern, playful,
+  monospace, and cyber styles, plus custom TTF/OTF discovery.
+- Cog-wheel Settings artwork and sliders for font size (70-130%), brightness,
+  timeout, and master volume.
+- Configurable Off/Classic/Bright/Soft/Cyber interaction-sound packs. The three
+  sampled packs use Kenney CC0 UI audio and fall back safely to generated tones.
 - All UI animations removed for responsiveness; B consistently returns to the
   previous menu.
 - In-app Controls & Shortcuts reference.
@@ -70,7 +79,9 @@
   language suffixes.
 - Per-video subtitle timing offsets in exact 100 ms steps, persisted across
   reboots.
-- Standalone media launching uses an explicit `execv()` argument array, avoiding
-  the target MIPS varargs fault that previously occurred before video startup.
+- Standalone media launching uses an explicit `execv()` argument array. The
+  video wrapper also removes the emulator-only display-fix preload before the
+  FFmpeg hardware player starts; that preload was the pre-`main()` crash seen in
+  the device log.
 - File and video list browsers use a clean theme background instead of carrying
   over the artwork banner from the previously selected Home card.
