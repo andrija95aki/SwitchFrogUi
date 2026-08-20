@@ -8,6 +8,49 @@
 > [annotated hardware screenshots](docs/r36sx/SCREENSHOTS.md).
 > [Download the R36SX overlay](https://github.com/andrija95aki/SwitchFrogUi/releases/latest).
 
+## SwitchFrogUI R36SX changes
+
+SwitchFrogUI keeps TreeFrogUI's emulator foundation and adds a console-style
+frontend, media applications, hardware workarounds, and usability fixes for the
+R36SX v2.7 running H.OS 1.2. The downloadable overlay remains ROM-free and is
+installed over a user's own working stock card.
+
+| Area | SwitchFrogUI changes |
+|---|---|
+| Home and library | Three direct-launch last-played cards, Recent, Favourites, artwork platform cards, wrap-around navigation, box-art grids, condensed lists, search, game details, save indicators, and play-time records. |
+| Appearance | Static Switch-style layout, 62 themes including multi-colour gradients, selectable backgrounds, 12 bundled fonts, font-size control, platform icon packs, and configurable UI sounds. |
+| Media and files | Whole-card file browser, Rockbox Music card, hardware-decoded Videos player with pause-menu scaling/subtitles, and an Ebooks card for EPUB, MOBI, PDF, FB2, CBZ, and XPS. |
+| R36SX hardware | Persistent one-pixel display-glitch correction, short-power display blanking, configurable screen timeout, gradual master-volume curve, display-resume safeguards, and hardware information. |
+| Emulation | PS1 Start+Select menu repair, additional PS1 scaling modes, duplicate-route cleanup, Doom/Heretic/Hexen folders, and additional emulator/core routes. |
+| Diagnostics | Live SD, USB/OTG, storage, audio, display, network, and Linux input inspection with a shareable `frogui/io_diagnostics.txt` report. |
+
+The complete maintained list is in [R36SX features and fixes](docs/r36sx/FEATURES.md).
+
+### Latest change: live USB keyboard test
+
+Settings now contains **Inputs & I/O Diagnostics**, including an interactive
+keyboard tester:
+
+1. Open **Settings → Inputs & I/O Diagnostics**.
+2. Press **Y** to open **Keyboard Input Test**.
+3. Connect a USB keyboard and press its keys. The screen shows the active Linux
+   event device, keyboard name, held keys, modifier state, and recent key-down
+   and key-up events.
+4. Press **X** to clear the event history. Controller **B** always returns to
+   the diagnostics page.
+
+The tester is nonblocking, rescans for hot-plugged keyboards, filters out the
+built-in gamepad, and closes its event descriptors on exit/reset. A keyboard
+must be recognized by the H.OS `usbhid` driver and exposed as a keyboard-capable
+`/dev/input/event*` device; unsupported USB hardware will remain listed as not
+detected instead of freezing the menu.
+
+The R36SX cross-build for this change produced `frogui_libretro.so` with
+SHA-256 `BFBFB09957CC47D75E2D739411D4B190CFD5AC01F324F01B9C577811387F4DBE`.
+The source implementation was introduced in commit [`bf67615`](https://github.com/andrija95aki/SwitchFrogUi/commit/bf67615),
+and rollback copies on development/test cards use the suffix
+`frogui_libretro.so.pre-keyboard-test`.
+
 ## SwitchFrogUI screenshots
 
 <table>
