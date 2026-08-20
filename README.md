@@ -87,9 +87,12 @@ A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds -
 
 > ## Support SwitchFrogUI R36SX development
 > If SwitchFrogUI has been useful to you, you can support Andrija's continued
-> R36SX development, device testing, and maintenance through PayPal.
+> R36SX development, device testing, and maintenance with a standard PayPal
+> payment. This avoids the PayPal Donate feature, which is unavailable in
+> Serbia.
 >
-> ### [Donate to andrija95aki@gmail.com through PayPal](https://www.paypal.com/donate/?cmd=_donations&business=andrija95aki%40gmail.com&currency_code=EUR)
+> ### [Support SwitchFrogUI through PayPal.Me](https://paypal.me/andrija95aki)
+> PayPal account: `andrija95aki@gmail.com`
 >
 > This link supports the SwitchFrogUI fork. The link below supports proszty's
 > original TreeFrogUI development.
