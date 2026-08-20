@@ -1,0 +1,315 @@
+diff --git a/src/port/sf3000/port.c b/src/port/sf3000/port.c
+index bbb7d8e..e92f8ee 100644
+--- a/src/port/sf3000/port.c
++++ b/src/port/sf3000/port.c
+@@ -89,7 +89,20 @@ static int last_h_blend = -1;
+ unsigned short *SCREEN        = NULL;
+ int             SCREEN_WIDTH  = 320;
+ int             SCREEN_HEIGHT = 240;
+-int             scale_mode    = 0;   /* 0=aspect-correct, 1=fullscreen */
++enum {
++    SCALE_4_3_FILL = 0,
++    SCALE_RAW_FIT,
++    SCALE_INTEGER,
++    SCALE_NATIVE_1X,
++    SCALE_OVERSCAN,
++    SCALE_16_9,
++    SCALE_MODE_COUNT
++};
++static const char *scale_mode_names[SCALE_MODE_COUNT] = {
++    "4:3 Fill", "Raw Pixel Fit", "Integer", "Native 1x",
++    "Overscan 110%", "16:9 Letterbox"
++};
++int             scale_mode    = SCALE_4_3_FILL;
+ int             hires_fix     = 0;   /* 0=transparent (raw frame -> HW scaler, full speed, natural default); 1=SW-decimate tall (>256) frames + exact 4:3 so disp_frame can present hi-res without wedging (fixes Colin/Worms freeze/black, costs per-frame CPU) */
+ int             scale_filter  = 1;   /* 0=nearest (SW fb0 — broken on this HW), 1=bilinear (HW HCGE) */
+ int             use_hwdisp    = 0;   /* 0=software path, 1=HW via driver.so */
+@@ -198,83 +211,113 @@ static int display_init(void) {
+     }
+     use_hwdisp = 1;
+     fb1_blank(1);   /* hide battery/volume OSD during gameplay */
+-    /* scale_mode 0 = Aspect-Correct (nearest SW-upscale to 1280×720 with
+-     *   16:9 pad — driver does uniform downscale, letterbox bars survive)
+-     * scale_mode 1 = Fullscreen (HW bilinear direct, driver stretches per axis)
+-     * Driver-side aspect padding alone is not respected — bars get scaled
+-     * away. Putting bars into the 1280×720 staging buffer works. */
+-    if (scale_mode == 1) {
+-        hwdisp_set_target_aspect(0, 0);
+-        hwdisp_set_filter(0);
+-    } else {
+-        hwdisp_set_target_aspect(16, 9);
+-        hwdisp_set_filter(1);
+-    }
++    /* Every scaling mode is composed into a safe 320x240 panel canvas before
++     * presentation.  The vendor driver's aspect flag cannot express the
++     * integer/native/overscan geometries and, on the R36SX 4:3 panel, made the
++     * old Aspect-Correct and Fullscreen choices visually identical. */
++    hwdisp_set_target_aspect(0, 0);
++    hwdisp_set_filter(0);
+     plog("display_init: HW path active");
+     fprintf(stderr, "display_init: HW path active\n");
+     return 0;
+ }
+ 
+-/* PSX aspect normalize to 4:3. PSX pixels are non-square and every mode is meant
+- * to display at 4:3: WIDE modes (512×240 / 640×240 / 384×240, w > 4/3·h) must be
+- * squeezed horizontally, NARROW modes (256×240, w < 4/3·h) must be stretched
+- * horizontally. Doing only the wide case left narrow modes squished in width
+- * (res-dependent). We resample the width to 4/3·h either way, so the presented
+- * buffer is true 4:3; the driver then scales it uniformly to the panel with the
+- * correct pillarbox. Only an exact-4:3 source (320×240) skips the pass.
+- *
+- * Cost: one horizontal resample (~76-150KB/frame); mirrors how the libretro
+- * cores normalize their output. */
+-static int tf_is_r36sx(void);   /* fwd: panel aspect differs by device */
+-
+-/* Present-time panel aspect. The frame is already normalized to 4:3 content, so:
+- *   SF-class (16:9 panel) -> pad it to 16:9 (pillarbox), driver fills the panel.
+- *   R36SX   (4:3 panel)   -> no pad; the 4:3 content full-stretches to the 4:3
+- *                            panel and fills it. Padding to 16:9 here was what
+- *                            double-letterboxed R36SX into huge black bars. */
+-static void set_panel_aspect(void) {
+-    if (tf_is_r36sx()) hwdisp_set_target_aspect(0, 0);
+-    else               hwdisp_set_target_aspect(16, 9);
+-}
+-
+-static void compose_aspect_4to3(const void *src, int w, int h, int pitch) {
+-    int target_w = h * 4 / 3;
+-    if (target_w > 640) target_w = 640;        /* buf cap */
+-
+-    if (target_w == w) {
+-        /* Exactly 4:3 already (320×240): pass straight through. */
+-        set_panel_aspect();
+-        hwdisp_set_filter(0);
+-        hwdisp_present(src, w, h, pitch);
+-        return;
++/* Compose the requested geometry into a 320x240 canvas.  Keeping the frame at
++ * this size avoids the vendor driver's >256-line gameplay failure while black
++ * bars/cropping are baked into the pixels and therefore survive both the
++ * hardware scaler and the optional R36SX display-fix shim. */
++static void compose_scaled(const void *pixels, int w, int h, int pitch) {
++    static uint16_t canvas[320 * 240];
++    static int xmap[320], ymap[240];
++    static int last_w = -1, last_h = -1, last_mode = -1;
++    const uint16_t *src = (const uint16_t *)pixels;
++    int sp = pitch / 2;
++    int sx0 = 0, sy0 = 0, sw = w, sh = h;
++    int dx = 0, dy = 0, dw = 320, dh = 240;
++
++    if (!src || w <= 0 || h <= 0 || sp < w) return;
++    if (scale_mode < 0 || scale_mode >= SCALE_MODE_COUNT)
++        scale_mode = SCALE_4_3_FILL;
++
++    switch (scale_mode) {
++        case SCALE_RAW_FIT:
++            /* Preserve the framebuffer's literal square-pixel aspect. */
++            if ((long long)w * 240 > (long long)h * 320) {
++                dh = (int)((long long)320 * h / w);
++                dy = (240 - dh) / 2;
++            } else {
++                dw = (int)((long long)240 * w / h);
++                dx = (320 - dw) / 2;
++            }
++            break;
++        case SCALE_INTEGER: {
++            /* Largest whole-number scale on the physical 640x480 panel. */
++            int mul = 640 / w;
++            int vmul = 480 / h;
++            if (vmul < mul) mul = vmul;
++            if (mul >= 1) {
++                dw = w * mul / 2;
++                dh = h * mul / 2;
++                if (dw < 1) dw = 1;
++                if (dh < 1) dh = 1;
++                dx = (320 - dw) / 2;
++                dy = (240 - dh) / 2;
++            } else {
++                /* Hi-res frame cannot fit at 1x: fall back to raw fit. */
++                if ((long long)w * 240 > (long long)h * 320) {
++                    dh = (int)((long long)320 * h / w);
++                    dy = (240 - dh) / 2;
++                } else {
++                    dw = (int)((long long)240 * w / h);
++                    dx = (320 - dw) / 2;
++                }
++            }
++            break;
++        }
++        case SCALE_NATIVE_1X:
++            /* One source pixel per physical panel pixel.  Canvas is presented
++             * at 2x, so source dimensions are halved here. */
++            dw = w / 2; dh = h / 2;
++            if (dw < 1) dw = 1;
++            if (dh < 1) dh = 1;
++            if (dw > 320) dw = 320;
++            if (dh > 240) dh = 240;
++            dx = (320 - dw) / 2;
++            dy = (240 - dh) / 2;
++            break;
++        case SCALE_OVERSCAN:
++            /* Crop five percent from every edge, producing a 110%-style zoom
++             * that removes common PS1 overscan borders. */
++            sx0 = w / 22; sy0 = h / 22;
++            sw = w - sx0 * 2; sh = h - sy0 * 2;
++            break;
++        case SCALE_16_9:
++            dh = 180; dy = 30;
++            break;
++        case SCALE_4_3_FILL:
++        default:
++            break;
+     }
+ 
+-    /* Resample W → target_w (down for wide, up for narrow) via nearest. */
+-    static uint16_t buf[640 * 512];            /* fits up to 640×480 PSX hi-res */
+-    static int x_map[640];
+-    static int last_w = -1, last_tgt = -1;
+-    if (w != last_w || target_w != last_tgt) {
+-        for (int dx = 0; dx < target_w; dx++) x_map[dx] = dx * w / target_w;
+-        last_w = w; last_tgt = target_w;
++    if (w != last_w || h != last_h || scale_mode != last_mode) {
++        for (int x = 0; x < dw; x++)
++            xmap[x] = sx0 + (int)((long long)x * sw / dw);
++        for (int y = 0; y < dh; y++)
++            ymap[y] = sy0 + (int)((long long)y * sh / dh);
++        last_w = w; last_h = h; last_mode = scale_mode;
+     }
+ 
+-    const uint16_t *s = (const uint16_t *)src;
+-    const int sp = pitch / 2;
+-    for (int y = 0; y < h && y < 512; y++) {
+-        const uint16_t *srow = s + y * sp;
+-        uint16_t *drow = buf + y * target_w;
+-        for (int dx = 0; dx < target_w; dx++) drow[dx] = srow[x_map[dx]];
++    memset(canvas, 0, sizeof(canvas));
++    for (int y = 0; y < dh; y++) {
++        const uint16_t *srow = src + (size_t)ymap[y] * sp;
++        uint16_t *drow = canvas + (size_t)(dy + y) * 320 + dx;
++        for (int x = 0; x < dw; x++)
++            drow[x] = srow[xmap[x]];
+     }
+ 
+-    set_panel_aspect();
++    hwdisp_set_target_aspect(0, 0);
+     hwdisp_set_filter(0);
+-    hwdisp_present(buf, target_w, h, target_w * 2);
+-}
+-
+-static int tf_is_r36sx(void) {
+-    static int v = -1;
+-    if (v < 0) { const char *d = tf_driver_path(); v = strstr(d, "r36sx") ? 1 : 0; }
+-    return v;
++    hwdisp_present(canvas, 320, 240, 320 * 2);
+ }
+ 
+ /* Tallest game frame disp_frame presents without wedging/blacking. All these
+@@ -315,22 +358,13 @@ static void display_blit(const void *src, int w, int h, int pitch) {
+      * activated HCGE in this process, because per-frame dis_assert() can't
+      * override HCGE display routing on this hardware. */
+     if (use_hwdisp) {
+-        if (scale_mode == 0 && hires_fix) {
+-            /* Aspect-correct: PSX 4:3 regardless of internal resolution (SW resample). */
+-            compose_aspect_4to3(src, w, h, pitch);
+-        } else if (scale_mode == 0) {
+-            /* Hi-Res Fix OFF => fully transparent: NO software resampling at all.
+-             * Hand the raw frame to the driver and let the HW scaler fit it to the
+-             * panel (aspect via the driver flag). Non-square modes lose exact 4:3,
+-             * but there is zero per-frame CPU cost. */
+-            set_panel_aspect();
+-            hwdisp_set_filter(0);
+-            hwdisp_present(src, w, h, pitch);
+-        } else {
+-            /* Fullscreen stretch */
++        if (scale_mode == SCALE_4_3_FILL) {
++            /* Fast default: the 4:3 R36SX panel itself is the 4:3 canvas. */
+             hwdisp_set_target_aspect(0, 0);
+             hwdisp_set_filter(0);
+             hwdisp_present(src, w, h, pitch);
++        } else {
++            compose_scaled(src, w, h, pitch);
+         }
+         return;
+     }
+@@ -671,8 +705,10 @@ static void sf3000_menu(void) {
+ 
+     while (1) {
+         char scale_label[48];
+-        snprintf(scale_label,  sizeof(scale_label),  "Scale:  %s",
+-                 scale_mode == 1 ? "Fullscreen" : "Aspect-Correct");
++        if (scale_mode < 0 || scale_mode >= SCALE_MODE_COUNT)
++            scale_mode = SCALE_4_3_FILL;
++        snprintf(scale_label, sizeof(scale_label), "Scale:  %s",
++                 scale_mode_names[scale_mode]);
+         char gamma_label[48];
+         if (gamma_percent <= 100)
+             snprintf(gamma_label, sizeof(gamma_label), "Gamma:  Off");
+@@ -730,13 +766,9 @@ static void sf3000_menu(void) {
+         /* LEFT/RIGHT adjusts scale (sel 3) and gamma (sel 4) */
+         if (lt || rt) {
+             if (sel == 3) {
+-                scale_mode = (scale_mode + 1) % 2;
++                scale_mode = (scale_mode + (rt ? 1 : SCALE_MODE_COUNT - 1)) % SCALE_MODE_COUNT;
+                 last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
+-                if (scale_mode == 1) {
+-                    hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
+-                } else {
+-                    hwdisp_set_target_aspect(16, 9); hwdisp_set_filter(1);
+-                }
++                hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
+             } else if (sel == 4) {
+                 gamma_percent += rt ? 10 : -10;
+                 if (gamma_percent < 100) gamma_percent = 100;
+@@ -755,9 +787,9 @@ static void sf3000_menu(void) {
+                 case 1: state_save(1); usleep(300000); fb1_blank(1); return;
+                 case 2: state_load(1); usleep(300000); fb1_blank(1); return;
+                 case 3:
+-                    scale_mode = (scale_mode + 1) % 2;
++                    scale_mode = (scale_mode + 1) % SCALE_MODE_COUNT;
+                     last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
+-                    hwdisp_set_target_aspect(scale_mode == 1 ? 0 : 16, scale_mode == 1 ? 0 : 9);
++                    hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
+                     break;
+                 case 4: /* gamma: A toggles off/default */
+                     gamma_percent = (gamma_percent > 100) ? 100 : 130;
+@@ -927,6 +959,11 @@ static uint16_t sf_col_text = 0xFFFF, sf_col_sel = 0x2FE6, sf_col_seltext = 0x00
+  * path points them at a panel-sized buffer and presents it 1:1. */
+ static uint16_t *sf_tgt = NULL; static int sf_tw = 0, sf_th = 0;
+ static uint16_t *sf_menu_fb = NULL; static int sf_pw = 0, sf_ph = 0;
++/* The display driver consumes frames asynchronously. Keep menu drawing off the
++ * buffer it may still be scanning; otherwise repeatedly redrawing TTF glyphs
++ * in the 16 ms menu loop produces visible text flicker. */
++static uint16_t *sf_menu_scanout[2] = { NULL, NULL };
++static int sf_menu_scanout_index = 0;
+ static void sf_read_panel(void) {
+     if (sf_pw) return;
+     sf_pw = 640; sf_ph = 480;                 /* R36SX default */
+@@ -1106,9 +1143,18 @@ void sf3000_menu_present(void) {
+     extern void hwdisp_set_target_aspect(int, int);
+     extern void hwdisp_set_filter(int);
+     if (!sf_menu_fb) return;
++    size_t bytes=(size_t)sf_pw*sf_ph*2;
++    if (!sf_menu_scanout[0]) {
++        sf_menu_scanout[0]=(uint16_t*)malloc(bytes);
++        sf_menu_scanout[1]=(uint16_t*)malloc(bytes);
++    }
++    uint16_t *scanout=sf_menu_scanout[sf_menu_scanout_index];
++    sf_menu_scanout_index^=1;
++    if(scanout) memcpy(scanout,sf_menu_fb,bytes);
++    else scanout=sf_menu_fb;
+     hwdisp_set_target_aspect(0, 0);   /* fill panel, no pad */
+     hwdisp_set_filter(0);
+-    hwdisp_present(sf_menu_fb, sf_pw, sf_ph, sf_pw * 2);
++    hwdisp_present(scanout, sf_pw, sf_ph, sf_pw * 2);
+     sf_tgt = SCREEN; sf_tw = SCREEN_WIDTH; sf_th = SCREEN_HEIGHT;  /* restore */
+ }
+ int  sf3000_panel_w(void) { sf_read_panel(); return sf_pw; }
+@@ -1243,7 +1289,8 @@ static void config_read(const char *path) {
+         else if (!strcmp(line,"SpuUseReverb"))        spu_config.iUseReverb = v;
+         else if (!strcmp(line,"SpuVolume"))           spu_config.iVolume = v;
+ #endif
+-        else if (!strcmp(line,"ScaleMode"))   scale_mode   = v;
++        else if (!strcmp(line,"ScaleMode"))   scale_mode   =
++            (v >= 0 && v < SCALE_MODE_COUNT) ? v : SCALE_4_3_FILL;
+         else if (!strcmp(line,"HiResFix"))    hires_fix    = v ? 1 : 0;
+         else if (!strcmp(line,"ScaleFilter")) scale_filter = v;
+         else if (!strcmp(line,"Gamma"))       gamma_percent = (v < 100 ? 100 : (v > 250 ? 250 : v));

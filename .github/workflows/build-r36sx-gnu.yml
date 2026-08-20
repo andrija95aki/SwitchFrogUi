@@ -1,0 +1,77 @@
+name: Build R36SX GNU runtimes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [r36sx-source-build]
+    paths:
+      - apps/video_launcher.c
+      - patches/r36sx-pcsx4all-runtime.patch
+      - .github/workflows/build-r36sx-gnu.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      BASE_COMMIT: 21084ac2f11cd719fc6c1ce745538f3aae54a043
+      PORT_COMMIT: 1ce1a307dd12d60c35fa946a23ecd54bb94336b4
+      SDK_URL: https://github.com/game-de-it/sf3000/releases/download/sf3000_toolchain_v0.1/mipsel-buildroot-linux-gnu_sdk-buildroot.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and relocate the official SF3000 GNU SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sf3000-sdk"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/sf3000-sdk.tar.gz" "$SDK_URL"
+          tar -xzf "$RUNNER_TEMP/sf3000-sdk.tar.gz" -C "$RUNNER_TEMP/sf3000-sdk"
+          relocate="$(find "$RUNNER_TEMP/sf3000-sdk" -name relocate-sdk.sh -type f -print -quit)"
+          test -n "$relocate"
+          chmod +x "$relocate"
+          "$relocate"
+          gcc="$(find "$RUNNER_TEMP/sf3000-sdk" -path '*/bin/mips-mti-linux-gnu-gcc' -type f -print -quit)"
+          test -x "$gcc"
+          prefix="${gcc%gcc}"
+          sysroot="$($gcc -print-sysroot)"
+          test -d "$sysroot"
+          echo "SF_GCC=$gcc" >> "$GITHUB_ENV"
+          echo "SF_PREFIX=$prefix" >> "$GITHUB_ENV"
+          echo "SF_SYSROOT=$sysroot" >> "$GITHUB_ENV"
+
+      - name: Assemble the pinned PCSX4ALL source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/gameblabla/pcsx4all.git "$RUNNER_TEMP/pcsx4all"
+          git -C "$RUNNER_TEMP/pcsx4all" checkout "$BASE_COMMIT"
+          git clone --filter=blob:none https://github.com/tzubertowski/TreeFrogUI_pcsx4all.git "$RUNNER_TEMP/pcsx-port"
+          git -C "$RUNNER_TEMP/pcsx-port" checkout "$PORT_COMMIT"
+          rsync -a --exclude=.git/ "$RUNNER_TEMP/pcsx-port/" "$RUNNER_TEMP/pcsx4all/"
+          git -C "$RUNNER_TEMP/pcsx4all" apply "$GITHUB_WORKSPACE/patches/r36sx-pcsx4all-runtime.patch"
+
+      - name: Build GNU launcher and PCSX4ALL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          "$SF_GCC" -mips32r2 -march=mips32r2 -mtune=74kc -mhard-float -mfp32 -EL \
+            --sysroot="$SF_SYSROOT" -O2 -DNDEBUG -Wl,--gc-sections -s \
+            apps/video_launcher.c -ldl -o artifacts/video_player
+          make -C "$RUNNER_TEMP/pcsx4all" -f Makefile.sf3000 -j2 \
+            TOOLCHAIN="$SF_PREFIX" SYSROOT="$SF_SYSROOT"
+          cp "$RUNNER_TEMP/pcsx4all/pcsx4all" artifacts/pcsx4all
+          file artifacts/video_player artifacts/pcsx4all
+          sha256sum artifacts/video_player artifacts/pcsx4all > artifacts/SHA256SUMS.txt
+
+      - name: Upload runtime binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: switchfrogui-r36sx-gnu-runtimes
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30

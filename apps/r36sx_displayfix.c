@@ -36,6 +36,20 @@ static int panel_index;
 static int xmap[PANEL_W];
 static int ymap[PANEL_H];
 static int map_w = -1, map_h = -1, map_fit = -1;
+static int process_is_pcsx = -1;
+
+static int is_pcsx_process(void) {
+    if (process_is_pcsx < 0) {
+        char name[64] = {0};
+        FILE *f = fopen("/proc/self/comm", "r");
+        if (f) {
+            fgets(name, sizeof(name), f);
+            fclose(f);
+        }
+        process_is_pcsx = strstr(name, "pcsx4all") ? 1 : 0;
+    }
+    return process_is_pcsx;
+}
 
 static void resolve_real_dlsym(void) {
     if (!real_dlsym)
@@ -56,7 +70,7 @@ static int fixed_disp(void *pixels, int w, int h, int pitch) {
      * glyphs disappear on the SNES path.  The vendor driver already handles
      * this exact menu geometry correctly, so leave only these UI frames alone;
      * game frames and PCSX4ALL's panel-native menu remain corrected. */
-    if (w == 320 && h == 240 && pitch >= 640)
+    if (!is_pcsx_process() && w == 320 && h == 240 && pitch >= 640)
         return real_disp(pixels, w, h, pitch);
 
     if (!panel_buffers[0]) {
