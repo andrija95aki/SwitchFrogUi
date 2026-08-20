@@ -3509,10 +3509,10 @@ index a72c4e6..2ae52b5 100644
  size_t   retro_serialize_size(void)                                { return 0; }
 diff --git a/io_diagnostics.c b/io_diagnostics.c
 new file mode 100644
-index 0000000..7f56a6b
+index 0000000..5f948c7
 --- /dev/null
 +++ b/io_diagnostics.c
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,379 @@
 +#include "io_diagnostics.h"
 +
 +#include <ctype.h>
@@ -3609,6 +3609,41 @@ index 0000000..7f56a6b
 +    return count;
 +}
 +
++static int block_device_readable(const char *name) {
++    char path[96];
++    unsigned char byte;
++    FILE *f;
++    size_t got;
++    snprintf(path, sizeof(path), "/dev/%s", name);
++    f = fopen(path, "rb");
++    if (!f) return 0;
++    got = fread(&byte, 1, 1, f);
++    fclose(f);
++    return got == 1;
++}
++
++static int count_readable_block_devices(const char *prefix) {
++    DIR *dir = opendir("/sys/class/block");
++    struct dirent *entry;
++    int count = 0;
++    if (!dir) return 0;
++    while ((entry = readdir(dir))) {
++        const char *name = entry->d_name;
++        const char *p;
++        if (!starts_with(name, prefix)) continue;
++        if (!strcmp(prefix, "mmcblk")) {
++            p = name + strlen(prefix);
++            while (isdigit((unsigned char)*p)) p++;
++            if (*p) continue;
++        } else if (!strcmp(prefix, "sd")) {
++            if (strlen(name) != 3 || !isalpha((unsigned char)name[2])) continue;
++        }
++        if (block_device_readable(name)) count++;
++    }
++    closedir(dir);
++    return count;
++}
++
 +static void add_block_rows(const char *prefix, const char *label) {
 +    DIR *dir = opendir("/sys/class/block");
 +    struct dirent *entry;
@@ -3631,10 +3666,11 @@ index 0000000..7f56a6b
 +        read_value(path, sectors, sizeof(sectors));
 +        if (sectors[0]) sscanf(sectors, "%llu", &nsectors);
 +        if (model[0] && nsectors)
-+            snprintf(value, sizeof(value), "%s: %s, %llu MiB", name, model,
-+                     nsectors / 2048ULL);
++            snprintf(value, sizeof(value), "%s: %s, %llu MiB, %s", name, model,
++                     nsectors / 2048ULL, block_device_readable(name) ? "read OK" : "read denied");
 +        else if (nsectors)
-+            snprintf(value, sizeof(value), "%s: %llu MiB", name, nsectors / 2048ULL);
++            snprintf(value, sizeof(value), "%s: %llu MiB, %s", name, nsectors / 2048ULL,
++                     block_device_readable(name) ? "read OK" : "read denied");
 +        else
 +            snprintf(value, sizeof(value), "%s", name);
 +        add_row(label, value);
@@ -3662,12 +3698,15 @@ index 0000000..7f56a6b
 +static void probe_mmc(void) {
 +    int hosts = count_dir_entries("/sys/class/mmc_host", "mmc", 1);
 +    int cards = count_base_block_devices("mmcblk");
++    int readable = count_readable_block_devices("mmcblk");
 +    char value[96], mount[96];
 +    snprintf(value, sizeof(value), "%d controller%s exposed", hosts, hosts == 1 ? "" : "s");
 +    add_row("SD/MMC interfaces", value);
-+    snprintf(value, sizeof(value), "%d readable card%s", cards, cards == 1 ? "" : "s");
++    snprintf(value, sizeof(value), "%d detected, %d read-test OK", cards, readable);
 +    add_row("SD cards", value);
-+    add_row("Second SD slot", cards >= 2 ? "Detected and readable" : "Not detected - insert card + X");
++    add_row("Second SD slot", cards >= 2
++                ? (readable >= 2 ? "Detected; non-writing read test OK" : "Detected; read test denied")
++                : "Not detected - insert card + X");
 +    if (read_card_mount(mount, sizeof(mount))) add_row("System card mount", mount);
 +    else add_row("System card mount", "Mount source unavailable");
 +    add_block_rows("mmcblk", "SD block device");
