@@ -85,6 +85,15 @@ A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds -
 
 ![UI Preview on SF3000 Console](console.jpg)
 
+> ## Support SwitchFrogUI R36SX development
+> If SwitchFrogUI has been useful to you, you can support Andrija's continued
+> R36SX development, device testing, and maintenance through PayPal.
+>
+> ### [Donate to andrija95aki@gmail.com through PayPal](https://www.paypal.com/donate/?cmd=_donations&business=andrija95aki%40gmail.com&currency_code=EUR)
+>
+> This link supports the SwitchFrogUI fork. The link below supports proszty's
+> original TreeFrogUI development.
+
 > # ☕ Consider donating to extend device support: [ko-fi.com/proszty](https://ko-fi.com/proszty)
 > TreeFrogUI is free and made by one person. Every device I support, I bought with my own money. Donations are what let me buy the next handheld and add support for it (R36SX v2.7, SF3000 V3, SF3500, SF3100, GB350, HDMI clones, and more).
 >
