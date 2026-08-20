@@ -24,8 +24,9 @@
   and `ps1` without renaming ROM directories or changing core detection.
 - Returning from a platform, Recent, Favourites, Files, or Settings restores
   the previously selected Home card instead of jumping to the first item.
-- Static 15-pixel artwork-colour halo around the selected Home card, rendered
-  below neighbouring cards with no continuous animation cost.
+- Thin seven-pixel artwork-colour halo around the selected Home card, alpha-
+  simulated by blending into the actual rendered background. Dark artwork is
+  brightened for the halo so it cannot become a black opaque shadow.
 
 ## Appearance and settings
 
@@ -93,6 +94,9 @@
   when saved. Accurate GPU blending is enabled by default and live GPU setting
   changes reach the active renderer. Exit first returns the vendor display
   engine to a stable frame geometry to avoid freezing the resumed UI.
+- PCSX explicitly signals panel-fill to both the proprietary driver and the
+  optional R36SX display-fix shim. Stretch therefore occupies all 640x480
+  pixels instead of being re-letterboxed by the correction layer.
 - Checksum-guarded PCSX4ALL patch maps Start+Select to its native menu while
   retaining Select+L1.
 - Duplicate PS1 history/favourite routes are collapsed by ROM path so the slow

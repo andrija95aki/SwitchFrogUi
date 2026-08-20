@@ -2671,7 +2671,7 @@ index a72c4e6..9b6a26f 100644
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
-@@ -1774,7 +2749,1074 @@ static void render_search_kbd(void) {
+@@ -1774,7 +2749,1098 @@ static void render_search_kbd(void) {
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
@@ -3229,15 +3229,39 @@ index a72c4e6..9b6a26f 100644
 +    return system_colors[index % 5];
 +}
 +
-+static void launcher_draw_card_glow(int x,int y,int w,int h,uint16_t color) {
-+    /* Fifteen physical pixels around the selected card. Drawn before all cards,
-+     * so a neighbouring card always remains above any overlapping glow. */
-+    for(int spread=15;spread>=3;spread-=3) {
-+        int amount=45+(15-spread)*10;
-+        uint16_t c=ui_mix565(COLOR_BG,color,amount);
-+        render_rounded_rect_aa(framebuffer,x-spread,y-spread,w+spread*2,h+spread*2,
-+                               UI_S(10)+spread,c);
++static void launcher_blend_round_rect(int x,int y,int w,int h,int radius,
++                                      uint16_t color,int amount) {
++    int x0=x<0?0:x, y0=y<0?0:y;
++    int x1=x+w>SCREEN_WIDTH?SCREEN_WIDTH:x+w;
++    int y1=y+h>SCREEN_HEIGHT?SCREEN_HEIGHT:y+h;
++    if(radius<1) radius=1;
++    for(int py=y0;py<y1;py++) for(int px=x0;px<x1;px++) {
++        int inside=(px>=x+radius && px<x+w-radius) ||
++                   (py>=y+radius && py<y+h-radius);
++        if(!inside) {
++            int cx=px<x+radius?x+radius-1:x+w-radius;
++            int cy=py<y+radius?y+radius-1:y+h-radius;
++            int dx=px-cx,dy=py-cy;
++            inside=dx*dx+dy*dy<=radius*radius;
++        }
++        if(inside) {
++            uint16_t *p=&framebuffer[py*SCREEN_WIDTH+px];
++            *p=ui_mix565(*p,color,amount);
++        }
 +    }
++}
++
++static void launcher_draw_card_glow(int x,int y,int w,int h,uint16_t color) {
++    /* RGB565 has no alpha channel: blend into the already-rendered background
++     * to simulate transparency. Brighten dark artwork averages so the halo can
++     * never collapse into an opaque black shadow. */
++    uint16_t vivid=ui_mix565(color,0xFFFF,72);
++    static const int spread[]={7,5,3,1};
++    static const int alpha[]={28,38,50,65};
++    for(int i=0;i<4;i++)
++        launcher_blend_round_rect(x-spread[i],y-spread[i],
++                                  w+spread[i]*2,h+spread[i]*2,
++                                  UI_S(10)+spread[i],vivid,alpha[i]);
 +}
 +
 +static void launcher_draw_icon(const char *name, int x, int y, int w, int h) {
@@ -3358,8 +3382,8 @@ index a72c4e6..9b6a26f 100644
 +        int y = cy;
 +        uint16_t color = launcher_tile_color(entries[idx].name, idx);
 +        if (selected)
-+            render_rounded_rect_aa(framebuffer, x - UI_S(3), y - UI_S(3),
-+                                   w + UI_S(6), h + UI_S(6), UI_S(12),
++            render_rounded_rect_aa(framebuffer, x - UI_S(2), y - UI_S(2),
++                                   w + UI_S(4), h + UI_S(4), UI_S(11),
 +                                   0xFFFF);
 +        render_rounded_rect_aa(framebuffer, x, y, w, h, UI_S(10), color);
 +        Thumbnail *art=launcher_get_art(slot,idx);

@@ -390,7 +390,39 @@ index a189b7b..7eb5fa6 100644
  
  #define HW_W   1280
  #define HW_H    720
-@@ -315,6 +316,15 @@ void hwdisp_present(const void *src, int w, int h, int pitch_bytes) {
+@@ -28,10 +29,12 @@ static int     g_active = 0;
+ typedef int  (*fn_init_t)(void);
+ typedef void (*fn_deinit_t)(void);
+ typedef int  (*fn_disp_t)(void *src, int w, int h, int pitch);
++typedef void (*fn_aspect_t)(int mode);
+ 
+ static fn_init_t   p_init   = NULL;
+ static fn_deinit_t p_deinit = NULL;
+ static fn_disp_t   p_disp   = NULL;
++static fn_aspect_t p_aspect = NULL;
+ 
+ /* Aspect-pad staging buffer (lazy alloc, resized on demand) */
+ static uint16_t *g_pad_buf  = NULL;
+@@ -58,6 +61,7 @@ int hwdisp_init(void) {
+     p_init   = (fn_init_t)  dlsym(g_handle, "video_drivers_init");
+     p_deinit = (fn_deinit_t)dlsym(g_handle, "video_driver_deinit");
+     p_disp   = (fn_disp_t)  dlsym(g_handle, "video_driver_disp_frame");
++    p_aspect = (fn_aspect_t)dlsym(g_handle, "fbdev_video_aspect_ratio");
+ 
+     if (!p_init || !p_deinit || !p_disp) {
+         fprintf(stderr, "hwdisp: dlsym failed (init=%p deinit=%p disp=%p)\n",
+@@ -83,6 +87,10 @@ int hwdisp_active(void) { return g_active; }
+ void hwdisp_set_target_aspect(int num, int den) {
+     g_aspect_num = num;
+     g_aspect_den = den;
++    /* Keep the proprietary driver and the optional display-fix shim in sync.
++     * Every PCSX software-composed mode already contains its own bars/crop, so
++     * (0,0), including Stretch, must select true panel fill. */
++    if (p_aspect) p_aspect(num > 0 && den > 0 ? 1 : 0);
+ }
+ 
+ void hwdisp_set_filter(int nearest) {
+@@ -315,10 +323,19 @@ void hwdisp_present(const void *src, int w, int h, int pitch_bytes) {
  
  void hwdisp_deinit(void) {
      if (!g_active) return;
@@ -406,6 +438,11 @@ index a189b7b..7eb5fa6 100644
      if (p_deinit) p_deinit();
      if (g_pad_buf) { free(g_pad_buf); g_pad_buf = NULL; g_pad_cap = 0; g_pad_w = 0; g_pad_h = 0; }
      if (g_near_buf) { free(g_near_buf); g_near_buf = NULL; }
+     if (g_handle) { dlclose(g_handle); g_handle = NULL; }
+-    p_init = NULL; p_deinit = NULL; p_disp = NULL;
++    p_init = NULL; p_deinit = NULL; p_disp = NULL; p_aspect = NULL;
+     g_active = 0;
+ }
 diff --git a/src/gpu/gpu_unai/gpulib_if.cpp b/src/gpu/gpu_unai/gpulib_if.cpp
 index cd5f5ee..27ce2b4 100644
 --- a/src/gpu/gpu_unai/gpulib_if.cpp
