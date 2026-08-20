@@ -82,9 +82,10 @@
   language suffixes.
 - Per-video subtitle timing offsets in exact 100 ms steps, persisted across
   reboots.
-- Standalone media launching uses an explicit `execv()` argument array. The
-  video wrapper also removes the emulator-only display-fix preload before the
-  FFmpeg hardware player starts; that preload was the pre-`main()` crash seen in
-  the device log.
+- Standalone media launching uses a clean boot-loop handoff: PicoArch exits
+  first, allowing the kernel to close its framebuffer, HCGE, `/dev/dis`, and
+  audio resources before a fresh application process starts. The video path
+  explicitly clears the emulator-only display-fix preload and marker, so the
+  FFmpeg/H.OS hardware player always runs without that correction.
 - File and video list browsers use a clean theme background instead of carrying
   over the artwork banner from the previously selected Home card.

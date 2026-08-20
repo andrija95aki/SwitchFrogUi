@@ -177,7 +177,25 @@ while true; do
     if [ -f "$LAUNCH" ]; then
         CORE_PATH=$(sed -n '1p' "$LAUNCH")
         ROM_PATH=$(sed -n '2p' "$LAUNCH")
+        APP_ARG=$(sed -n '3p' "$LAUNCH")
         rm -f "$LAUNCH"
+        if [ "$CORE_PATH" = standalone ] && [ -n "$ROM_PATH" ]; then
+            sleep 0.3
+            echo "--- iter $ITER: standalone [$ROM_PATH] [$APP_ARG] ---" >> "$LOG"
+            case "$ROM_PATH" in
+                *video_player*)
+                    # The FFmpeg/H.OS video plane is incompatible with the
+                    # emulator disp_frame correction. Run the player clean.
+                    ( unset LD_PRELOAD TF_R36SX_DISPLAYFIX_PRELOADED; "$ROM_PATH" "$APP_ARG" ) >> "$LOG" 2>&1
+                    ;;
+                *) run_with_displayfix "$ROM_PATH" "$APP_ARG" >> "$LOG" 2>&1 ;;
+            esac
+            GRC=$?
+            echo "standalone exited rc=$GRC" >> "$LOG"
+            hw_crash_check "$GRC"
+            sleep 0.2
+            continue
+        fi
         if [ -n "$CORE_PATH" ] && [ -n "$ROM_PATH" ]; then
             killall rkgame 2>/dev/null #@KILL@
             sleep 0.3
