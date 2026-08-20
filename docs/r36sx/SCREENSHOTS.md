@@ -1,6 +1,6 @@
 # R36SX hardware screenshots
 
-These are photographs of the current TreeFrogUI Contributions build running on
+These are photographs of the current SwitchFrogUI build running on
 an R36SX v2.7 motherboard with H.OS 1.2. Camera exposure and the LCD pixel grid
 can make colours look brighter than they appear in person.
 
@@ -9,7 +9,7 @@ can make colours look brighter than they appear in person.
 The comparison is intentionally shown at equal size. The affected hardware
 shifts the left 110-pixel display band vertically, producing a visible break in
 horizontal edges. The persistent setting applies a one-pixel compensation to
-that band in TreeFrogUI, games, emulator menus, Rockbox, and standalone apps.
+that band in SwitchFrogUI, games, emulator menus, Rockbox, and standalone apps.
 
 <table>
   <tr>

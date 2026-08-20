@@ -25,8 +25,9 @@ Current standalone apps:
 
 ## The launch contract
 
-Everything hinges on one file: `/tmp/frogui_launch.txt`, written by FrogUI when
-the user picks a game, then read by picoarch after FrogUI shuts down.
+Libretro game launches use `/tmp/frogui_launch.txt`. Standalone applications
+normally use a direct `execv()` process replacement from FrogUI; the launch file
+remains as a recovery fallback if that direct call returns an error.
 
 **libretro core launch** - 2 lines:
 
@@ -64,7 +65,10 @@ icube  (loop)                FrogUI core               picoarch
 
 - **icube** (`sdcard/cubegm/icube`) only ever loops `picoarch frogui`. It does
   **not** parse the launch file and needs **no** change for standalone apps.
-- **FrogUI** (`frogui_libretro.c`) decides core-vs-standalone and writes the file.
+- **FrogUI** (`frogui_libretro.c`) decides core-vs-standalone. It writes the
+  launch file for libretro cores and uses `execv()` with an explicit argument
+  array for standalone apps. Avoid variadic `execl()` here: the portable MIPS
+  build has faulted in that call before the target application entered `main()`.
 - **picoarch** (`main.c`, ~line 1023-1069) reads the file on quit and `execl`s
   the next process. Standalone path:
   `execl(bin_path, bin_path, rom_path, NULL)` - replaces picoarch with the

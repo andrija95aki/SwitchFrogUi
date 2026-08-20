@@ -7,12 +7,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $card = (Resolve-Path -LiteralPath $TestedCardRoot).Path.TrimEnd('\')
 $outParent = [IO.Path]::GetFullPath($OutputDirectory)
-$stage = Join-Path $outParent 'TreeFrogUI-Contributions-R36SX-HOS-1.2'
+$stage = Join-Path $outParent 'SwitchFrogUI-R36SX-HOS-1.2'
 $sdRoot = Join-Path $stage 'SD_ROOT'
-$zipPath = Join-Path $outParent 'TreeFrogUI-Contributions-R36SX-HOS-1.2.zip'
+$zipPath = Join-Path $outParent 'SwitchFrogUI-R36SX-HOS-1.2.zip'
 
 if (-not (Test-Path -LiteralPath (Join-Path $card 'cubegm\zhijack.sh'))) {
-    throw 'The selected card tree is not an assembled TreeFrogUI R36SX card.'
+    throw 'The selected card tree is not an assembled SwitchFrogUI R36SX card.'
 }
 
 New-Item -ItemType Directory -Force -Path $outParent | Out-Null
@@ -113,11 +113,11 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot 'apps\rockbox-config.cfg')) {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $sdRoot 'MD') | Out-Null
 [IO.File]::WriteAllText((Join-Path $sdRoot 'MD\dummy.md'), 'TF', [Text.Encoding]::ASCII)
-[IO.File]::WriteAllText((Join-Path $sdRoot 'MD\filelist.csv'), "dummy.md,TreeFrogUI,MD`n", [Text.Encoding]::ASCII)
+[IO.File]::WriteAllText((Join-Path $sdRoot 'MD\filelist.csv'), "dummy.md,SwitchFrogUI,MD`n", [Text.Encoding]::ASCII)
 
-$musicDirectory = Join-Path $sdRoot 'Music\TreeFrogUI Samples'
+$musicDirectory = Join-Path $sdRoot 'Music\SwitchFrogUI Samples'
 New-Item -ItemType Directory -Force -Path $musicDirectory | Out-Null
-Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\assets\TreeFrogUI Sample - Mozart - Piano Sonata No. 14.ogg') -Destination $musicDirectory
+Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\assets\SwitchFrogUI Sample - Mozart - Piano Sonata No. 14.ogg') -Destination $musicDirectory
 
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'README-R36SX.md') -Destination (Join-Path $stage 'README.md')
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'LICENSE.md') -Destination $stage

@@ -1,4 +1,4 @@
-/* TreeFrogUI hardware video player for H.OS / R36SX. */
+/* SwitchFrogUI hardware video player for H.OS / R36SX. */
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>

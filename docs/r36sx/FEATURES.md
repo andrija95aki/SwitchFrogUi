@@ -26,6 +26,8 @@
 - All UI animations removed for responsiveness; B consistently returns to the
   previous menu.
 - In-app Controls & Shortcuts reference.
+- Hardware Information page with detected model, board, firmware, SoC, CPU,
+  memory, display, kernel, serial availability, and SD-card capacity.
 
 ## R36SX hardware fixes
 
@@ -68,5 +70,7 @@
   language suffixes.
 - Per-video subtitle timing offsets in exact 100 ms steps, persisted across
   reboots.
-- Direct standalone `exec` handoff avoids the intermittent PicoArch teardown
-  crash that previously prevented the video player from reaching `main()`.
+- Standalone media launching uses an explicit `execv()` argument array, avoiding
+  the target MIPS varargs fault that previously occurred before video startup.
+- File and video list browsers use a clean theme background instead of carrying
+  over the artwork banner from the previously selected Home card.

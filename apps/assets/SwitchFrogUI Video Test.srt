@@ -16,4 +16,4 @@ Try A to pause, Y to rotate, and START to change scaling.
 
 5
 00:00:10,000 --> 00:00:11,800
-TreeFrogUI video and subtitle test complete.
+SwitchFrogUI video and subtitle test complete.

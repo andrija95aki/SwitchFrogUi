@@ -18,7 +18,7 @@ licenses. Release packages include the corresponding notices and source links.
 
 ## Included sample recording
 
-`TreeFrogUI Sample - Mozart - Piano Sonata No. 14.ogg`
+`SwitchFrogUI Sample - Mozart - Piano Sonata No. 14.ogg`
 
 - Composition: Wolfgang Amadeus Mozart, Piano Sonata No. 14 in C minor, K. 457
 - Performance: La Pianista, recorded 2010-06-09

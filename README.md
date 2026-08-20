@@ -1,14 +1,14 @@
-![TreeFrogUI Logo](logo-readme.png)
+![SwitchFrogUI](assets/switchfrogui-boot.png)
 
-# TreeFrogUI - Retro Emulation Frontend
+# SwitchFrogUI - R36SX Retro Frontend
 
-> **R36SX Contributions branch:** see [README-R36SX.md](README-R36SX.md) for
+> **SwitchFrogUI branch:** see [README-R36SX.md](README-R36SX.md) for
 > the ROM-free R36SX v2.7/H.OS 1.2 build, source instructions, media-player
 > additions, hardware fixes, release documentation, and
 > [annotated hardware screenshots](docs/r36sx/SCREENSHOTS.md).
-> [Download the R36SX overlay](https://github.com/andrija95aki/treefrog-ui/releases/latest).
+> [Download the R36SX overlay](https://github.com/andrija95aki/SwitchFrogUi/releases/latest).
 
-## R36SX Contributions screenshots
+## SwitchFrogUI screenshots
 
 <table>
   <tr>

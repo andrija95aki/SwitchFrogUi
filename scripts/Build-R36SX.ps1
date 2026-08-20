@@ -113,7 +113,9 @@ try {
         '-o',(Join-Path $output 'r36sx_displayfix.so'))
 } finally { Pop-Location }
 
-Get-ChildItem -LiteralPath $output -File | Get-FileHash -Algorithm SHA256 |
+Get-ChildItem -LiteralPath $output -File |
+    Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+    Get-FileHash -Algorithm SHA256 |
     ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } |
     Set-Content -Encoding ascii (Join-Path $output 'SHA256SUMS.txt')
 Write-Host "R36SX build complete: $output"

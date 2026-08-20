@@ -63,8 +63,10 @@ apply to the FrogUI core or the small R36SX helper applications.
 ## 3. Generate the boot bitmap
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File scripts/make_switchfrogui_boot_source.ps1
+
 powershell -ExecutionPolicy Bypass -File scripts/make_r36sx_boot_logo.ps1 `
-  -SourcePng assets/treefrogui-contributions-boot.png `
+  -SourcePng assets/switchfrogui-boot.png `
   -OutputBmp .r36sx-build/out/xgame-logo-r36sx.bmp
 ```
 
