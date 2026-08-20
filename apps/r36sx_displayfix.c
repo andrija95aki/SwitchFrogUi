@@ -51,6 +51,14 @@ static int fixed_disp(void *pixels, int w, int h, int pitch) {
     if (!real_disp || !pixels || w <= 0 || h <= 0 || pitch < w * 2)
         return real_disp ? real_disp(pixels, w, h, pitch) : -1;
 
+    /* PicoArch draws its native in-game menu into a 320x240 RGB565 surface.
+     * Passing that UI through the final-panel resampler makes its small bitmap
+     * glyphs disappear on the SNES path.  The vendor driver already handles
+     * this exact menu geometry correctly, so leave only these UI frames alone;
+     * game frames and PCSX4ALL's panel-native menu remain corrected. */
+    if (w == 320 && h == 240 && pitch >= 640)
+        return real_disp(pixels, w, h, pitch);
+
     if (!panel_buffers[0]) {
         panel_buffers[0] = (uint16_t *)malloc(PANEL_W * PANEL_H * sizeof(uint16_t));
         panel_buffers[1] = (uint16_t *)malloc(PANEL_W * PANEL_H * sizeof(uint16_t));

@@ -42,11 +42,11 @@ extern unsigned char fontdata8x8[64 * 16];
 #define SUBTITLE_OFFSET_TMP  "/mnt/sdcard/frogui/video_subtitle_offsets.tmp"
 #define SUBTITLE_OFFSET_LIMIT_MS 60000
 
-/* H.OS's Linux 4.4 dynamic loader crashes before main() when a Zig/LLD-linked
- * executable has libffplayer.so in DT_NEEDED.  Stock rkgame loads its media
- * stack after process startup, so do the same: keep the executable dependent
- * only on libc/libdl and resolve the vendor player API explicitly.  Besides
- * avoiding the loader fault, this gives the log an exact dlopen/dlsym stage. */
+/* H.OS's Linux 4.4 dynamic loader crashes before application code when the
+ * vendor player is a load-time dependency.  Keep this module dependent only
+ * on the standard runtime and resolve the stock media API explicitly after
+ * the tiny launcher has entered main().  The log then identifies the exact
+ * dlopen/dlsym boundary if the firmware rejects a vendor component. */
 static void *ffplayer_library;
 static int (*fp_hcplayer_init)(HCPlayerLogLevel);
 static void (*fp_hcplayer_deinit)(void);
@@ -460,8 +460,8 @@ static void render_overlay(void *player, bool paused, float speed, int rotation,
               "HOLD SELECT + LEFT/RIGHT: SUB DELAY -/+100MS", 0xFFEAF0F7u);
 }
 
-int main(int argc, char **argv) {
-    fprintf(stderr, "video_player: entered main argc=%d\n", argc);
+int switchfrog_video_main(int argc, char **argv) {
+    fprintf(stderr, "video_player: entered implementation argc=%d\n", argc);
     if (argc < 2 || !argv[1][0]) { fprintf(stderr, "Usage: %s VIDEO_FILE\n", argv[0]); return 2; }
     fprintf(stderr, "video_player: input=%s\n", argv[1]);
     if (!load_ffplayer()) return 5;

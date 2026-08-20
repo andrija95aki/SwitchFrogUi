@@ -55,6 +55,7 @@ $runtimeFiles = @(
     'cubegm\rockbox',
     'cubegm\rockbox.sh',
     'cubegm\video_player',
+    'cubegm\video_player_impl.so',
     'cubegm\video_player.sh',
     'cubegm\nosleep',
     'cubegm\r36sx_displayfix.so',

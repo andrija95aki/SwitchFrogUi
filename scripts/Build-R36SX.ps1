@@ -94,10 +94,12 @@ try {
 
 Push-Location $appsRoot
 try {
-    Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-O2','-DNDEBUG',
+    Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-fPIC','-G0','-O2','-DNDEBUG',
         '-Icompat',"-I$hcSysInclude","-I$hcUapiInclude","-I$hcFfmpegInclude",
-        '-s','video_player.c',$pcsxFont,'-ldl','-lm','-lpthread',
-        '-o',(Join-Path $output 'video_player'))
+        '-shared','-Wl,--no-undefined','-s','video_player.c',$pcsxFont,
+        '-ldl','-lm','-lpthread','-o',(Join-Path $output 'video_player_impl.so'))
+    Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-O2','-DNDEBUG','-s',
+        'video_launcher.c','-ldl','-o',(Join-Path $output 'video_player'))
 } finally { Pop-Location }
 
 Push-Location $hijackRoot
@@ -127,6 +129,7 @@ $cardSounds = Join-Path $cardFiles 'frogui\sounds'
 New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds | Out-Null
 Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

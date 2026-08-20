@@ -34,6 +34,9 @@ licenses. Release packages include the corresponding notices and source links.
 - PicoArch by neonloop and the TreeFrogUI port: BSD 3-Clause for the wrapper;
   vendored libpicofe portions retain GPL v2+, LGPL v2.1+, or MAME terms.
 - TreeFrogUI PCSX4ALL port: its upstream open-source notices apply.
+- DuckStation CHTDB: optional source for locally generated PS1 GameShark
+  lists. Database scripts are MIT; individual codes remain owned by their
+  original authors. No cheat database is bundled in the public OS overlay.
 - Rockbox: GNU GPL v2 or later.
 - SDL 1.2: GNU LGPL v2.1.
 - FFmpeg/libffplayer and HCRTOS headers/APIs: their respective upstream and

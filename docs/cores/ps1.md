@@ -38,3 +38,17 @@ flip it on for the specific games that need it (the setting is saved per the
 PCSX4ALL config, so it persists once set).
 
 PCSX4ALL is a standalone emulator with its own menu and hotkeys, separate from the shared in-game shortcuts.
+
+### Cheats
+
+PCSX4ALL loads ePSXe-style GameShark lists by the disc serial from
+`cubegm/cores/.pcsx4all/cheats/`. Open its in-game menu and select **Cheats**;
+all installed codes start disabled.
+
+`scripts/Install-PS1Cheats.ps1` scans the ROM library for actual disc serials
+and converts compatible fixed-value entries from the open-source
+[DuckStation CHTDB](https://github.com/duckstation/chtdb). It deliberately
+rejects parameter placeholders and opcode families this PCSX4ALL engine does
+not implement. The generated CSV report identifies games for which the
+database has no safe compatible entry; codes are never borrowed from another
+region or revision.
