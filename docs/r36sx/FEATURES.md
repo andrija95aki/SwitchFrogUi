@@ -35,6 +35,9 @@
 - All UI animations removed for responsiveness; B consistently returns to the
   previous menu.
 - In-app Controls & Shortcuts reference.
+- Scrollable About & Contributions page crediting the SwitchFrogUI fork,
+  original TreeFrogUI/FrogUI developers, open-source resources, and license
+  families used by the runtime and build process.
 - Hardware Information page with detected model, board, firmware, SoC, CPU,
   memory, display, kernel, serial availability, and SD-card capacity.
 

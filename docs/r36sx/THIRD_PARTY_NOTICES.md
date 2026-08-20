@@ -12,9 +12,43 @@ with release components.
 - TreeFrogUI PCSX4ALL: https://github.com/tzubertowski/TreeFrogUI_pcsx4all
 - Rockbox: https://www.rockbox.org/
 
+## Project contributions
+
+- Original TreeFrogUI developer and maintainer: Tomasz Zubertowski
+  (`tzubertowski`, also known as Proszty).
+- Original FrogUI contributors: Tomasz Zubertowski, Desoxyn, and Q_ta.
+- SwitchFrogUI R36SX fork direction, device testing, feature design, and
+  publishing: Andrija (`@andrija95aki`).
+- Development assistance: OpenAI Codex.
+- Hardware observations, testing, and issue reports: the R36SX and TreeFrogUI
+  communities.
+
 The FrogUI-derived frontend is CC BY-NC-SA 4.0. PicoArch, libretro cores,
 Rockbox, PCSX4ALL, SDL, libpng, zlib, and other components retain their own
 licenses. Release packages include the corresponding notices and source links.
+
+## Development and runtime resources
+
+- libretro and its emulator-core projects: core-specific GPL, LGPL, BSD, MIT,
+  MAME, and other upstream licenses; see `CORE-SOURCES.md`.
+- PicoArch by neonloop and the TreeFrogUI port: BSD 3-Clause for the wrapper;
+  vendored libpicofe portions retain GPL v2+, LGPL v2.1+, or MAME terms.
+- TreeFrogUI PCSX4ALL port: its upstream open-source notices apply.
+- Rockbox: GNU GPL v2 or later.
+- SDL 1.2: GNU LGPL v2.1.
+- FFmpeg/libffplayer and HCRTOS headers/APIs: their respective upstream and
+  component licenses apply; proprietary H.OS firmware is not redistributed.
+- libpng and zlib: the libpng and zlib licenses respectively.
+- stb_image and stb_truetype by Sean Barrett and contributors: public-domain or
+  MIT dual-use terms offered by upstream.
+- SF3000-RE by goph-R: hardware research and boot-format reference material.
+- Zig, LLVM/Clang, and GNU development tools: used to build the project under
+  their respective open-source licenses; the toolchains are not shipped in the
+  SD-card overlay.
+- Art Book Next by Anthony Caccese: CC BY-NC-SA 4.0 artwork resources retained
+  from upstream TreeFrogUI.
+- GamePocket by AbFarid: SIL Open Font License 1.1.
+- monogram by datagoblin: CC0 1.0.
 
 ## UI fonts
 

@@ -2,6 +2,11 @@
 
 This project is a compilation of multiple components, each retaining its original license terms.
 
+The SwitchFrogUI R36SX fork is directed and tested by Andrija
+(`@andrija95aki`) and preserves all TreeFrogUI/FrogUI attribution and
+ShareAlike requirements. See `docs/r36sx/THIRD_PARTY_NOTICES.md` for the full
+contributor and development-resource list.
+
 ---
 
 ## 1. TreeFrogUI Frontend Code
