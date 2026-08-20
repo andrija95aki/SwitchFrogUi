@@ -18,7 +18,19 @@ images, save data, play history, or personal card logs**.
 - [Install the prebuilt R36SX overlay](docs/r36sx/INSTALL.md)
 - [Build from source](docs/r36sx/BUILDING.md)
 - [Features and fixes](docs/r36sx/FEATURES.md)
+- [Complete stock H.OS and TreeFrogUI comparison](https://github.com/andrija95aki/SwitchFrogUi/blob/r36sx-source-build/docs/r36sx/ADDITIONS.md)
 - [Create JavaScript games with JSDev](docs/r36sx/JSDEV.md)
+
+## What this fork adds
+
+| Compared with | Highlights |
+| --- | --- |
+| **Stock H.OS 1.2** | Switch-style Home and game library, broad emulator/core collection, save and resume tools, Rockbox, hardware video with subtitles, Ebooks, Files, Terminal, Text Editor, JSDev, themes/fonts/sounds, keyboard mapping, diagnostics, and R36SX display/power/volume fixes. |
+| **Pinned TreeFrogUI/FrogUI** | New horizontal Home and game views, utility applications, R36SX-specific display and resume engineering, PS1 repairs, global keyboard support, modern settings/themes, hardware diagnostics, reproducible build scripts, and an audited ROM-free release workflow. |
+
+The [complete additions page](https://github.com/andrija95aki/SwitchFrogUi/blob/r36sx-source-build/docs/r36sx/ADDITIONS.md) expands both comparisons
+into categorized, line-by-line feature lists with upstream integrations clearly
+credited.
 
 This branch also carries the compatible, low-disruption parts of upstream
 TreeFrogUI 1.0.12: ten credited optional platform icon packs, optional friendly

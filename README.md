@@ -2,83 +2,74 @@
 
 # SwitchFrogUI - R36SX Retro Frontend
 
+<p align="center">
+  <img alt="R36SX v2.7" src="https://img.shields.io/badge/target-R36SX%20v2.7-45c8ff">
+  <img alt="H.OS 1.2" src="https://img.shields.io/badge/base-H.OS%201.2-6d5dfc">
+  <img alt="ROM-free" src="https://img.shields.io/badge/package-ROM--free-39c46a">
+  <img alt="Reproducible build" src="https://img.shields.io/badge/build-reproducible-f0a33a">
+</p>
+
+<p align="center">
+  <a href="https://github.com/andrija95aki/SwitchFrogUi/releases/latest">Download</a>
+  · <a href="README-R36SX.md">Install and build</a>
+  · <a href="docs/r36sx/ADDITIONS.md">Complete additions</a>
+  · <a href="docs/r36sx/SCREENSHOTS.md">Screenshots</a>
+  · <a href="docs/r36sx/JSDEV.md">JSDev</a>
+</p>
+
 > **SwitchFrogUI branch:** see [README-R36SX.md](README-R36SX.md) for
 > the ROM-free R36SX v2.7/H.OS 1.2 build, source instructions, media-player
 > additions, hardware fixes, release documentation, and
 > [annotated hardware screenshots](docs/r36sx/SCREENSHOTS.md).
 > [Download the R36SX overlay](https://github.com/andrija95aki/SwitchFrogUi/releases/latest).
 
-## SwitchFrogUI R36SX changes
+## What SwitchFrogUI adds
 
-SwitchFrogUI keeps TreeFrogUI's emulator foundation and adds a console-style
-frontend, media applications, hardware workarounds, and usability fixes for the
-R36SX v2.7 running H.OS 1.2. The downloadable overlay remains ROM-free and is
-installed over a user's own working stock card.
+SwitchFrogUI combines TreeFrogUI's broad emulator foundation with a new
+console-oriented interface, applications, R36SX hardware workarounds, and a
+reproducible ROM-free distribution. Two comparisons matter because stock H.OS
+and upstream TreeFrogUI start from very different feature sets.
 
-| Area | SwitchFrogUI changes |
-|---|---|
-| Home and library | Three direct-launch last-played cards, Recent, Favourites, artwork platform cards, wrap-around navigation, box-art grids, condensed lists, search, game details, save indicators, and play-time records. |
-| Appearance | Static Switch-style layout, 62 themes including multi-colour gradients, selectable backgrounds, 12 bundled fonts, font-size control, platform icon packs, and configurable UI sounds. |
-| Media, files, and development | Whole-card file browser, Rockbox Music, hardware-decoded Videos, Ebooks, a real BusyBox terminal, Text Editor, and the JSDev JavaScript game runtime with a full-API demo. |
-| R36SX hardware | Persistent one-pixel display-glitch correction, short-power display blanking, configurable screen timeout, gradual master-volume curve, display-resume safeguards, and hardware information. |
-| Emulation | PS1 Start+Select menu repair, additional PS1 scaling modes, duplicate-route cleanup, Doom/Heretic/Hexen folders, and additional emulator/core routes. |
-| Input and diagnostics | Editable USB-keyboard-to-gamepad mapping for FrogUI, libretro games and PCSX4ALL; live SD, USB/OTG, storage, audio, display, network, and Linux input inspection. |
+### Added over stock R36SX H.OS 1.2
 
-The complete maintained list is in [R36SX features and fixes](docs/r36sx/FEATURES.md).
+| Area | Additions |
+|:--|:--|
+| **Home and library** | Switch-style horizontal Home; three direct-launch last-played games; Recent and Favourites; automatic platform cards; box-art grids; condensed lists; search; game details; save badges; play-time records; wrap-around navigation. |
+| **Emulation** | Roughly 75 emulator cores instead of the stock selection; per-core options; save states; Quick Resume; optional auto-save/auto-load; improved PS1 menus, scaling, Stretch and blending; Doom, Heretic, Hexen, Vectrex, Odyssey 2 and many more systems. |
+| **Media and documents** | Rockbox Music; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; Ebooks; public-domain samples; whole-card Files with automatic audio, video, and text handlers. |
+| **Computer tools** | Real BusyBox terminal; keyboard-driven Text Editor; JSDev JavaScript game runtime with graphics, sound, input, animation, timers, logging and persistent data. |
+| **R36SX hardware** | Display-glitch correction; persistent FN+L1+R1 rotation; reliable short-power blanking; black-resume repair; configurable timeout; gradual volume curve. |
+| **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |
+| **Personalisation** | 62 themes; multi-colour gradients; theme gallery; backgrounds; 12 bundled fonts plus custom fonts; font sizing; ten icon packs; configurable UI sounds. |
+| **Distribution** | Reproducible source branch; copy-and-boot card overlay; rollback binaries; checksums; content audit; hardware screenshots; build/install documentation. |
 
-### Latest change: JSDev and keyboard development tools
+### Added over the pinned TreeFrogUI/FrogUI base
 
-USB keyboards can now control Home and games through one persistent mapping in
-**Settings â†’ Keyboard Gamepad Mapping**. Defaults are arrows for the D-pad,
-Enter/Escape/Space/Left Shift for A/B/X/Y, Q/E for L1/R1, 1/3 for L2/R2,
-Backspace for Select, and Right Shift for Start. Select any gamepad button and
-press a replacement keyboard key; the same mapping is read by FrogUI,
-PicoArch/libretro cores, PCSX4ALL gameplay, and emulator menus.
+| Area | SwitchFrogUI branch work |
+|:--|:--|
+| **New Home experience** | Horizontal console layout; last-played, utility and non-empty platform cards; artwork halo; persistent card restoration; grid/list switching; search; game detail panels. |
+| **New applications** | Rockbox Music integration; H.OS hardware Videos; whole-card Files; Terminal; Text Editor; JSDev; permanent Ebooks card and sample material. |
+| **R36SX fixes** | Display correction across games/apps; global upside-down mode; power/sleep/resume fixes; perceptual volume; FAT32 discovery; optimized final-frame handling. |
+| **Emulator repairs** | PS1 Start+Select, live scaling and true Stretch, transparency defaults, exit stability, duplicate cleanup, menu flicker reduction and extra core routes. |
+| **Keyboard support** | One editable 14-button mapping shared by FrogUI, PicoArch/libretro and PCSX4ALL, plus a live keyboard tester and standard editor/terminal shortcuts. |
+| **Visual system** | Modern settings/sliders; theme gallery; gradients; background control; fonts and sizing; icon/sound packs; contained artwork; animation-free rendering. |
+| **System visibility** | Hardware Information; live I/O diagnostics; shareable reports; Controls & Shortcuts; scrollable About & Contributions. |
+| **Engineering** | H.OS-compatible video bootstrap; clean app handoff; R36SX patches; reproducible cross-build; audited ROM-free releases; rollback workflow; expanded docs. |
 
-Home also has **Terminal** and **Text Editor** cards. Terminal runs the card's
-real `/bin/sh` (BusyBox ash) in a larger mixed-case monospace view, never idles
-the screen off, and keeps persistent Up/Down command history. Text Editor opens
-in `roms/Ebook`, creates and renames files with any extension, edits files up to
-128 KiB, saves with Ctrl+S, and saves modified text automatically on close.
-It supports Page Up/Down, line and document Home/End, Ctrl+word navigation,
-Shift selection, Ctrl+A/C/X/V, Ctrl+Z/Y, Ctrl+F/F3, Ctrl+N, and Ctrl+O.
-The redundant Mini Linux shortcut page was removed.
+> [!TIP]
+> **Want the exhaustive line-by-line lists?** Open
+> [What SwitchFrogUI adds](docs/r36sx/ADDITIONS.md). Implementation details are
+> maintained in [R36SX features and fixes](docs/r36sx/FEATURES.md).
 
-The permanent **JSDev** Home card opens `roms/JSDev`, where A runs a `.js`
-project, X creates a working starter, Y edits, and Select renames. Its compact
-source-built runtime provides 640x480 graphics and text, animation callbacks,
-gamepad input/events, synthesized sound, timers, console logging, and persistent
-JSON data. The bundled `JSDev API Showcase.js` exercises the full API; see the
-[JSDev guide](docs/r36sx/JSDEV.md).
+<details>
+<summary><strong>Compatible features integrated from newer TreeFrogUI 1.0.12</strong></summary>
 
-The selected Home card is saved by identity before entering a platform, game,
-or application. Returning from internal and external programs restores that
-card even when recent-game ordering changed while the program was running.
+These retain their upstream credit: ten optional platform icon packs, friendly
+platform names, contained icon layouts, scroll indicators, saved-action
+confirmations, GameSwitcher screenshot caching, Home-selection restoration,
+and the `cubevol` volume-key fix.
 
-### Live USB keyboard test
-
-Settings now contains **Inputs & I/O Diagnostics**, including an interactive
-keyboard tester:
-
-1. Open **Settings → Inputs & I/O Diagnostics**.
-2. Press **Y** to open **Keyboard Input Test**.
-3. Connect a USB keyboard and press its keys. The screen shows the active Linux
-   event device, keyboard name, held keys, modifier state, and recent key-down
-   and key-up events.
-4. Press **X** to clear the event history. Controller **B** always returns to
-   the diagnostics page.
-
-The tester is nonblocking, rescans for hot-plugged keyboards, filters out the
-built-in gamepad, and closes its event descriptors on exit/reset. A keyboard
-must be recognized by the H.OS `usbhid` driver and exposed as a keyboard-capable
-`/dev/input/event*` device; unsupported USB hardware will remain listed as not
-detected instead of freezing the menu.
-
-The R36SX cross-build for this change produced `frogui_libretro.so` with
-SHA-256 `BFBFB09957CC47D75E2D739411D4B190CFD5AC01F324F01B9C577811387F4DBE`.
-The source implementation was introduced in commit [`bf67615`](https://github.com/andrija95aki/SwitchFrogUi/commit/bf67615),
-and rollback copies on development/test cards use the suffix
-`frogui_libretro.so.pre-keyboard-test`.
+</details>
 
 ## SwitchFrogUI screenshots
 
@@ -137,7 +128,7 @@ A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds -
 - 📦 **[How to install it](install.md)** - start here, step by step
 - 🕹️ **[How to add games + which folder](#rom-folder-setup)** - where to put your ROMs
 - 🎨 **[How to customise it](theme.md)** - themes, fonts, game art / box art / thumbnails, backgrounds
-- ⬇️ **[Download the latest version](https://github.com/tzubertowski/treefrog-ui/releases)**
+- ⬇️ **[Download the latest SwitchFrogUI R36SX overlay](https://github.com/andrija95aki/SwitchFrogUi/releases/latest)**
 - 💬 **[Report a bug / give feedback](https://docs.google.com/forms/d/e/1FAIpQLSfM-y2_UnERrjScqkSfkRSEfBPJ79rDwDo3GwuYWXxpkFTp4Q/viewform?usp=header)**
 
 > **Words you'll see (plain English):**

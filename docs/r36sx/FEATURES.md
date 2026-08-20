@@ -1,5 +1,8 @@
 # R36SX features and fixes
 
+For a reader-friendly comparison against both stock H.OS 1.2 and the pinned
+TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
+
 ## Home and game library
 
 - Console-style horizontal Home screen with three direct-launch last-played
