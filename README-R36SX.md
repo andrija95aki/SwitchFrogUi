@@ -21,7 +21,8 @@ images, save data, play history, or personal card logs**.
 
 This branch also carries the compatible, low-disruption parts of upstream
 TreeFrogUI 1.0.12: ten credited optional platform icon packs, optional friendly
-platform names, scroll-position indicators, saved-action confirmations,
+platform names, contained/non-stretched icon-pack logos, scroll-position
+indicators, saved-action confirmations,
 GameSwitcher screenshot caching, Home-selection restoration, and the
 `cubevol` volume-key fix. The existing Switch-style Home, themes, static UI,
 R36SX display correction, and emulator changes remain the defaults.

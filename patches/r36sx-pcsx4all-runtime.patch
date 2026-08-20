@@ -12,7 +12,7 @@ index bbb7d8e..e927163 100644
   */
 
  #include <stdio.h>
-@@ -89,7 +88,20 @@ static int last_h_blend = -1;
+@@ -89,7 +88,21 @@ static int last_h_blend = -1;
  unsigned short *SCREEN        = NULL;
  int             SCREEN_WIDTH  = 320;
  int             SCREEN_HEIGHT = 240;
@@ -24,17 +24,18 @@ index bbb7d8e..e927163 100644
 +    SCALE_NATIVE_1X,
 +    SCALE_OVERSCAN,
 +    SCALE_16_9,
++    SCALE_STRETCH,
 +    SCALE_MODE_COUNT
 +};
 +static const char *scale_mode_names[SCALE_MODE_COUNT] = {
 +    "4:3 Fill", "Raw Pixel Fit", "Integer", "Native 1x",
-+    "Overscan 110%", "16:9 Letterbox"
++    "Overscan 110%", "16:9 Letterbox", "Stretch"
 +};
 +int             scale_mode    = SCALE_4_3_FILL;
  int             hires_fix     = 0;   /* 0=transparent (raw frame -> HW scaler, full speed, natural default); 1=SW-decimate tall (>256) frames + exact 4:3 so disp_frame can present hi-res without wedging (fixes Colin/Worms freeze/black, costs per-frame CPU) */
  int             scale_filter  = 1;   /* 0=nearest (SW fb0 — broken on this HW), 1=bilinear (HW HCGE) */
  int             use_hwdisp    = 0;   /* 0=software path, 1=HW via driver.so */
-@@ -198,83 +210,113 @@ static int display_init(void) {
+@@ -198,83 +211,116 @@ static int display_init(void) {
      }
      use_hwdisp = 1;
      fb1_blank(1);   /* hide battery/volume OSD during gameplay */
@@ -165,6 +166,9 @@ index bbb7d8e..e927163 100644
 +        case SCALE_16_9:
 +            dh = 180; dy = 30;
 +            break;
++        case SCALE_STRETCH:
++            /* Handled by the direct hardware path in display_blit(). */
++            break;
 +        case SCALE_4_3_FILL:
 +        default:
 +            break;
@@ -230,7 +234,7 @@ index bbb7d8e..e927163 100644
 -            hwdisp_present(src, w, h, pitch);
 -        } else {
 -            /* Fullscreen stretch */
-+        if (scale_mode == SCALE_4_3_FILL) {
++        if (scale_mode == SCALE_4_3_FILL || scale_mode == SCALE_STRETCH) {
 +            /* Fast default: the 4:3 R36SX panel itself is the 4:3 canvas. */
              hwdisp_set_target_aspect(0, 0);
              hwdisp_set_filter(0);
@@ -347,3 +351,74 @@ index bbb7d8e..e927163 100644
          else if (!strcmp(line,"HiResFix"))    hires_fix    = v ? 1 : 0;
          else if (!strcmp(line,"ScaleFilter")) scale_filter = v;
          else if (!strcmp(line,"Gamma"))       gamma_percent = (v < 100 ? 100 : (v > 250 ? 250 : v));
+@@ -1475,7 +1535,9 @@ int main(int argc, char *argv[]) {
+ 
+ #ifdef GPU_UNAI
+     gpu_unai_config_ext.lighting     = 0;
+-    gpu_unai_config_ext.fast_lighting= 1;
+-    gpu_unai_config_ext.blending     = 0;
++    /* Accuracy defaults.  In particular, disabling blending turns PS1
++     * semi-transparent water/shadows into opaque black-backed primitives. */
++    gpu_unai_config_ext.fast_lighting= 0;
++    gpu_unai_config_ext.blending     = 1;
+     gpu_unai_config_ext.dithering    = 0;
+     gpu_unai_config_ext.clip_368     = 0;
+@@ -1442,4 +1502,14 @@ static int bios_present(const char *dir, const char *name) {
+ }
+ static void probe_bios(void) {
++#ifdef GPU_UNAI
++    {
++        char b[96];
++        snprintf(b, sizeof b, "gpu config: blending=%d lighting=%d fast_lighting=%d",
++                 gpu_unai_config_ext.blending, gpu_unai_config_ext.lighting,
++                 gpu_unai_config_ext.fast_lighting);
++        plog(b);
++    }
++#endif
++
+     /* Respect a manual/existing selection: if the configured BIOS actually
+      * resolves, leave BiosDir/Bios/HLE exactly as the user set them - no guess,
+diff --git a/src/port/sf3000/hwdisp.c b/src/port/sf3000/hwdisp.c
+index a189b7b..7eb5fa6 100644
+--- a/src/port/sf3000/hwdisp.c
++++ b/src/port/sf3000/hwdisp.c
+@@ -16,6 +16,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <dlfcn.h>
++#include <unistd.h>
+ 
+ #define HW_W   1280
+ #define HW_H    720
+@@ -315,6 +316,15 @@ void hwdisp_present(const void *src, int w, int h, int pitch_bytes) {
+ 
+ void hwdisp_deinit(void) {
+     if (!g_active) return;
++    /* The vendor display engine consumes frames asynchronously.  Always return
++     * it to a small, stable geometry and let that transfer finish before
++     * deinit; tearing it down immediately after a scaling-mode frame could
++     * leave the R36SX display pipeline wedged when FrogUI resumed. */
++    if (p_disp) {
++        static uint16_t black[320 * 240];
++        p_disp(black, 320, 240, 320 * 2);
++        usleep(50000);
++    }
+     if (p_deinit) p_deinit();
+     if (g_pad_buf) { free(g_pad_buf); g_pad_buf = NULL; g_pad_cap = 0; g_pad_w = 0; g_pad_h = 0; }
+     if (g_near_buf) { free(g_near_buf); g_near_buf = NULL; }
+diff --git a/src/gpu/gpu_unai/gpulib_if.cpp b/src/gpu/gpu_unai/gpulib_if.cpp
+index cd5f5ee..27ce2b4 100644
+--- a/src/gpu/gpu_unai/gpulib_if.cpp
++++ b/src/gpu/gpu_unai/gpulib_if.cpp
+@@ -727,6 +727,11 @@ void renderer_set_interlace(int enable, int is_odd)
+ void renderer_set_config(const struct gpulib_config_t *config)
+ {
+   gpu_unai.vram = (u16*)gpu.vram;
++  /* The frontend edits gpu_unai_config_ext.  The old SF3000 build copied it
++   * only once in renderer_init(), so changing Blending in the game menu could
++   * leave the renderer using stale settings until the next launch. */
++  gpu_unai.config = gpu_unai_config_ext;
++  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+ }
+ 
+ #ifdef __cplusplus

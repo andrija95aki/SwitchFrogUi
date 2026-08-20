@@ -2671,7 +2671,7 @@ index a72c4e6..9b6a26f 100644
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
-@@ -1774,7 +2749,1064 @@ static void render_search_kbd(void) {
+@@ -1774,7 +2749,1074 @@ static void render_search_kbd(void) {
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
@@ -3064,6 +3064,7 @@ index a72c4e6..9b6a26f 100644
 +typedef struct {
 +    int index;
 +    int icon_pack_idx;
++    int from_icon_pack;
 +    char name[256];
 +    Thumbnail thumb;
 +    uint16_t average_color;
@@ -3134,7 +3135,7 @@ index a72c4e6..9b6a26f 100644
 +        return a->thumb.data?&a->thumb:NULL;
 +    if(a->thumb.data) thumbnail_owned_free(&a->thumb);
 +    memset(&a->thumb,0,sizeof(a->thumb)); a->index=index;
-+    a->icon_pack_idx=settings_icon_pack_idx; a->average_valid=0;
++    a->icon_pack_idx=settings_icon_pack_idx; a->from_icon_pack=0; a->average_valid=0;
 +    strncpy(a->name,name,sizeof(a->name)-1); a->name[sizeof(a->name)-1]='\0';
 +    if(index<0 || index>=entry_count) return NULL;
 +    if(entries[index].home_recent_index >= 0) {
@@ -3162,6 +3163,7 @@ index a72c4e6..9b6a26f 100644
 +        snprintf(path,sizeof(path),SDCARD_BASE "/frogui/icon-packs/%s/%s",
 +                 icon_pack_names[settings_icon_pack_idx],pack_asset);
 +        if(thumbnail_owned_load(path,&a->thumb)) {
++            a->from_icon_pack=1;
 +            a->average_color=thumbnail_average_color(&a->thumb); a->average_valid=1;
 +            return &a->thumb;
 +        }
@@ -3361,8 +3363,16 @@ index a72c4e6..9b6a26f 100644
 +                                   0xFFFF);
 +        render_rounded_rect_aa(framebuffer, x, y, w, h, UI_S(10), color);
 +        Thumbnail *art=launcher_get_art(slot,idx);
-+        if(art) switcher_blit565_cover(framebuffer,art->data,art->alpha,art->width,art->height,
++        if(art) {
++            /* Optional icon-pack art is logo-like and must be contained.  The
++             * Existing artwork choice and its fallback remain cover-cropped. */
++            if(launcher_art[slot].from_icon_pack)
++                switcher_blit565(framebuffer,art->data,art->alpha,art->width,art->height,
++                                 x+UI_S(5),y+UI_S(5),w-UI_S(10),h-UI_S(10));
++            else
++                switcher_blit565_cover(framebuffer,art->data,art->alpha,art->width,art->height,
 +                                       x+UI_S(5),y+UI_S(5),w-UI_S(10),h-UI_S(10));
++        }
 +        else launcher_draw_icon(entries[idx].name, x, y - UI_S(5), w, h);
 +        if(entries[idx].is_dir)
 +            launcher_draw_platform_badge(platform_display_name(entries[idx].name),x,y,w,h);

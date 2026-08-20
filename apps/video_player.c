@@ -460,34 +460,51 @@ static const char *scale_name(int mode) {
 }
 
 static void apply_display_mode(void *player, int mode, int vw, int vh) {
-    /* The stock projector API uses physical panel coordinates on R36SX.
-     * 1920x1080 here made a 640x480 panel scan only the upper-left quarter. */
+    /* hcplayer's vdec rectangle ABI is the projector's normalized 1920x1080
+     * coordinate space, not physical panel pixels.  Compute the user-visible
+     * geometry against the R36SX's 640x480 panel, then map it to that ABI.
+     * Passing 640x480 directly makes the decoder allocate only the upper-right
+     * fraction of its hardware plane (roughly the 100px square seen on device). */
     const int sw = 640, sh = 480;
+    const int nw = 1920, nh = 1080;
+    int px = 0, py = 0, pw = sw, ph = sh;
+    int sx = 0, sy = 0, snw = nw, snh = nh;
     if (vw <= 0 || vh <= 0) { vw = sw; vh = sh; }
-    struct vdec_dis_rect rect = {{0, 0, (uint16_t)vw, (uint16_t)vh},
-                                 {0, 0, (uint16_t)sw, (uint16_t)sh}};
     if (mode == 0) { /* fit */
-        int w = sw, h = w * vh / vw;
-        if (h > sh) { h = sh; w = h * vw / vh; }
-        rect.dst_rect.x = (uint16_t)((sw - w) / 2); rect.dst_rect.y = (uint16_t)((sh - h) / 2);
-        rect.dst_rect.w = (uint16_t)w; rect.dst_rect.h = (uint16_t)h;
+        pw = sw; ph = pw * vh / vw;
+        if (ph > sh) { ph = sh; pw = ph * vw / vh; }
+        px = (sw - pw) / 2; py = (sh - ph) / 2;
     } else if (mode == 1) { /* crop source to fill */
         if ((int64_t)vw * sh > (int64_t)vh * sw) {
-            int w = vh * sw / sh; rect.src_rect.x = (uint16_t)((vw - w) / 2); rect.src_rect.w = (uint16_t)w;
+            snw = (int)((int64_t)nh * sw / sh);
+            sx = (nw - snw) / 2;
         } else {
-            int h = vw * sh / sw; rect.src_rect.y = (uint16_t)((vh - h) / 2); rect.src_rect.h = (uint16_t)h;
+            snh = (int)((int64_t)nw * sh / sw);
+            sy = (nh - snh) / 2;
         }
     } else if (mode == 3) { /* one source pixel per output coordinate */
-        int w = vw > sw ? sw : vw, h = vh > sh ? sh : vh;
-        rect.dst_rect.x = (uint16_t)((sw - w) / 2); rect.dst_rect.y = (uint16_t)((sh - h) / 2);
-        rect.dst_rect.w = (uint16_t)w; rect.dst_rect.h = (uint16_t)h;
-        rect.src_rect.x = (uint16_t)((vw - w) / 2); rect.src_rect.y = (uint16_t)((vh - h) / 2);
-        rect.src_rect.w = (uint16_t)w; rect.src_rect.h = (uint16_t)h;
+        pw = vw; ph = vh;
+        if (pw > sw || ph > sh) {
+            if ((int64_t)pw * sh > (int64_t)ph * sw) {
+                ph = (int)((int64_t)sw * ph / pw); pw = sw;
+            } else {
+                pw = (int)((int64_t)sh * pw / ph); ph = sh;
+            }
+        }
+        px = (sw - pw) / 2; py = (sh - ph) / 2;
     }
+    struct vdec_dis_rect rect = {
+        {(uint16_t)sx, (uint16_t)sy, (uint16_t)snw, (uint16_t)snh},
+        {(uint16_t)((int64_t)px * nw / sw),
+         (uint16_t)((int64_t)py * nh / sh),
+         (uint16_t)((int64_t)pw * nw / sw),
+         (uint16_t)((int64_t)ph * nh / sh)}
+    };
     hcplayer_set_display_rect(player, &rect);
-    fprintf(stderr, "video_player: display mode=%s source=%dx%d destination=%dx%d+%d+%d\n",
-            scale_name(mode), vw, vh, rect.dst_rect.w, rect.dst_rect.h,
-            rect.dst_rect.x, rect.dst_rect.y);
+    fprintf(stderr, "video_player: display mode=%s video=%dx%d physical=%dx%d+%d+%d normalized=%dx%d+%d+%d src=%dx%d+%d+%d\n",
+            scale_name(mode), vw, vh, pw, ph, px, py,
+            rect.dst_rect.w, rect.dst_rect.h, rect.dst_rect.x, rect.dst_rect.y,
+            rect.src_rect.w, rect.src_rect.h, rect.src_rect.x, rect.src_rect.y);
 }
 
 static void render_overlay(void *player, bool paused, int menu_index,

@@ -17,8 +17,9 @@
 - Existing artwork is found in `.res`, `images`, `Imgs`, `media`, and `boxart`
   layouts, including nested ROM folders.
 - Ten credited TreeFrogUI 1.0.12 / Onion platform-icon packs are selectable in
-  Settings. `Existing artwork` remains the default, and missing pack images
-  fall back to the existing per-platform art and built-in controller icon.
+  Settings. Pack logos are contained without stretching or cropping.
+  `Existing artwork` remains the default cover-fill layout, and missing pack
+  images fall back to the existing per-platform art and built-in controller.
 - Optional friendly platform names expand short folder codes such as `snes`
   and `ps1` without renaming ROM directories or changing core detection.
 - Returning from a platform, Recent, Favourites, Files, or Settings restores
@@ -88,7 +89,10 @@
 - PS1 video scaling now changes the actual presented geometry on the R36SX
   instead of routing two labels to the same 4:3 full-panel output. Available
   modes are 4:3 Fill, Raw Pixel Fit, Integer, Native 1x, Overscan 110%, and
-  16:9 Letterbox; changes are visible immediately and persist when saved.
+  16:9 Letterbox, and Stretch; changes are visible immediately and persist
+  when saved. Accurate GPU blending is enabled by default and live GPU setting
+  changes reach the active renderer. Exit first returns the vendor display
+  engine to a stable frame geometry to avoid freezing the resumed UI.
 - Checksum-guarded PCSX4ALL patch maps Start+Select to its native menu while
   retaining Select+L1.
 - Duplicate PS1 history/favourite routes are collapsed by ROM path so the slow
@@ -118,10 +122,11 @@
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
-- Hardware-decoded video playback uses the R36SX panel's real 640x480 display
-  coordinates, preventing HD videos from being clipped to their upper-left
-  region. Fit, Fill, Stretch, and Original modes are available from the pause
-  menu.
+- Hardware-decoded video playback computes layout against the R36SX panel's
+  real 640x480 shape, then maps it to the stock projector decoder's normalized
+  1920x1080 rectangle ABI. This prevents playback being trapped in a tiny
+  hardware-plane square. Fit, Fill, Stretch, and Original modes are available
+  from the pause menu.
 - Playback controls stay deliberately small: A or Start opens the pause menu,
   Left/Right seeks 10 seconds, and B exits. Volume remains under the OS master
   controls; the player does not override it or expose audio-track selection.
