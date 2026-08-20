@@ -79,6 +79,7 @@ jobs:
             https://github.com/glennrp/libpng/archive/refs/tags/v1.6.37.tar.gz
           tar -xzf "$RUNNER_TEMP/libpng-1.6.37.tar.gz" -C "$RUNNER_TEMP"
           cd "$RUNNER_TEMP/libpng-1.6.37"
+          cp scripts/pnglibconf.h.prebuilt pnglibconf.h
           mkdir -p target-objects target-lib
           sources=(png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c pngrio.c \
             pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c pngwrite.c pngwtran.c pngwutil.c)
