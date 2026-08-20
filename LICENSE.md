@@ -71,3 +71,18 @@ POSSIBILITY OF SUCH DAMAGE.
 ## 3. Emulator Cores
 
 All emulator cores contained or cloned into the `cores/` directory are built from separate upstream source repositories. They are governed by their respective individual open-source licenses (GPL, LGPL, BSD, MIT, MAME, etc.). Please refer to the documentation or source files within each core's directory, or see [cores.md](cores.md) for links to the upstream repositories.
+
+The v1.0.12 compatibility payload specifically includes
+[PrBoom](https://github.com/libretro/libretro-prboom) (GPL-2.0),
+[O2EM](https://github.com/libretro/libretro-o2em), and
+[vecx](https://github.com/libretro/libretro-vecx) (GPL-3.0). Game ROMs,
+commercial IWADs, and BIOS files are not distributed by this project.
+
+## 4. Ebook Reader
+
+The standalone reader is built from
+[TreeFrogUI Ebook Reader](https://github.com/tzubertowski/TreeFrogUI_ebook_reader)
+and statically links [MuPDF](https://github.com/ArtifexSoftware/mupdf). The
+reader and distributed combined binary are governed by **AGPL-3.0**. Complete
+corresponding build instructions and source links are provided by that reader
+repository; the main build consumes the official TreeFrogUI v1.0.12 binary.

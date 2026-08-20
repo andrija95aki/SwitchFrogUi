@@ -81,7 +81,7 @@ See [cores.md](cores.md) for the full folder→core mapping table.
 ## Why TreeFrogUI?
 
 - **Minimalistic but powerful UI** - Clean, fast game selection screen with quick navigation.
-- **57 emulator cores** - Now supports 57 emulator cores compared to only 14 in the stock OS. This includes standout additions such as **PICO-8** (via Fake08/Retro8), **Quake** (via Tyrquake), **Cave Story** (via NXEngine), **Doom** (via PrBoom), **PlayStation 1** (via PCSX ReArmed), plus classic computer systems like Commodore Amiga and Atari ST.
+- **75 emulator cores** - Compared with only 14 in the stock OS. This includes **PICO-8** (Fake08/Retro8), **Quake** (Tyrquake), **Cave Story** (NXEngine), **Doom / Heretic / Hexen** (PrBoom), **PlayStation 1**, Vectrex, Odyssey 2/Videopac, plus classic computer systems such as Commodore Amiga and Atari ST.
 - **Highly configurable cores** - Configurable settings for all cores, allowing for retro features like console palette swaps, LCD ghosting emulation, and more.
 - **In-game saves** - Fully supported across all compatible cores for seamless session saving and loading.
 - **Quick Resume** - Automatically boots back into the last played game upon device boot, skipping the frontend.
@@ -405,10 +405,10 @@ treefrog-ui/
 
 | Item | Status |
 |------|--------|
-| `vecx` (Vectrex) | ❌ needs OpenGL - not available on SF3000 |
+| `vecx` (Vectrex) | ✅ official software-rendered v1.0.12 core included |
 | `ardens` (Arduboy, default) | ✅ built directly (no cmake); C++14 libretro target |
 | `arduous` (Arduboy, alt) | ✅ simavr-based, built directly (cycle-accurate, slow) |
-| `o2em` (Odyssey²) | ❌ not yet cloned |
+| `o2em` (Odyssey² / Videopac) | ✅ official v1.0.12 core included |
 | `vice` (C64) | commented out - large build, enable manually in build_all.sh |
 | picoarch binary | not included - obtain from SF3000 multicore project |
 

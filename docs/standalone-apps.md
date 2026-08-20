@@ -21,7 +21,7 @@ Current standalone apps:
 | `lgpt`           | `cubegm/lgpt`      | LittleGPTracker (music tracker)    |
 | `rockbox`        | `cubegm/rockbox.sh`| Rockbox music player               |
 | Files: video     | `cubegm/video_player.sh` | H.OS hardware-decoded video player |
-| `Ebook`          | `cubegm/ebook`     | Ebook/document reader (MuPDF - EPUB/MOBI/PDF) - [guide](cores/ebook.md) |
+| Home: `Ebooks`   | `cubegm/ebook`     | Ebook/document reader (MuPDF - EPUB/MOBI/PDF) - [guide](cores/ebook.md) |
 
 ## The launch contract
 

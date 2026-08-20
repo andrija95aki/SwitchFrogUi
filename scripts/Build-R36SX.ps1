@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory = $true)][string]$DependencyRoot,
     [Parameter(Mandatory = $true)][string]$ZigPath,
     [Parameter(Mandatory = $true)][string]$GnuRuntimeRoot,
+    [Parameter(Mandatory = $true)][string]$UpstreamReleaseArchive,
     [switch]$BuildPicoarch
 )
 
@@ -36,13 +37,32 @@ $required = @(
     $syscalls,
     (Join-Path $frogRoot 'frogui_libretro.c'),
     (Join-Path $GnuRuntimeRoot 'video_player'),
-    (Join-Path $GnuRuntimeRoot 'pcsx4all')
+    (Join-Path $GnuRuntimeRoot 'pcsx4all'),
+    $UpstreamReleaseArchive
 )
 if ($BuildPicoarch) { $required += (Join-Path $picoRoot 'main.c') }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Missing build input: $path" }
 }
 New-Item -ItemType Directory -Force -Path $output | Out-Null
+
+# Reuse the official v1.0.12 MuPDF reader and the two upstream cores missing
+# from the H.OS 1.2 stock payload. Their complete corresponding-source links
+# and licenses are documented in docs/r36sx/FEATURES.md and upstream itself.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$upstreamZip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $UpstreamReleaseArchive).Path)
+try {
+    $runtimeEntries = @{
+        'release/cubegm/ebook' = (Join-Path $output 'ebook')
+        'release/cubegm/cores/o2em_libretro.so' = (Join-Path $output 'o2em_libretro.so')
+        'release/cubegm/cores/vecx_libretro.so' = (Join-Path $output 'vecx_libretro.so')
+    }
+    foreach ($entryName in $runtimeEntries.Keys) {
+        $entry = $upstreamZip.GetEntry($entryName)
+        if (-not $entry) { throw "Missing upstream release entry: $entryName" }
+        [IO.Compression.ZipFileExtensions]::ExtractToFile($entry,$runtimeEntries[$entryName],$true)
+    }
+} finally { $upstreamZip.Dispose() }
 
 function Invoke-Zig {
     param([string[]]$Arguments)
@@ -136,10 +156,18 @@ $cardFonts = Join-Path $cardFiles 'frogui\fonts'
 $cardSounds = Join-Path $cardFiles 'frogui\sounds'
 $cardIconPacks = Join-Path $cardFiles 'frogui\icon-packs'
 New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks | Out-Null
+$optionalRomFolders = @('Ebook','doom','heretic','hexen','arcade','fbneo','mame2003',
+    'lynx','snes9x','vectrex','odyssey2','videopac')
+foreach ($folder in $optionalRomFolders) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $cardFiles "roms\$folder") | Out-Null
+}
 Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'ebook') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'o2em_libretro.so') -Destination $cardCore
+Copy-Item -Force -LiteralPath (Join-Path $output 'vecx_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

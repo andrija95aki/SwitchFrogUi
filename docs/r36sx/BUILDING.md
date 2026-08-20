@@ -45,6 +45,12 @@ and pinned PCSX4ALL sources to build the launcher and emulator. This separation
 is required because Zig/LLD-linked MIPS executables fault before `main()` in the
 tested H.OS 1.2 loader, while Zig-built shared modules work correctly.
 
+Download the official `TreeFrogUI_v1.0.12_c.zip` asset from the
+[TreeFrogUI v1.0.12 release](https://github.com/tzubertowski/treefrog-ui/releases/tag/v1.0.12).
+The build extracts the AGPL MuPDF ebook runtime and the two missing GPL core
+binaries from that archive; their corresponding sources remain linked in the
+project documentation.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
   -StockCardRoot 'D:\' `
@@ -52,7 +58,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
   -Pcsx4allRoot 'C:\src\TreeFrogUI_pcsx4all' `
   -DependencyRoot "$env:LOCALAPPDATA\Temp\treefrog-deps" `
   -ZigPath 'C:\tools\zig\zig.exe' `
-  -GnuRuntimeRoot 'C:\builds\switchfrogui-r36sx-gnu-runtimes'
+  -GnuRuntimeRoot 'C:\builds\switchfrogui-r36sx-gnu-runtimes' `
+  -UpstreamReleaseArchive 'C:\downloads\TreeFrogUI_v1.0.12_c.zip'
 ```
 
 Outputs are written to `.r36sx-build/out`:
@@ -61,14 +68,17 @@ Outputs are written to `.r36sx-build/out`:
 - `video_player`
 - `video_player_impl.so`
 - `pcsx4all`
+- `ebook` (official MuPDF reader from the v1.0.12 archive)
+- `o2em_libretro.so` and `vecx_libretro.so`
 - `libemu_tfhijack.so`
 - `nosleep`
 - `r36sx_displayfix.so`
 
-`out/card-files/` is also produced with the core, player, PCSX4ALL, twelve UI
-fonts, their OFL notices, and the CC0 sound packs already arranged in their
-final SD-card paths. Merge that directory onto a test card after the base
-SwitchFrogUI overlay is installed.
+`out/card-files/` is also produced with the core, player, PCSX4ALL, ebook
+reader, missing Odyssey 2/Vectrex cores, twelve UI fonts, their OFL notices,
+icon packs, and the CC0 sound packs already arranged in their final SD-card
+paths. Merge that directory onto a test card after the base SwitchFrogUI
+overlay is installed.
 
 Pass `-BuildPicoarch` to also compile `picoarch` and `picoarch_hi`. The portable
 Zig PicoArch build passes static ABI checks but raised SIGFPE on the tested v2.7

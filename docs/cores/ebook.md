@@ -2,16 +2,16 @@
 
 ← [back to README](../../README.md)
 
-The **`Ebook`** folder runs a standalone document reader (like pcsx4all / lgpt /
-rockbox - a real binary, not a libretro core). It's powered by
+The permanent **Ebooks** Home card opens `roms/Ebook` in a filtered document
+browser and runs a standalone reader (a real binary, not a libretro core). It's powered by
 [MuPDF](https://mupdf.com/) and reads most common ebook and document formats.
 
 Source: [tzubertowski/TreeFrogUI_ebook_reader](https://github.com/tzubertowski/TreeFrogUI_ebook_reader).
 
 ## Adding books
 
-Put files in **`roms/Ebook/`** (an `Ebook` entry then appears in the menu). Open
-one and it renders full-screen; the driver scales the page to fill whatever panel
+Put files in **`roms/Ebook/`**, open the **Ebooks** Home card, then select a
+book. It renders full-screen; the driver scales the page to fill whatever panel
 your device has, so it works the same on R36SX / SF3000 / SF3500 / GB350.
 
 ## Supported formats

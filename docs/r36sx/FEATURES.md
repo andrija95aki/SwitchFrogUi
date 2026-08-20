@@ -3,8 +3,8 @@
 ## Home and game library
 
 - Console-style horizontal Home screen with three direct-launch last-played
-  games, Recent, Favourites, non-empty platform cards, Music, Videos, Files,
-  and Settings.
+  games, Recent, Favourites, non-empty platform cards, Music, Videos, Ebooks,
+  Files, and Settings.
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
 - Platform collections use box-art grids; START switches to a condensed
   12-title list and L1/R1 changes pages quickly.
@@ -28,8 +28,9 @@
 
 ## Appearance and settings
 
-- Fifty colour schemes: the original palette, ten bright R36SX additions, and
-  ten low-cost vertical-gradient themes.
+- Sixty-two colour schemes: the original palette, bright R36SX additions, ten
+  two-stop gradients, and twelve new four-colour gradients. Gradient rendering
+  remains scanline-based and only runs when an event causes a redraw.
 - Dedicated theme gallery with each theme name beside live background,
   selection, and accent-colour samples.
 - Optional persistent solid background colour palette.
@@ -89,11 +90,23 @@
 - Duplicate PS1 history/favourite routes are collapsed by ROM path so the slow
   alternate core is not shown as a second copy of the same game.
 - Save-state markers and playtime metadata survive restarts.
+- Separate optional `doom`, `heretic`, and `hexen` folders use the current
+  PrBoom core's automatic IWAD detection. No copyrighted IWAD game data is
+  bundled; users place their legally obtained `.wad` files in those folders.
+- Additional folder routes expose FBNeo, MAME 2003-Plus, Beetle Lynx, Snes9x
+  2010, Vectrex, Odyssey 2, and Videopac. The previously absent official
+  `vecx` and `o2em` core binaries are now included in source-build staging.
+  Vectrex needs no BIOS; Odyssey 2/Videopac requires a legally obtained
+  `o2rom.bin` in `cubegm/bios`, which is not bundled.
 
 ## Music, files, and video
 
 - Whole-card file browser with audio dispatch to Rockbox and video dispatch to
   the hardware player.
+- Permanent Ebooks Home card opens a clean browser rooted at `roms/Ebook` and
+  shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
+  TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and
+  does not mix documents into game recents.
 - Rockbox opens at the card root, uses intuitive A-confirm/B-back mapping,
   follows the OS master volume, and inherits the display correction.
 - Dedicated Videos browser that navigates real folders without retriggering its

@@ -25,6 +25,12 @@ platform names, scroll-position indicators, saved-action confirmations,
 GameSwitcher screenshot caching, Home-selection restoration, and the
 `cubevol` volume-key fix. The existing Switch-style Home, themes, static UI,
 R36SX display correction, and emulator changes remain the defaults.
+
+The Home screen also includes an Ebooks application backed by TreeFrogUI's
+MuPDF reader. Doom, Heretic, and Hexen have separate optional library folders,
+and additional installed routes cover FBNeo, MAME 2003-Plus, Beetle Lynx,
+Snes9x 2010, Vectrex, Odyssey 2, and Videopac. Twelve four-colour gradient
+themes extend the theme gallery without changing the selected default.
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
