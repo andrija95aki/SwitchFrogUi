@@ -134,7 +134,8 @@ $cardFiles = Join-Path $output 'card-files'
 $cardCore = Join-Path $cardFiles 'cubegm\cores'
 $cardFonts = Join-Path $cardFiles 'frogui\fonts'
 $cardSounds = Join-Path $cardFiles 'frogui\sounds'
-New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds | Out-Null
+$cardIconPacks = Join-Path $cardFiles 'frogui\icon-packs'
+New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks | Out-Null
 Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
@@ -145,4 +146,6 @@ $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'
 if (Test-Path -LiteralPath $extraFonts) { Copy-Item -Recurse -Force -Path (Join-Path $extraFonts '*') -Destination $cardFonts }
 $uiSounds = Join-Path $repoRoot 'assets\sounds'
 if (Test-Path -LiteralPath $uiSounds) { Copy-Item -Recurse -Force -Path (Join-Path $uiSounds '*') -Destination $cardSounds }
+$iconPacks = Join-Path $repoRoot 'assets\icon-packs'
+if (Test-Path -LiteralPath $iconPacks) { Copy-Item -Recurse -Force -Path (Join-Path $iconPacks '*') -Destination $cardIconPacks }
 Write-Host "R36SX build complete: $output"

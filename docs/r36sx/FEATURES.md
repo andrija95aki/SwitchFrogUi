@@ -16,6 +16,13 @@
   wrap from the first item to the last and back again.
 - Existing artwork is found in `.res`, `images`, `Imgs`, `media`, and `boxart`
   layouts, including nested ROM folders.
+- Ten credited TreeFrogUI 1.0.12 / Onion platform-icon packs are selectable in
+  Settings. `Existing artwork` remains the default, and missing pack images
+  fall back to the existing per-platform art and built-in controller icon.
+- Optional friendly platform names expand short folder codes such as `snes`
+  and `ps1` without renaming ROM directories or changing core detection.
+- Returning from a platform, Recent, Favourites, Files, or Settings restores
+  the previously selected Home card instead of jumping to the first item.
 - Static 15-pixel artwork-colour halo around the selected Home card, rendered
   below neighbouring cards with no continuous animation cost.
 
@@ -34,6 +41,9 @@
   sampled packs use Kenney CC0 UI audio and fall back safely to generated tones.
 - All UI animations removed for responsiveness; B consistently returns to the
   previous menu.
+- Long settings, core, theme, information, diagnostics, help, and file lists
+  include a compact position indicator. Saved settings, themes, button maps,
+  core overrides, and favourite changes show a short confirmation.
 - In-app Controls & Shortcuts reference.
 - Scrollable About & Contributions page crediting the SwitchFrogUI fork,
   original TreeFrogUI/FrogUI developers, open-source resources, and license
@@ -59,8 +69,12 @@
   can request sleep and the frontend rebuilds the display after resume.
 - Perceptual master-volume curve gives useful gradual control across all 21
   volume positions instead of concentrating the change in the final levels.
+- FrogUI leaves the H.OS `cubevol` service running when the display frontend is
+  restored, preventing volume-down input from being reset between presses.
 - Static/dirty-frame rendering, cached colour sampling and display maps, and
   faster sorting reduce unnecessary CPU work.
+- The GameSwitcher retains the three most recently viewed artwork/screenshot
+  images in a bounded cache, avoiding repeated SD reads and image decoding.
 
 ## Emulator fixes
 

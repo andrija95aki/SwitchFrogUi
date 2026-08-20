@@ -18,6 +18,13 @@ images, save data, play history, or personal card logs**.
 - [Install the prebuilt R36SX overlay](docs/r36sx/INSTALL.md)
 - [Build from source](docs/r36sx/BUILDING.md)
 - [Features and fixes](docs/r36sx/FEATURES.md)
+
+This branch also carries the compatible, low-disruption parts of upstream
+TreeFrogUI 1.0.12: ten credited optional platform icon packs, optional friendly
+platform names, scroll-position indicators, saved-action confirmations,
+GameSwitcher screenshot caching, Home-selection restoration, and the
+`cubevol` volume-key fix. The existing Switch-style Home, themes, static UI,
+R36SX display correction, and emulator changes remain the defaults.
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
