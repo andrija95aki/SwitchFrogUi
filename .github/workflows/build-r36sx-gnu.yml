@@ -107,12 +107,13 @@ jobs:
             apps/video_launcher.c -ldl -o artifacts/video_player
           make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
             CROSS_COMPILE="$SF_PREFIX" SYSROOT="$SF_SYSROOT" \
-            EXTRA_CFLAGS="-I$SF_PNG_INCLUDE" EXTRA_LDFLAGS="-L$SF_PNG_LIB" picoarch
+            EXTRA_CFLAGS="--sysroot=$SF_SYSROOT -I$SF_PNG_INCLUDE" \
+            EXTRA_LDFLAGS="--sysroot=$SF_SYSROOT -L$SF_PNG_LIB" picoarch
           cp "$RUNNER_TEMP/picoarch/picoarch" artifacts/picoarch
           make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
             CROSS_COMPILE="$SF_PREFIX" SYSROOT="$SF_SYSROOT" BIN=picoarch_hi \
-            EXTRA_CFLAGS="-I$SF_PNG_INCLUDE" \
-            EXTRA_LDFLAGS="-L$SF_PNG_LIB -Wl,-Ttext-segment=0x20000000" picoarch_hi
+            EXTRA_CFLAGS="--sysroot=$SF_SYSROOT -I$SF_PNG_INCLUDE" \
+            EXTRA_LDFLAGS="--sysroot=$SF_SYSROOT -L$SF_PNG_LIB -Wl,-Ttext-segment=0x20000000" picoarch_hi
           cp "$RUNNER_TEMP/picoarch/picoarch_hi" artifacts/picoarch_hi
           make -C "$RUNNER_TEMP/pcsx4all" -f Makefile.sf3000 -j2 \
             TOOLCHAIN="$SF_PREFIX" SYSROOT="$SF_SYSROOT"
