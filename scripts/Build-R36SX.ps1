@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Pcsx4allRoot,
     [Parameter(Mandatory = $true)][string]$DependencyRoot,
     [Parameter(Mandatory = $true)][string]$ZigPath,
+    [Parameter(Mandatory = $true)][string]$GnuRuntimeRoot,
     [switch]$BuildPicoarch
 )
 
@@ -33,7 +34,9 @@ $required = @(
     (Join-Path $hcSysInclude 'ffplayer.h'),
     $pcsxFont,
     $syscalls,
-    (Join-Path $frogRoot 'frogui_libretro.c')
+    (Join-Path $frogRoot 'frogui_libretro.c'),
+    (Join-Path $GnuRuntimeRoot 'video_player'),
+    (Join-Path $GnuRuntimeRoot 'pcsx4all')
 )
 if ($BuildPicoarch) { $required += (Join-Path $picoRoot 'main.c') }
 foreach ($path in $required) {
@@ -98,8 +101,13 @@ try {
         '-Icompat',"-I$hcSysInclude","-I$hcUapiInclude","-I$hcFfmpegInclude",
         '-shared','-Wl,--no-undefined','-s','video_player.c',$pcsxFont,
         '-ldl','-lm','-lpthread','-o',(Join-Path $output 'video_player_impl.so'))
-    Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-O2','-DNDEBUG','-s',
-        'video_launcher.c','-ldl','-o',(Join-Path $output 'video_player'))
+    # Zig/LLD MIPS executables fault before main() in the H.OS 1.2 loader.
+    # Use the small launcher built with the official SF3000 GNU SDK instead;
+    # the full player remains the shared module compiled above.
+    Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'video_player') `
+        -Destination (Join-Path $output 'video_player')
+    Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'pcsx4all') `
+        -Destination (Join-Path $output 'pcsx4all')
 } finally { Pop-Location }
 
 Push-Location $hijackRoot
@@ -130,6 +138,7 @@ New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds | Out
 Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

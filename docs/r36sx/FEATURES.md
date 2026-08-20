@@ -66,6 +66,10 @@
 
 - Start+Select opens the in-game menu without the stock parent menu forcing a
   return to Home.
+- PS1 video scaling now changes the actual presented geometry on the R36SX
+  instead of routing two labels to the same 4:3 full-panel output. Available
+  modes are 4:3 Fill, Raw Pixel Fit, Integer, Native 1x, Overscan 110%, and
+  16:9 Letterbox; changes are visible immediately and persist when saved.
 - Checksum-guarded PCSX4ALL patch maps Start+Select to its native menu while
   retaining Select+L1.
 - Duplicate PS1 history/favourite routes are collapsed by ROM path so the slow
@@ -92,10 +96,11 @@
   audio resources before a fresh application process starts. The video path
   explicitly clears the emulator-only display-fix preload and marker, so the
   FFmpeg/H.OS hardware player always runs without that correction.
-- The player deliberately starts without a `DT_NEEDED` dependency on the
-  vendor media stack, then loads the stock H.OS `libffplayer.so` API with
-  `dlopen`/`dlsym`. This avoids a pre-`main()` relocation crash in the old
-  H.OS loader when it processes a Zig/LLD-linked executable, while retaining
-  the stock hardware decoder, direct-file launch, controls and subtitles.
+- A tiny launcher built with the official SF3000 GNU SDK starts without a
+  `DT_NEEDED` dependency on the vendor media stack, then loads the Zig-built
+  player module and stock H.OS `libffplayer.so` API with `dlopen`/`dlsym`.
+  This avoids the H.OS pre-`main()` SIGFPE seen with Zig/LLD executables while
+  retaining the stock hardware decoder, direct-file launch, controls and
+  subtitles.
 - File and video list browsers use a clean theme background instead of carrying
   over the artwork banner from the previously selected Home card.

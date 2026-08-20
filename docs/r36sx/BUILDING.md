@@ -13,6 +13,8 @@ Rockbox, and PCSX4ALL retain their own upstream projects and licenses.
 - SDL 1.2.15, libpng 1.6.37, and zlib 1.2.11 headers
 - An HCRTOS source checkout for `ffplayer.h` and FFmpeg headers
 - A `TreeFrogUI_pcsx4all` source checkout for the video-player bitmap font
+- GNU runtime artifacts produced by the included **Build R36SX GNU runtimes**
+  GitHub Actions workflow
 
 No stock firmware, ROM, or BIOS file is committed to this repository.
 
@@ -37,33 +39,42 @@ It is idempotent and refuses to reset or overwrite an unexpected checkout.
 
 ## 2. Build
 
+Run `.github/workflows/build-r36sx-gnu.yml` on GitHub first and download its
+`switchfrogui-r36sx-gnu-runtimes` artifact. It uses the official SF3000 GNU SDK
+and pinned PCSX4ALL sources to build the launcher and emulator. This separation
+is required because Zig/LLD-linked MIPS executables fault before `main()` in the
+tested H.OS 1.2 loader, while Zig-built shared modules work correctly.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
   -StockCardRoot 'D:\' `
   -HcrtosRoot 'C:\src\hcrtos' `
   -Pcsx4allRoot 'C:\src\TreeFrogUI_pcsx4all' `
   -DependencyRoot "$env:LOCALAPPDATA\Temp\treefrog-deps" `
-  -ZigPath 'C:\tools\zig\zig.exe'
+  -ZigPath 'C:\tools\zig\zig.exe' `
+  -GnuRuntimeRoot 'C:\builds\switchfrogui-r36sx-gnu-runtimes'
 ```
 
 Outputs are written to `.r36sx-build/out`:
 
 - `frogui_libretro.so`
 - `video_player`
+- `video_player_impl.so`
+- `pcsx4all`
 - `libemu_tfhijack.so`
 - `nosleep`
 - `r36sx_displayfix.so`
 
-`out/card-files/` is also produced with the core, player wrapper, twelve UI
+`out/card-files/` is also produced with the core, player, PCSX4ALL, twelve UI
 fonts, their OFL notices, and the CC0 sound packs already arranged in their
 final SD-card paths. Merge that directory onto a test card after the base
 SwitchFrogUI overlay is installed.
 
 Pass `-BuildPicoarch` to also compile `picoarch` and `picoarch_hi`. The portable
 Zig PicoArch build passes static ABI checks but raised SIGFPE on the tested v2.7
-device; release packages therefore use the known-good upstream GNU-toolchain
-PicoArch builds until that compiler issue is resolved. This limitation does not
-apply to the FrogUI core or the small R36SX helper applications.
+device; release packages therefore use GNU-toolchain executable builds. This
+limitation does not apply to the FrogUI core, video-player shared module, or the
+small R36SX helper applications.
 
 ## 3. Generate the boot bitmap
 
