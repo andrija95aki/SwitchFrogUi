@@ -71,11 +71,12 @@
   the fourteen gamepad controls can be rebound in Settings and changes are
   reloaded without modifying the stock `joy_key` shared-memory writer.
 - Terminal Home card runs the card's real BusyBox `ash` shell in a persistent
-  child process with a clean text-only, mixed-case Space Mono framebuffer view.
+  child process with a clean text-only, mixed-case Space Mono framebuffer view
+  enlarged to 115% for the 640x480 panel.
   It starts in `/mnt/sdcard`, never triggers the automatic screen timeout,
   stores the latest 32 commands, recalls them with Up/Down, and closes cleanly
   with B/Escape.
-- Text Editor Home card starts in `roms/Ebook` and browses nested folders. X
+- Text Editor Home card starts at `/mnt/sdcard` and browses nested folders. X
   creates a file with any extension, A opens it, Y renames it, Ctrl+S saves,
   F2 renames while editing, and B/Escape saves modified text before closing.
   Files are capped at 128 KiB to avoid loading a ROM or other large binary into
@@ -84,7 +85,7 @@
   Ctrl+A/C/X/V, eight-level Ctrl+Z/Y undo/redo, Ctrl+F and F3 find-next,
   Ctrl+N new, Ctrl+O browser, Ctrl+Backspace/Delete, Tab, and Shift+Tab.
 - JSDev is a permanent Home card and a source-built libretro JavaScript
-  runtime. Its `roms/JSDev` browser runs projects with A, creates a starter
+  runtime. Its browser starts at `/mnt/sdcard`, runs `.js` projects with A, creates a starter
   project with X, edits with Y, and renames with Select. The API provides
   graphics/text, 60 Hz animation, press/release and held gamepad input,
   synthesized sound, timers, logs, and isolated persistent JSON storage. A
@@ -99,6 +100,10 @@
   final one-pixel vertical correction.
 - The same optional correction is inherited by games, PCSX4ALL menus, Rockbox,
   and other standalone applications without double-applying it in FrogUI.
+- Holding FN + L1 + R1 flips the final 640x480 output by 180 degrees; repeating
+  the chord restores it. The state persists in `frogui/screen_rotation.cfg` and
+  covers FrogUI, terminal, editor, Rockbox, supported emulators, and the native
+  video player (including its controls and subtitles).
 - Double-buffered panel presentation reduces PCSX4ALL menu text flicker.
 - Short power press is bridged from H.OS `cubevol` to FrogUI, blanks/restores
   the display, and preserves the separate long-press shutdown path.
@@ -144,12 +149,17 @@
 
 ## Music, files, and video
 
-- Whole-card file browser with audio dispatch to Rockbox and video dispatch to
-  the hardware player.
-- Permanent Ebooks Home card opens a clean browser rooted at `roms/Ebook` and
+- Whole-card file browser with audio dispatch to Rockbox, video dispatch to the
+  hardware player, and direct Text Editor dispatch for common text, Markdown,
+  log, config, source-code, subtitle, and playlist extensions.
+- Permanent Ebooks Home card opens a clean browser at `/mnt/sdcard` and
   shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
   TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and
   does not mix documents into game recents.
+- The build and public overlay include three public-domain English EPUB tests
+  under `Ebooks/SwitchFrogUI Samples`: World English Bible (WEB), Rodwell's
+  translation of the Qur'an, and the 1917 JPS Tanakh. Sources and hashes ship
+  beside the files.
 - Rockbox opens at the card root, uses intuitive A-confirm/B-back mapping,
   follows the OS master volume, and inherits the display correction.
 - Dedicated Videos browser that navigates real folders without retriggering its
@@ -176,7 +186,8 @@
   first, allowing the kernel to close its framebuffer, HCGE, `/dev/dis`, and
   audio resources before a fresh application process starts. The video path
   explicitly clears the emulator-only display-fix preload and marker, so the
-  FFmpeg/H.OS hardware player always runs without that correction.
+  FFmpeg/H.OS hardware player always runs without that correction. Its native
+  rotation path still honors the shared FN + L1 + R1 orientation state.
 - A tiny launcher built with the official SF3000 GNU SDK starts without a
   `DT_NEEDED` dependency on the vendor media stack, then loads the Zig-built
   player module and stock H.OS `libffplayer.so` API with `dlopen`/`dlsym`.

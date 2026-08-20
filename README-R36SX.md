@@ -36,11 +36,12 @@ themes extend the theme gallery without changing the selected default.
 
 External USB keyboards are usable throughout the launcher and emulators via a
 persistent, fully editable keyboard-to-gamepad map. Home additionally exposes a
-real BusyBox `ash` terminal and a keyboard-driven **Text Editor** rooted by
-default at `roms/Ebook`. The terminal uses a clean monospace text-only screen,
+real BusyBox `ash` terminal and a keyboard-driven **Text Editor** whose picker
+starts at the SD-card root. The terminal uses a larger monospace text-only screen,
 persistent Up/Down command history, and disables automatic screen timeout while
-open. The editor can create, open, edit, rename, and save text files with any
-extension. The earlier Mini Linux shortcut shell was removed because its cards
+open. The Files app opens common text, Markdown, log, config, source, subtitle,
+and playlist formats directly in the editor, which can create, edit, rename,
+and save files with any extension. The earlier Mini Linux shortcut shell was removed because its cards
 only duplicated Terminal, Files, and System Information already available in
 the main interface.
 
@@ -52,13 +53,21 @@ Ctrl+Backspace/Delete, Tab, and Shift+Tab are supported.
 
 Home also includes **JSDev**, an offline JavaScript game-development runtime.
 Its project browser creates, edits, renames, and runs `.js` files from
+any folder, starting at the SD-card root; the bundled demo remains in
 `roms/JSDev`. The API supplies RGB565 graphics and antialiased text, 60 Hz
 animation callbacks, gamepad events and held-button input, four synthesized
 sound waveforms, timers, logging, and per-project JSON storage. A complete
 `JSDev API Showcase.js` demo is bundled.
 
+All file-selection applications now open at `/mnt/sdcard`. Three public-domain
+English test ebooks are bundled under `Ebooks/SwitchFrogUI Samples`: the World
+English Bible, Rodwell Qur'an, and 1917 JPS Tanakh. Holding FN + L1 + R1 flips
+the complete display 180 degrees in the UI, terminal, editor, media apps, and
+emulators; repeating the chord restores normal orientation, and the state is
+saved across app transitions and reboots.
+
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
-- [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
+- [Third-party software and sample-media notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
 <p align="center">
   <img src="docs/r36sx/screenshots/home-last-played-games.jpeg" width="760" alt="SwitchFrogUI Home screen on R36SX">

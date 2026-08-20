@@ -126,6 +126,10 @@ $jsdevDirectory = Join-Path $sdRoot 'roms\JSDev'
 New-Item -ItemType Directory -Force -Path $jsdevDirectory | Out-Null
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\jsdev\examples\JSDev API Showcase.js') -Destination $jsdevDirectory
 
+$ebookDirectory = Join-Path $sdRoot 'Ebooks\SwitchFrogUI Samples'
+New-Item -ItemType Directory -Force -Path $ebookDirectory | Out-Null
+Copy-Item -Force -Path (Join-Path $repoRoot 'apps\assets\ebooks\*') -Destination $ebookDirectory
+
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'README-R36SX.md') -Destination (Join-Path $stage 'README.md')
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'LICENSE.md') -Destination $stage
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'docs\r36sx\INSTALL.md') -Destination $stage

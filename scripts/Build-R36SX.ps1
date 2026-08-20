@@ -24,6 +24,7 @@ $hcUapiInclude = Join-Path $HcrtosRoot 'components\kernel\source\include\uapi'
 $hcFfmpegInclude = Join-Path $HcrtosRoot 'components\ffmpeg\source'
 $pcsxFont = Join-Path $Pcsx4allRoot 'src\port\sf3000\fonts.c'
 $syscalls = Join-Path $repoRoot 'toolchain\mips_syscalls.S'
+$sampleEbookRoot = Join-Path $appsRoot 'assets\ebooks'
 
 $required = @(
     $ZigPath,
@@ -39,6 +40,10 @@ $required = @(
     (Join-Path $appsRoot 'jsdev\jsdev_libretro.c'),
     (Join-Path $appsRoot 'jsdev\third_party\duktape\duktape.c'),
     (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js'),
+    (Join-Path $sampleEbookRoot 'World English Bible (WEB).epub'),
+    (Join-Path $sampleEbookRoot 'The Koran - J. M. Rodwell.epub'),
+    (Join-Path $sampleEbookRoot 'JPS 1917 Tanakh - English.epub'),
+    (Join-Path $sampleEbookRoot 'SOURCES.md'),
     (Join-Path $GnuRuntimeRoot 'video_player'),
     (Join-Path $GnuRuntimeRoot 'pcsx4all'),
     (Join-Path $GnuRuntimeRoot 'picoarch'),
@@ -168,7 +173,8 @@ $cardCore = Join-Path $cardFiles 'cubegm\cores'
 $cardFonts = Join-Path $cardFiles 'frogui\fonts'
 $cardSounds = Join-Path $cardFiles 'frogui\sounds'
 $cardIconPacks = Join-Path $cardFiles 'frogui\icon-packs'
-New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks | Out-Null
+$cardEbookSamples = Join-Path $cardFiles 'Ebooks\SwitchFrogUI Samples'
+New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks,$cardEbookSamples | Out-Null
 $optionalRomFolders = @('Ebook','JSDev','doom','heretic','hexen','arcade','fbneo','mame2003',
     'lynx','snes9x','vectrex','odyssey2','videopac')
 foreach ($folder in $optionalRomFolders) {
@@ -186,6 +192,7 @@ Copy-Item -Force -LiteralPath (Join-Path $output 'o2em_libretro.so') -Destinatio
 Copy-Item -Force -LiteralPath (Join-Path $output 'vecx_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js') `
     -Destination (Join-Path $cardFiles 'roms\JSDev')
+Copy-Item -Force -Path (Join-Path $sampleEbookRoot '*') -Destination $cardEbookSamples
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

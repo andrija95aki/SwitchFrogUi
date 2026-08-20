@@ -112,12 +112,12 @@ LAUNCH=/tmp/frogui_launch.txt
 
 # Picoarch launches games and standalone emulators with execl(), so a preload
 # added only after FrogUI exits is too late: the shell never regains control.
-# Put the optional panel shim on the first frontend process; every exec-chained
-# game inherits it. FrogUI sees the marker and skips its duplicate internal fix.
-if grep -q '^r36sx_display_glitch_fix=on' /mnt/sdcard/frogui/settings.txt 2>/dev/null &&
-   [ -f "$R36SX_DISPLAYFIX" ]; then
+# Put the final display-transform shim on the first frontend process so every
+# exec-chained app inherits the persistent FN+L1+R1 rotation gesture. The shim
+# reads the panel-fix setting itself, leaving that correction optional.
+if [ -f "$R36SX_DISPLAYFIX" ]; then
     R36SX_DISPLAYFIX_ACTIVE=1
-    echo "R36SX Display glitch fix: active for frontend, games and emulator menus" >> "$LOG"
+    echo "SwitchFrogUI display transform active for frontend, games and apps" >> "$LOG"
 fi
 run_with_displayfix() {
     if [ "$R36SX_DISPLAYFIX_ACTIVE" = 1 ]; then

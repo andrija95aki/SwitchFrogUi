@@ -30,12 +30,18 @@ extern unsigned char fontdata8x8[64 * 16];
 #define KEY_RIGHT  (1u << 5)
 #define KEY_DOWN   (1u << 6)
 #define KEY_LEFT   (1u << 7)
+#define KEY_L1     (1u << 10)
+#define KEY_R1     (1u << 11)
 #define KEY_A      (1u << 13)
 #define KEY_B      (1u << 14)
+#define KEY_FN     (1u << 16)
+#define ROTATE_CHORD (KEY_FN | KEY_L1 | KEY_R1)
 #define MAX_EXTERNAL_SUBS 16
 #define SUBTITLE_OFFSET_FILE "/mnt/sdcard/frogui/video_subtitle_offsets.txt"
 #define SUBTITLE_OFFSET_TMP  "/mnt/sdcard/frogui/video_subtitle_offsets.tmp"
 #define SUBTITLE_OFFSET_LIMIT_MS 60000
+#define ROTATION_FILE "/mnt/sdcard/frogui/screen_rotation.cfg"
+#define ROTATION_TMP  "/mnt/sdcard/frogui/screen_rotation.tmp"
 
 /* H.OS's Linux 4.4 dynamic loader crashes before application code when the
  * vendor player is a load-time dependency.  Keep this module dependent only
@@ -55,6 +61,7 @@ static int64_t (*fp_hcplayer_get_duration)(void *);
 static int64_t (*fp_hcplayer_get_position)(void *);
 static int (*fp_hcplayer_get_cur_video_stream_info)(void *, HCPlayerVideoInfo *);
 static int (*fp_hcplayer_set_display_rect)(void *, struct vdec_dis_rect *);
+static int (*fp_hcplayer_change_rotate_type)(void *, rotate_type_e);
 
 #define hcplayer_init fp_hcplayer_init
 #define hcplayer_deinit fp_hcplayer_deinit
@@ -68,6 +75,7 @@ static int (*fp_hcplayer_set_display_rect)(void *, struct vdec_dis_rect *);
 #define hcplayer_get_position fp_hcplayer_get_position
 #define hcplayer_get_cur_video_stream_info fp_hcplayer_get_cur_video_stream_info
 #define hcplayer_set_display_rect fp_hcplayer_set_display_rect
+#define hcplayer_change_rotate_type fp_hcplayer_change_rotate_type
 
 static bool load_ffplayer(void) {
     const char *path = "/mnt/sdcard/rootfs/usr/lib/libffplayer.so";
@@ -97,6 +105,7 @@ static bool load_ffplayer(void) {
     LOAD_PLAYER_SYMBOL(hcplayer_get_position);
     LOAD_PLAYER_SYMBOL(hcplayer_get_cur_video_stream_info);
     LOAD_PLAYER_SYMBOL(hcplayer_set_display_rect);
+    LOAD_PLAYER_SYMBOL(hcplayer_change_rotate_type);
 #undef LOAD_PLAYER_SYMBOL
     fprintf(stderr, "video_player: vendor player API loaded\n");
     return true;
@@ -122,6 +131,7 @@ static bool subtitle_visible;
 static int64_t subtitle_start_ms;
 static int64_t subtitle_end_ms;
 static int subtitle_offset_ms;
+static bool screen_rotation_180;
 
 typedef struct {
     int64_t start_ms, end_ms;
@@ -136,6 +146,26 @@ static int64_t clock_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void screen_rotation_load(void) {
+    char value[24] = {0};
+    FILE *file = fopen(ROTATION_FILE, "rb");
+    screen_rotation_180 = false;
+    if (!file) return;
+    if (fgets(value, sizeof(value), file))
+        screen_rotation_180 = atoi(value) == 180;
+    fclose(file);
+}
+
+static void screen_rotation_save(void) {
+    FILE *file = fopen(ROTATION_TMP, "wb");
+    if (!file) return;
+    fprintf(file, "%d\n", screen_rotation_180 ? 180 : 0);
+    fflush(file);
+    fsync(fileno(file));
+    fclose(file);
+    rename(ROTATION_TMP, ROTATION_FILE);
 }
 
 static volatile uint32_t *attach_keys(void) {
@@ -177,7 +207,17 @@ static void overlay_clear(void) {
 }
 
 static void overlay_present(void) {
-    if (osd.pixels && osd.back) memcpy(osd.pixels, osd.back, osd.frame_size);
+    if (!osd.pixels || !osd.back) return;
+    if (!screen_rotation_180) {
+        memcpy(osd.pixels, osd.back, osd.frame_size);
+        return;
+    }
+    memset(osd.pixels, 0, osd.frame_size);
+    for (int y = 0; y < osd.height; y++)
+        for (int x = 0; x < osd.width; x++)
+            osd.pixels[(size_t)(osd.height - 1 - y) * osd.stride +
+                       (osd.width - 1 - x)] =
+                osd.back[(size_t)y * osd.stride + x];
 }
 
 static void overlay_close(void) {
@@ -610,8 +650,10 @@ int switchfrog_video_main(int argc, char **argv) {
     fprintf(stderr, "video_player: sidecars=%d; initializing hcplayer\n", external_count);
     hcplayer_init(LOG_WARNING);
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
+    screen_rotation_load();
     args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
     args.quick_mode = true; args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
+    args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
     args.callback = NULL; args.ext_subtitle_stream_num = 0;
@@ -629,8 +671,9 @@ int switchfrog_video_main(int argc, char **argv) {
     overlay_open();
     hide_frontend_framebuffer();
     volatile uint32_t *keys = attach_keys();
-    uint32_t previous = keys ? (*keys & 0xffffu) : 0;
+    uint32_t previous = keys ? (*keys & 0x1ffffu) : 0;
     bool paused = false, done = false, ready = false;
+    bool rotation_latched = false;
     int menu_index = 0, scale_mode = 0, video_w = 640, video_h = 480;
     bool subtitle_available = false, subtitles_enabled = false;
     subtitle_offset_ms = subtitle_offset_load(argv[1]);
@@ -657,11 +700,27 @@ int switchfrog_video_main(int argc, char **argv) {
             }
         }
 
-        uint32_t raw = keys ? (*keys & 0xffffu) : 0;
+        uint32_t raw = keys ? (*keys & 0x1ffffu) : 0;
         uint32_t pressed = raw & ~previous;
         previous = raw;
         if (pressed) controls_until = clock_ms() + 4000;
-        if ((raw & (KEY_START | KEY_SELECT)) == (KEY_START | KEY_SELECT) || (pressed & KEY_B)) {
+        bool rotation_chord = (raw & ROTATE_CHORD) == ROTATE_CHORD;
+        if (rotation_chord && !rotation_latched) {
+            screen_rotation_180 = !screen_rotation_180;
+            screen_rotation_save();
+            hcplayer_change_rotate_type(player, screen_rotation_180 ?
+                                        ROTATE_TYPE_180 : ROTATE_TYPE_0);
+            if (ready) apply_display_mode(player, scale_mode, video_w, video_h);
+            rotation_latched = true;
+            controls_until = clock_ms() + 4000;
+            fprintf(stderr, "video_player: display rotation %s\n",
+                    screen_rotation_180 ? "180 degrees" : "normal");
+        } else if (!rotation_chord) {
+            rotation_latched = false;
+        }
+        if (rotation_chord) {
+            /* The chord is consumed so its shoulder buttons cannot also act. */
+        } else if ((raw & (KEY_START | KEY_SELECT)) == (KEY_START | KEY_SELECT) || (pressed & KEY_B)) {
             if (paused && (pressed & KEY_B) &&
                 (raw & (KEY_START | KEY_SELECT)) != (KEY_START | KEY_SELECT)) {
                 hcplayer_resume(player); paused = false;

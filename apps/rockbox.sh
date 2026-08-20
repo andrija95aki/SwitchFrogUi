@@ -10,8 +10,8 @@ export LD_LIBRARY_PATH=/mnt/sdcard/cubegm/lib:/mnt/sdcard/cubegm/usr/lib:$LD_LIB
 # pass through zhijack.sh's per-game preload branch. Apply the same persistent
 # R36SX panel compensation here when the user enabled it in FrogUI Settings.
 DISPLAYFIX=/mnt/sdcard/cubegm/r36sx_displayfix.so
-if grep -q '^r36sx_display_glitch_fix=on' /mnt/sdcard/frogui/settings.txt 2>/dev/null &&
-   [ -f "$DISPLAYFIX" ]; then
+if [ -f "$DISPLAYFIX" ] && [ "${TF_R36SX_DISPLAYFIX_PRELOADED:-0}" != 1 ]; then
+    export TF_R36SX_DISPLAYFIX_PRELOADED=1
     export LD_PRELOAD="$DISPLAYFIX${LD_PRELOAD:+:$LD_PRELOAD}"
 fi
 

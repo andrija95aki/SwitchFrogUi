@@ -87,3 +87,23 @@ Sony recordings and are not affiliated with either company.
 
 The recording is included only as a Rockbox functionality test. No attribution
 is legally required by CC0, but provenance is recorded here.
+
+## Included sample ebooks
+
+The following English EPUB files are included only to test the Ebooks reader:
+
+- `World English Bible (WEB).epub`: World English Bible Complete, Project
+  Gutenberg ebook #8294. The source page identifies it as public domain in the
+  USA, and the translation was released into the public domain.
+  https://www.gutenberg.org/ebooks/8294
+- `The Koran - J. M. Rodwell.epub`: J. M. Rodwell's English translation,
+  Project Gutenberg ebook #3434, identified as public domain in the USA.
+  https://www.gutenberg.org/ebooks/3434
+- `JPS 1917 Tanakh - English.epub`: the 1917 Jewish Publication Society English
+  Tanakh distributed by eBible.org and identified there as public domain.
+  https://ebible.org/find/details.php?id=engjps
+
+Exact SHA-256 hashes and direct provenance are shipped beside the EPUBs in
+`Ebooks/SwitchFrogUI Samples/SOURCES.md`. Project Gutenberg's distribution and
+trademark terms remain embedded in its files. Public-domain status varies by
+jurisdiction; downstream distributors are responsible for local verification.
