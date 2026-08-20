@@ -19,14 +19,29 @@ installed over a user's own working stock card.
 |---|---|
 | Home and library | Three direct-launch last-played cards, Recent, Favourites, artwork platform cards, wrap-around navigation, box-art grids, condensed lists, search, game details, save indicators, and play-time records. |
 | Appearance | Static Switch-style layout, 62 themes including multi-colour gradients, selectable backgrounds, 12 bundled fonts, font-size control, platform icon packs, and configurable UI sounds. |
-| Media and files | Whole-card file browser, Rockbox Music card, hardware-decoded Videos player with pause-menu scaling/subtitles, and an Ebooks card for EPUB, MOBI, PDF, FB2, CBZ, and XPS. |
+| Media and files | Whole-card file browser, Rockbox Music card, hardware-decoded Videos player with pause-menu scaling/subtitles, Ebooks, a real BusyBox terminal, and a tiny keyboard/mouse Linux desktop. |
 | R36SX hardware | Persistent one-pixel display-glitch correction, short-power display blanking, configurable screen timeout, gradual master-volume curve, display-resume safeguards, and hardware information. |
 | Emulation | PS1 Start+Select menu repair, additional PS1 scaling modes, duplicate-route cleanup, Doom/Heretic/Hexen folders, and additional emulator/core routes. |
-| Diagnostics | Live SD, USB/OTG, storage, audio, display, network, and Linux input inspection with a shareable `frogui/io_diagnostics.txt` report. |
+| Input and diagnostics | Editable USB-keyboard-to-gamepad mapping for FrogUI, libretro games and PCSX4ALL; live SD, USB/OTG, storage, audio, display, network, and Linux input inspection. |
 
 The complete maintained list is in [R36SX features and fixes](docs/r36sx/FEATURES.md).
 
-### Latest change: live USB keyboard test
+### Latest change: USB keyboard gaming and Linux tools
+
+USB keyboards can now control Home and games through one persistent mapping in
+**Settings â†’ Keyboard Gamepad Mapping**. Defaults are arrows for the D-pad,
+Enter/Escape/Space/Left Shift for A/B/X/Y, Q/E for L1/R1, 1/3 for L2/R2,
+Backspace for Select, and Right Shift for Start. Select any gamepad button and
+press a replacement keyboard key; the same mapping is read by FrogUI,
+PicoArch/libretro cores, PCSX4ALL gameplay, and emulator menus.
+
+Home also has **Terminal** and **Mini Linux** cards. Terminal runs the card's
+real `/bin/sh` (BusyBox ash) with keyboard input. Mini Linux is a very small
+framebuffer graphical shell over the already-running H.OS Linux and supports
+the detected keyboard and relative USB mouse; it opens Terminal, Files, and
+System Information without installing an unsupported X11/Wayland stack.
+
+### Live USB keyboard test
 
 Settings now contains **Inputs & I/O Diagnostics**, including an interactive
 keyboard tester:

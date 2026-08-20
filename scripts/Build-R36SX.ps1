@@ -38,6 +38,8 @@ $required = @(
     (Join-Path $frogRoot 'frogui_libretro.c'),
     (Join-Path $GnuRuntimeRoot 'video_player'),
     (Join-Path $GnuRuntimeRoot 'pcsx4all'),
+    (Join-Path $GnuRuntimeRoot 'picoarch'),
+    (Join-Path $GnuRuntimeRoot 'picoarch_hi'),
     $UpstreamReleaseArchive
 )
 if ($BuildPicoarch) { $required += (Join-Path $picoRoot 'main.c') }
@@ -128,6 +130,10 @@ try {
         -Destination (Join-Path $output 'video_player')
     Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'pcsx4all') `
         -Destination (Join-Path $output 'pcsx4all')
+    Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'picoarch') `
+        -Destination (Join-Path $output 'picoarch')
+    Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'picoarch_hi') `
+        -Destination (Join-Path $output 'picoarch_hi')
 } finally { Pop-Location }
 
 Push-Location $hijackRoot
@@ -165,6 +171,8 @@ Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destinat
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch_hi') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'ebook') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'o2em_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'vecx_libretro.so') -Destination $cardCore
@@ -176,4 +184,8 @@ $uiSounds = Join-Path $repoRoot 'assets\sounds'
 if (Test-Path -LiteralPath $uiSounds) { Copy-Item -Recurse -Force -Path (Join-Path $uiSounds '*') -Destination $cardSounds }
 $iconPacks = Join-Path $repoRoot 'assets\icon-packs'
 if (Test-Path -LiteralPath $iconPacks) { Copy-Item -Recurse -Force -Path (Join-Path $iconPacks '*') -Destination $cardIconPacks }
+$keyboardConfig = Join-Path $repoRoot 'assets\config\keyboard_gamepad.cfg'
+if (Test-Path -LiteralPath $keyboardConfig) {
+    Copy-Item -Force -LiteralPath $keyboardConfig -Destination (Join-Path $cardFiles 'frogui')
+}
 Write-Host "R36SX build complete: $output"

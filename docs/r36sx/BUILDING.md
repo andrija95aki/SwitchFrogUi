@@ -68,13 +68,15 @@ Outputs are written to `.r36sx-build/out`:
 - `video_player`
 - `video_player_impl.so`
 - `pcsx4all`
+- `picoarch` and `picoarch_hi` (official GNU-SDK builds with USB keyboard input)
 - `ebook` (official MuPDF reader from the v1.0.12 archive)
 - `o2em_libretro.so` and `vecx_libretro.so`
 - `libemu_tfhijack.so`
 - `nosleep`
 - `r36sx_displayfix.so`
 
-`out/card-files/` is also produced with the core, player, PCSX4ALL, ebook
+`out/card-files/` is also produced with the core, player, PicoArch pair,
+PCSX4ALL, the default editable keyboard map, ebook
 reader, missing Odyssey 2/Vectrex cores, twelve UI fonts, their OFL notices,
 icon packs, and the CC0 sound packs already arranged in their final SD-card
 paths. Merge that directory onto a test card after the base SwitchFrogUI

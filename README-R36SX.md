@@ -32,6 +32,13 @@ MuPDF reader. Doom, Heretic, and Hexen have separate optional library folders,
 and additional installed routes cover FBNeo, MAME 2003-Plus, Beetle Lynx,
 Snes9x 2010, Vectrex, Odyssey 2, and Videopac. Twelve four-colour gradient
 themes extend the theme gallery without changing the selected default.
+
+External USB keyboards are usable throughout the launcher and emulators via a
+persistent, fully editable keyboard-to-gamepad map. Home additionally exposes a
+real BusyBox `ash` terminal and a compact framebuffer **Mini Linux** shell with
+keyboard/mouse access to Terminal, Files, and System Information. This uses the
+Linux kernel and userspace already running underneath H.OS; it does not bundle
+or boot a second distribution or an unsupported desktop server.
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 

@@ -80,6 +80,18 @@ index 1f9b7f0..3f37a44 100644
  ---
  
  ## The goal
+diff --git a/Makefile b/Makefile
+index 599031e..b2aa82c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -15,6 +15,7 @@ CFLAGS     += -fdata-sections -ffunction-sections -DPICO_HOME_DIR='"/.picoarch/"
+ CFLAGS     += -I./ -I./libretro-common/include/ $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+ 
+ LDFLAGS    = -lc -ldl -lgcc -lm -lSDL -lpng12 -lz -Wl,--gc-sections -flto
++LDFLAGS    += $(EXTRA_LDFLAGS)
+ 
+ PATCH = git apply
+ 
 diff --git a/hwdisp.c b/hwdisp.c
 index 5367b21..b58751a 100644
 --- a/hwdisp.c
@@ -375,10 +387,27 @@ index 0366317..3301bce 100644
  
  #define FROGUI_CORE "/mnt/sdcard/cubegm/cores/frogui_libretro.so"
 diff --git a/plat_sdl.c b/plat_sdl.c
-index 9978411..18caf07 100644
+index 9978411..25606f0 100644
 --- a/plat_sdl.c
 +++ b/plat_sdl.c
-@@ -30,6 +30,16 @@ static SDL_Surface* screen;
+@@ -4,6 +4,7 @@
+ #include <dlfcn.h>
+ #include <dirent.h>
+ #include <math.h>
++#include <strings.h>
+ #include "core.h"
+ #include "libpicofe/fonts.h"
+ #include "libpicofe/plat.h"
+@@ -23,13 +24,25 @@ static SDL_Surface* screen;
+ #include <errno.h>
+ #include <sys/mman.h>
+ #include <sys/ioctl.h>
++#include <sys/stat.h>
+ #include <linux/fb.h>
++#include <linux/input.h>
+ #include <sys/ipc.h>
+ #include <sys/shm.h>
+ #include "hwdisp.h"
  
  int sf3000_use_hwdisp = 0;
  
@@ -395,7 +424,118 @@ index 9978411..18caf07 100644
  /* Self-healing HW→SW fallback (SF3000-class disp_frame devices). Some units
   * can't render via the HW path (black screen / hang after logo). zhijack sets
   * TF_FORCE_SW=1 once it has detected that (watchdog + crash count) and dropped
-@@ -2139,8 +2149,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -69,6 +82,84 @@ static pthread_t sf3000_input_thread;
+ extern struct sf3000_btn sf3000_keymap[];
+ extern const int sf3000_keymap_count;
+ 
++/* USB keyboard -> the same 16-bit raw gamepad mask produced by cubevol.  The
++ * mapping file is written by FrogUI and reloaded live, so it applies to the UI,
++ * every libretro core, and PicoArch hotkeys without touching joy_key shm. */
++#define SF_KBD_MAX 8
++#define SF_KBD_MAP_COUNT 14
++#define SF_BITS_PER_LONG (sizeof(unsigned long) * 8u)
++#define SF_BIT_WORD(b) ((unsigned)(b) / SF_BITS_PER_LONG)
++#define SF_BIT_MASK(b) (1ul << ((unsigned)(b) % SF_BITS_PER_LONG))
++#define SF_BIT_LONGS(max) (((unsigned)(max) / SF_BITS_PER_LONG) + 1u)
++static int sf_kbd_fds[SF_KBD_MAX], sf_kbd_count;
++static unsigned char sf_kbd_held[KEY_MAX + 1];
++static const char *sf_kbd_labels[SF_KBD_MAP_COUNT] = {
++    "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right",
++    "A", "B", "X", "Y", "L1", "R1", "L2", "R2", "Select", "Start"
++};
++static const int sf_kbd_default[SF_KBD_MAP_COUNT] = {
++    KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_SPACE,
++    KEY_LEFTSHIFT, KEY_Q, KEY_E, KEY_1, KEY_3, KEY_BACKSPACE, KEY_RIGHTSHIFT
++};
++static const int sf_kbd_raw_bits[SF_KBD_MAP_COUNT] = {
++    4, 6, 7, 5, 13, 14, 12, 15, 10, 11, 8, 9, 0, 3
++};
++static int sf_kbd_codes[SF_KBD_MAP_COUNT];
++static time_t sf_kbd_cfg_mtime;
++
++static int sf_test_bit(const unsigned long *bits, unsigned bit) {
++    return (bits[SF_BIT_WORD(bit)] & SF_BIT_MASK(bit)) != 0;
++}
++static int sf_is_keyboard(int fd) {
++    unsigned long ev[SF_BIT_LONGS(EV_MAX)] = {0}, keys[SF_BIT_LONGS(KEY_MAX)] = {0};
++    if (ioctl(fd, EVIOCGBIT(0, sizeof(ev)), ev) < 0 || !sf_test_bit(ev, EV_KEY)) return 0;
++    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0) return 0;
++    return sf_test_bit(keys, KEY_A) && sf_test_bit(keys, KEY_Z) &&
++           sf_test_bit(keys, KEY_SPACE) && sf_test_bit(keys, KEY_ENTER);
++}
++static void sf_keyboard_scan(void) {
++    DIR *dir; struct dirent *entry;
++    for (int i = 0; i < sf_kbd_count; i++) close(sf_kbd_fds[i]);
++    sf_kbd_count = 0; memset(sf_kbd_held, 0, sizeof(sf_kbd_held));
++    dir = opendir("/dev/input"); if (!dir) return;
++    while ((entry = readdir(dir)) && sf_kbd_count < SF_KBD_MAX) {
++        char path[40]; int fd;
++        if (strncmp(entry->d_name, "event", 5)) continue;
++        snprintf(path, sizeof(path), "/dev/input/%s", entry->d_name);
++        fd = open(path, O_RDONLY | O_NONBLOCK);
++        if (fd >= 0 && sf_is_keyboard(fd)) sf_kbd_fds[sf_kbd_count++] = fd;
++        else if (fd >= 0) close(fd);
++    }
++    closedir(dir);
++    fprintf(stderr, "SF3000 keyboard: %d evdev device(s)\n", sf_kbd_count);
++}
++static void sf_keyboard_load_mapping(void) {
++    const char *path = "/mnt/sdcard/frogui/keyboard_gamepad.cfg";
++    struct stat st; FILE *f; char line[96];
++    memcpy(sf_kbd_codes, sf_kbd_default, sizeof(sf_kbd_codes));
++    if (stat(path, &st) != 0) { sf_kbd_cfg_mtime = 0; return; }
++    sf_kbd_cfg_mtime = st.st_mtime;
++    f = fopen(path, "rb"); if (!f) return;
++    while (fgets(line, sizeof(line), f)) {
++        char label[32]; int code;
++        if (sscanf(line, "%31[^=]=%d", label, &code) != 2 || code < 0 || code > KEY_MAX) continue;
++        for (int i = 0; i < SF_KBD_MAP_COUNT; i++)
++            if (!strcasecmp(label, sf_kbd_labels[i])) { sf_kbd_codes[i] = code; break; }
++    }
++    fclose(f);
++}
++static uint32_t sf_keyboard_poll(void) {
++    struct input_event event;
++    for (int i = 0; i < sf_kbd_count; i++)
++        while (read(sf_kbd_fds[i], &event, sizeof(event)) == (ssize_t)sizeof(event))
++            if (event.type == EV_KEY && event.code <= KEY_MAX)
++                sf_kbd_held[event.code] = event.value ? 1 : 0;
++    uint32_t raw = 0;
++    for (int i = 0; i < SF_KBD_MAP_COUNT; i++)
++        if (sf_kbd_held[sf_kbd_codes[i]]) raw |= 1u << sf_kbd_raw_bits[i];
++    return raw;
++}
++
+ /* Each PHYSICAL button (joy_key bit) emits a FIXED SDL key. libpicofe then maps
+  * that SDL key → a retro button via its (remappable) bind table — see
+  * in_sdl_defbinds in plat_sf3000.c, whose defaults match these keys exactly. This
+@@ -107,7 +198,15 @@ static void *sf3000_input_thread_fn(void *unused) {
+     while (1) {
+         usleep(8000);                  /* ~8ms sample */
+         if (!sf3000_keys_ptr) continue;
+-        uint32_t raw = *sf3000_keys_ptr;
++        static unsigned keyboard_rescan = 0, config_check = 0;
++        if (++keyboard_rescan >= 250) { if (!sf_kbd_count) sf_keyboard_scan(); keyboard_rescan = 0; }
++        if (++config_check >= 125) {
++            struct stat st;
++            if (stat("/mnt/sdcard/frogui/keyboard_gamepad.cfg", &st) == 0 && st.st_mtime != sf_kbd_cfg_mtime)
++                sf_keyboard_load_mapping();
++            config_check = 0;
++        }
++        uint32_t raw = *sf3000_keys_ptr | sf_keyboard_poll();
+         /* Per-bit debounce: reject flicker in BOTH directions (press AND release).
+          * A bit must hold its new value for N samples before we accept it — this
+          * kills the rkgame+cubevol two-writer race AND short analog-stick drift
+@@ -150,6 +249,8 @@ static void sf3000_keys_init(void) {
+     void *p = shmat(id, NULL, 0);
+     if (p == (void *)-1) { fprintf(stderr, "SF3000 input: shmat failed\n"); return; }
+     sf3000_keys_ptr = (volatile uint32_t *)p;
++    sf_keyboard_load_mapping();
++    sf_keyboard_scan();
+     fprintf(stderr, "SF3000 input: joy_key shm OK, initial keys=0x%08X\n", *sf3000_keys_ptr);
+     pthread_create(&sf3000_input_thread, NULL, sf3000_input_thread_fn, NULL);
+ }
+@@ -2139,8 +2240,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
          if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
              return;
      }
@@ -408,7 +548,7 @@ index 9978411..18caf07 100644
      /* SF3500: always present via the real driver's disp_frame (decrypted driver
       * handles panel-size frames cleanly — proven by rkgame's own FrogUI render).
       * The SW transpose path is SF3000-geometry-tuned → squish + page-flip churn
-@@ -2152,7 +2164,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2152,7 +2255,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      sf3000_detect_device();
      if (!sf3000_use_hwdisp && !sf3000_force_sw() &&
          (sf3000_is_r36sx() || sf3000_is_sf3500() ||
@@ -420,7 +560,7 @@ index 9978411..18caf07 100644
          if (hwdisp_init() == 0) {
              sf3000_use_hwdisp = 1;
              fprintf(stderr, "sf3000_fb_blit: HW path active\n");
-@@ -2226,17 +2241,16 @@ if (sf3000_use_hwdisp) {
+@@ -2226,17 +2332,16 @@ if (sf3000_use_hwdisp) {
          }
          int aspect = (src == screen->pixels) || (scale_size != SCALE_SIZE_FULL);
          hwdisp_set_target_aspect(aspect ? PANEL_ASPECT_NUM : 0, aspect ? PANEL_ASPECT_DEN : 0);

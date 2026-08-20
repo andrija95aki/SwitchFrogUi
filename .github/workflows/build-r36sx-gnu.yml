@@ -7,6 +7,7 @@ on:
     paths:
       - apps/video_launcher.c
       - patches/r36sx-pcsx4all-runtime.patch
+      - patches/r36sx-picoarch.patch
       - .github/workflows/build-r36sx-gnu.yml
 
 permissions:
@@ -60,7 +61,16 @@ jobs:
             "$RUNNER_TEMP/pcsx4all/src/port/sf3000/tf_driver.h"
           git -C "$RUNNER_TEMP/pcsx4all" apply "$GITHUB_WORKSPACE/patches/r36sx-pcsx4all-runtime.patch"
 
-      - name: Build GNU launcher and PCSX4ALL
+      - name: Assemble the pinned PicoArch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/tzubertowski/TreeFrogUI_picoarch.git "$RUNNER_TEMP/picoarch"
+          git -C "$RUNNER_TEMP/picoarch" checkout f8ff5ba
+          git -C "$RUNNER_TEMP/picoarch" apply "$GITHUB_WORKSPACE/patches/r36sx-picoarch.patch"
+          cp "$GITHUB_WORKSPACE/toolchain/mips_syscalls.S" "$RUNNER_TEMP/picoarch/mips_syscalls.S"
+
+      - name: Build GNU launcher, PicoArch and PCSX4ALL
         shell: bash
         run: |
           set -euo pipefail
@@ -68,11 +78,18 @@ jobs:
           "$SF_GCC" -mips32r2 -march=mips32r2 -mtune=74kc -mhard-float -mfp32 -EL \
             --sysroot="$SF_SYSROOT" -O2 -DNDEBUG -Wl,--gc-sections -s \
             apps/video_launcher.c -ldl -o artifacts/video_player
+          make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
+            CROSS_COMPILE="$SF_PREFIX" picoarch
+          cp "$RUNNER_TEMP/picoarch/picoarch" artifacts/picoarch
+          make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
+            CROSS_COMPILE="$SF_PREFIX" BIN=picoarch_hi \
+            EXTRA_LDFLAGS="-Wl,-Ttext-segment=0x20000000" picoarch_hi
+          cp "$RUNNER_TEMP/picoarch/picoarch_hi" artifacts/picoarch_hi
           make -C "$RUNNER_TEMP/pcsx4all" -f Makefile.sf3000 -j2 \
             TOOLCHAIN="$SF_PREFIX" SYSROOT="$SF_SYSROOT"
           cp "$RUNNER_TEMP/pcsx4all/pcsx4all" artifacts/pcsx4all
-          file artifacts/video_player artifacts/pcsx4all
-          sha256sum artifacts/video_player artifacts/pcsx4all > artifacts/SHA256SUMS.txt
+          file artifacts/video_player artifacts/picoarch artifacts/picoarch_hi artifacts/pcsx4all
+          sha256sum artifacts/video_player artifacts/picoarch artifacts/picoarch_hi artifacts/pcsx4all > artifacts/SHA256SUMS.txt
 
       - name: Upload runtime binaries
         uses: actions/upload-artifact@v4

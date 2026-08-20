@@ -62,6 +62,20 @@
   then use a connected USB keyboard to inspect the active Linux event device,
   held keys, modifier state, and recent key-down/key-up events. X clears the
   history and controller B always returns to the diagnostics page.
+- Persistent editable USB-keyboard-to-gamepad mapping shared by FrogUI,
+  PicoArch/libretro cores, standalone PCSX4ALL gameplay, and both emulator menu
+  paths. Defaults: arrows=D-pad, Enter=A, Escape=B, Space=X, Left Shift=Y,
+  Q/E=L1/R1, 1/3=L2/R2, Backspace=Select, and Right Shift=Start. Every one of
+  the fourteen gamepad controls can be rebound in Settings and changes are
+  reloaded without modifying the stock `joy_key` shared-memory writer.
+- Terminal Home card runs the card's real BusyBox `ash` shell in a persistent
+  child process with keyboard text input and scroll-safe framebuffer output.
+  It starts in `/mnt/sdcard`; B/Escape always closes it cleanly.
+- Mini Linux Home card provides the smallest reliable graphical environment for
+  this image: an internal framebuffer desktop over the Linux 4.4/H.OS userspace
+  with keyboard and relative USB mouse navigation to Terminal, Files, and
+  System Information. It intentionally does not add X11/Wayland or claim to
+  boot a separate distribution, neither of which is present in H.OS 1.2.
 
 ## R36SX hardware fixes
 
