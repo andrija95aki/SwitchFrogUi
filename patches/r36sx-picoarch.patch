@@ -81,7 +81,7 @@ index 1f9b7f0..3f37a44 100644
  
  ## The goal
 diff --git a/Makefile b/Makefile
-index 599031e..b2aa82c 100644
+index 599031e..b31fdd4 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -15,6 +15,7 @@ CFLAGS     += -fdata-sections -ffunction-sections -DPICO_HOME_DIR='"/.picoarch/"
@@ -92,6 +92,19 @@ index 599031e..b2aa82c 100644
  
  PATCH = git apply
  
+@@ -73,10 +74,10 @@ else ifeq ($(platform), miyoomini)
+ 	PATCH=patch
+ else ifeq ($(platform), sf3000)
+ 	OBJS += plat_sf3000.o hwdisp.o
+-	CFLAGS += -mips32r2 -march=mips32r2 -mtune=24kc -mfp32 -mhard-float -DCONTENT_DIR='"/mnt/SDCARD/Roms"' -DUSE_C_SCALER -DPLATFORM_SF3000
++	CFLAGS += -EL -mips32r2 -march=mips32r2 -mtune=24kc -mfp32 -mhard-float -DCONTENT_DIR='"/mnt/SDCARD/Roms"' -DUSE_C_SCALER -DPLATFORM_SF3000
+ 	# Panel geometry is detected at runtime (SF3000 854x480 / R36SX 640x480) —
+ 	# see sf3000_detect_device() in plat_sdl.c. No compile-time panel defines.
+-	LDFLAGS += -mips32r2 -march=mips32r2 -mtune=24kc -mfp32 -mhard-float -lpthread
++	LDFLAGS += -EL -mips32r2 -march=mips32r2 -mtune=24kc -mfp32 -mhard-float -lpthread
+ 	# Disable LTO — breaks MIPS ABICALLS GP setup for static function pointers passed to PIC code
+ 	CFLAGS  := $(filter-out -flto,$(CFLAGS))
+ 	LDFLAGS := $(filter-out -flto,$(LDFLAGS))
 diff --git a/hwdisp.c b/hwdisp.c
 index 5367b21..b58751a 100644
 --- a/hwdisp.c
