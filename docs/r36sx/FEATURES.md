@@ -4,7 +4,7 @@
 
 - Console-style horizontal Home screen with three direct-launch last-played
   games, Recent, Favourites, non-empty platform cards, Music, Videos, Ebooks,
-  Files, and Settings.
+  Files, Terminal, Text Editor, and Settings.
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
 - Platform collections use box-art grids; START switches to a condensed
   12-title list and L1/R1 changes pages quickly.
@@ -22,8 +22,10 @@
   images fall back to the existing per-platform art and built-in controller.
 - Optional friendly platform names expand short folder codes such as `snes`
   and `ps1` without renaming ROM directories or changing core detection.
-- Returning from a platform, Recent, Favourites, Files, or Settings restores
-  the previously selected Home card instead of jumping to the first item.
+- Returning from a platform, game, Recent, Favourites, utility, or Settings
+  restores the originating Home card by identity instead of jumping to the
+  first item. The position survives standalone-app/frontend process restarts
+  and recent-game reordering.
 - Thin seven-pixel artwork-colour halo around the selected Home card, alpha-
   simulated by blending into the actual rendered background. Dark artwork is
   brightened for the halo so it cannot become a black opaque shadow.
@@ -69,13 +71,18 @@
   the fourteen gamepad controls can be rebound in Settings and changes are
   reloaded without modifying the stock `joy_key` shared-memory writer.
 - Terminal Home card runs the card's real BusyBox `ash` shell in a persistent
-  child process with keyboard text input and scroll-safe framebuffer output.
-  It starts in `/mnt/sdcard`; B/Escape always closes it cleanly.
-- Mini Linux Home card provides the smallest reliable graphical environment for
-  this image: an internal framebuffer desktop over the Linux 4.4/H.OS userspace
-  with keyboard and relative USB mouse navigation to Terminal, Files, and
-  System Information. It intentionally does not add X11/Wayland or claim to
-  boot a separate distribution, neither of which is present in H.OS 1.2.
+  child process with a clean text-only, mixed-case Space Mono framebuffer view.
+  It starts in `/mnt/sdcard`, never triggers the automatic screen timeout,
+  stores the latest 32 commands, recalls them with Up/Down, and closes cleanly
+  with B/Escape.
+- Text Editor Home card starts in `roms/Ebook` and browses nested folders. X
+  creates a file with any extension, A opens it, Y renames it, Ctrl+S saves,
+  F2 renames while editing, and B/Escape saves modified text before closing.
+  Files are capped at 128 KiB to avoid loading a ROM or other large binary into
+  memory on this constrained device.
+- The redundant Mini Linux shortcut page was removed; it only duplicated the
+  existing Terminal, Files, and System Information entries and did not provide
+  a second distribution or desktop stack.
 
 ## R36SX hardware fixes
 
@@ -88,6 +95,7 @@
   the display, and preserves the separate long-press shutdown path.
 - Configurable 10/20/30/60-second UI screen timeout; two minutes of blank time
   can request sleep and the frontend rebuilds the display after resume.
+  Terminal and active text-edit/name-entry screens are exempt from idle blanking.
 - Perceptual master-volume curve gives useful gradual control across all 21
   volume positions instead of concentrating the change in the final levels.
 - FrogUI leaves the H.OS `cubevol` service running when the display frontend is
