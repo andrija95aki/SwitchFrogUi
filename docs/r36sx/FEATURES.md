@@ -84,13 +84,18 @@
   follows the OS master volume, and inherits the display correction.
 - Dedicated Videos browser that navigates real folders without retriggering its
   Home action.
+- The hardware player blanks FrogUI's retained framebuffer before playback so
+  the decoder's main video plane is visible, then draws controls through a
+  single-copy off-screen overlay to prevent progress-bar flicker.
 - Hardware-decoded video playback with pause, 10/60-second seek, 1x/2x/4x/8x
   speed, 0/90/180/270-degree rotation, Fit/Fill/Stretch/Original scaling,
   volume, audio-track and subtitle-track selection.
-- Sidecar SRT/ASS/SSA/SUB/IDX/VTT/SMI/SAMI subtitle discovery, including
-  language suffixes.
+- Crash-safe local SRT and WebVTT subtitle parsing, including language-suffixed
+  sidecars, avoids the H.OS 1.2 external-subtitle decoder ABI that crashes the
+  vendor playback thread.
 - Per-video subtitle timing offsets in exact 100 ms steps, persisted across
   reboots.
+- The static SwitchFrogUI boot screen identifies the installed base as H.OS 1.2.
 - Standalone media launching uses a clean boot-loop handoff: PicoArch exits
   first, allowing the kernel to close its framebuffer, HCGE, `/dev/dis`, and
   audio resources before a fresh application process starts. The video path
