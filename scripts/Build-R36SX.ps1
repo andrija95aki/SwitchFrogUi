@@ -96,9 +96,8 @@ Push-Location $appsRoot
 try {
     Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-O2','-DNDEBUG',
         '-Icompat',"-I$hcSysInclude","-I$hcUapiInclude","-I$hcFfmpegInclude",
-        "-L$rootLib",'-Wl,-rpath,/mnt/sdcard/rootfs/usr/lib','-s',
-        'video_player.c',$pcsxFont,'-lffplayer','-lavformat','-lavcodec','-lavutil',
-        '-lswscale','-ldl','-lm','-lpthread','-o',(Join-Path $output 'video_player'))
+        '-s','video_player.c',$pcsxFont,'-ldl','-lm','-lpthread',
+        '-o',(Join-Path $output 'video_player'))
 } finally { Pop-Location }
 
 Push-Location $hijackRoot

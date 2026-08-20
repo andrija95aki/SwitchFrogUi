@@ -1,5 +1,6 @@
 /* SwitchFrogUI hardware video player for H.OS / R36SX. */
 #include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -40,6 +41,94 @@ extern unsigned char fontdata8x8[64 * 16];
 #define SUBTITLE_OFFSET_FILE "/mnt/sdcard/frogui/video_subtitle_offsets.txt"
 #define SUBTITLE_OFFSET_TMP  "/mnt/sdcard/frogui/video_subtitle_offsets.tmp"
 #define SUBTITLE_OFFSET_LIMIT_MS 60000
+
+/* H.OS's Linux 4.4 dynamic loader crashes before main() when a Zig/LLD-linked
+ * executable has libffplayer.so in DT_NEEDED.  Stock rkgame loads its media
+ * stack after process startup, so do the same: keep the executable dependent
+ * only on libc/libdl and resolve the vendor player API explicitly.  Besides
+ * avoiding the loader fault, this gives the log an exact dlopen/dlsym stage. */
+static void *ffplayer_library;
+static int (*fp_hcplayer_init)(HCPlayerLogLevel);
+static void (*fp_hcplayer_deinit)(void);
+static void *(*fp_hcplayer_create)(HCPlayerInitArgs *);
+static void (*fp_hcplayer_stop2)(void *, bool, bool);
+static void (*fp_hcplayer_play)(void *);
+static void (*fp_hcplayer_pause)(void *);
+static void (*fp_hcplayer_resume)(void *);
+static int (*fp_hcplayer_seek)(void *, int64_t);
+static int64_t (*fp_hcplayer_get_duration)(void *);
+static int64_t (*fp_hcplayer_get_position)(void *);
+static int (*fp_hcplayer_get_audio_streams_count)(void *);
+static int (*fp_hcplayer_get_subtitle_streams_count)(void *);
+static int (*fp_hcplayer_get_cur_video_stream_info)(void *, HCPlayerVideoInfo *);
+static int (*fp_hcplayer_change_audio_track)(void *, int);
+static int (*fp_hcplayer_change_subtitle_track)(void *, int);
+static int (*fp_hcplayer_set_speed_rate)(void *, float);
+static int (*fp_hcplayer_set_display_rect)(void *, struct vdec_dis_rect *);
+static int (*fp_hcplayer_change_rotate_type)(void *, rotate_type_e);
+
+#define hcplayer_init fp_hcplayer_init
+#define hcplayer_deinit fp_hcplayer_deinit
+#define hcplayer_create fp_hcplayer_create
+#define hcplayer_stop2 fp_hcplayer_stop2
+#define hcplayer_play fp_hcplayer_play
+#define hcplayer_pause fp_hcplayer_pause
+#define hcplayer_resume fp_hcplayer_resume
+#define hcplayer_seek fp_hcplayer_seek
+#define hcplayer_get_duration fp_hcplayer_get_duration
+#define hcplayer_get_position fp_hcplayer_get_position
+#define hcplayer_get_audio_streams_count fp_hcplayer_get_audio_streams_count
+#define hcplayer_get_subtitle_streams_count fp_hcplayer_get_subtitle_streams_count
+#define hcplayer_get_cur_video_stream_info fp_hcplayer_get_cur_video_stream_info
+#define hcplayer_change_audio_track fp_hcplayer_change_audio_track
+#define hcplayer_change_subtitle_track fp_hcplayer_change_subtitle_track
+#define hcplayer_set_speed_rate fp_hcplayer_set_speed_rate
+#define hcplayer_set_display_rect fp_hcplayer_set_display_rect
+#define hcplayer_change_rotate_type fp_hcplayer_change_rotate_type
+
+static bool load_ffplayer(void) {
+    const char *path = "/mnt/sdcard/rootfs/usr/lib/libffplayer.so";
+    fprintf(stderr, "video_player: dlopen %s\n", path);
+    dlerror();
+    ffplayer_library = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    if (!ffplayer_library) {
+        fprintf(stderr, "video_player: dlopen failed: %s\n", dlerror());
+        return false;
+    }
+#define LOAD_PLAYER_SYMBOL(name) do { \
+    *(void **)(&fp_##name) = dlsym(ffplayer_library, #name); \
+    if (!fp_##name) { \
+        fprintf(stderr, "video_player: missing %s: %s\n", #name, dlerror()); \
+        dlclose(ffplayer_library); ffplayer_library = NULL; return false; \
+    } \
+} while (0)
+    LOAD_PLAYER_SYMBOL(hcplayer_init);
+    LOAD_PLAYER_SYMBOL(hcplayer_deinit);
+    LOAD_PLAYER_SYMBOL(hcplayer_create);
+    LOAD_PLAYER_SYMBOL(hcplayer_stop2);
+    LOAD_PLAYER_SYMBOL(hcplayer_play);
+    LOAD_PLAYER_SYMBOL(hcplayer_pause);
+    LOAD_PLAYER_SYMBOL(hcplayer_resume);
+    LOAD_PLAYER_SYMBOL(hcplayer_seek);
+    LOAD_PLAYER_SYMBOL(hcplayer_get_duration);
+    LOAD_PLAYER_SYMBOL(hcplayer_get_position);
+    LOAD_PLAYER_SYMBOL(hcplayer_get_audio_streams_count);
+    LOAD_PLAYER_SYMBOL(hcplayer_get_subtitle_streams_count);
+    LOAD_PLAYER_SYMBOL(hcplayer_get_cur_video_stream_info);
+    LOAD_PLAYER_SYMBOL(hcplayer_change_audio_track);
+    LOAD_PLAYER_SYMBOL(hcplayer_change_subtitle_track);
+    LOAD_PLAYER_SYMBOL(hcplayer_set_speed_rate);
+    LOAD_PLAYER_SYMBOL(hcplayer_set_display_rect);
+    LOAD_PLAYER_SYMBOL(hcplayer_change_rotate_type);
+#undef LOAD_PLAYER_SYMBOL
+    fprintf(stderr, "video_player: vendor player API loaded\n");
+    return true;
+}
+
+static void unload_ffplayer(void) {
+    if (ffplayer_library) dlclose(ffplayer_library);
+    ffplayer_library = NULL;
+}
 
 typedef struct {
     int fd;
@@ -375,8 +464,9 @@ int main(int argc, char **argv) {
     fprintf(stderr, "video_player: entered main argc=%d\n", argc);
     if (argc < 2 || !argv[1][0]) { fprintf(stderr, "Usage: %s VIDEO_FILE\n", argv[0]); return 2; }
     fprintf(stderr, "video_player: input=%s\n", argv[1]);
+    if (!load_ffplayer()) return 5;
     int msgid = msgget((key_t)0x54465650, 0666 | IPC_CREAT);
-    if (msgid < 0) { perror("video_player: msgget"); return 3; }
+    if (msgid < 0) { perror("video_player: msgget"); unload_ffplayer(); return 3; }
 
     char *external_subs[MAX_EXTERNAL_SUBS] = {0};
     int external_count = find_sidecar_subtitles(argv[1], external_subs, MAX_EXTERNAL_SUBS);
@@ -393,7 +483,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
         hcplayer_deinit(); msgctl(msgid, IPC_RMID, NULL);
         for (int i = 0; i < external_count; i++) free(external_subs[i]);
-        return 4;
+        unload_ffplayer(); return 4;
     }
 
     fprintf(stderr, "video_player: decoder created; opening overlay\n");
@@ -484,5 +574,6 @@ int main(int argc, char **argv) {
     overlay_close(); hcplayer_stop2(player, true, true); hcplayer_deinit();
     if (keys) shmdt((const void *)keys); msgctl(msgid, IPC_RMID, NULL);
     for (int i = 0; i < external_count; i++) free(external_subs[i]);
+    unload_ffplayer();
     return 0;
 }

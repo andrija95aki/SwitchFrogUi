@@ -92,5 +92,10 @@
   audio resources before a fresh application process starts. The video path
   explicitly clears the emulator-only display-fix preload and marker, so the
   FFmpeg/H.OS hardware player always runs without that correction.
+- The player deliberately starts without a `DT_NEEDED` dependency on the
+  vendor media stack, then loads the stock H.OS `libffplayer.so` API with
+  `dlopen`/`dlsym`. This avoids a pre-`main()` relocation crash in the old
+  H.OS loader when it processes a Zig/LLD-linked executable, while retaining
+  the stock hardware decoder, direct-file launch, controls and subtitles.
 - File and video list browsers use a clean theme background instead of carrying
   over the artwork banner from the previously selected Home card.
