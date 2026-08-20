@@ -56,6 +56,10 @@
   event nodes, audio/PCM and headphone output, framebuffers, serial/HID and
   network interfaces. Insert a device or second card and press A/X to re-probe;
   the complete shareable result is saved as `frogui/io_diagnostics.txt`.
+- Live keyboard input tester inside Inputs & I/O Diagnostics. Press Y to open it,
+  then use a connected USB keyboard to inspect the active Linux event device,
+  held keys, modifier state, and recent key-down/key-up events. X clears the
+  history and controller B always returns to the diagnostics page.
 
 ## R36SX hardware fixes
 
