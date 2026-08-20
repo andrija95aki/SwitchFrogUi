@@ -122,11 +122,16 @@ $musicDirectory = Join-Path $sdRoot 'Music\SwitchFrogUI Samples'
 New-Item -ItemType Directory -Force -Path $musicDirectory | Out-Null
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\assets\SwitchFrogUI Sample - Mozart - Piano Sonata No. 14.ogg') -Destination $musicDirectory
 
+$jsdevDirectory = Join-Path $sdRoot 'roms\JSDev'
+New-Item -ItemType Directory -Force -Path $jsdevDirectory | Out-Null
+Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\jsdev\examples\JSDev API Showcase.js') -Destination $jsdevDirectory
+
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'README-R36SX.md') -Destination (Join-Path $stage 'README.md')
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'LICENSE.md') -Destination $stage
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'docs\r36sx\INSTALL.md') -Destination $stage
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'docs\r36sx\FEATURES.md') -Destination $stage
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'docs\r36sx\THIRD_PARTY_NOTICES.md') -Destination $stage
+Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'docs\r36sx\JSDEV.md') -Destination $stage
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'cores.md') -Destination (Join-Path $stage 'CORE-SOURCES.md')
 
 $files = Get-ChildItem -LiteralPath $stage -Recurse -File
@@ -135,7 +140,9 @@ $forbidden = $files | Where-Object {
     ($relative -match '(?i)(^|\\)(bios|saves?|states?)(\\|$)') -or
     ($relative -match '(?i)(game_history|favorites|state_playtime|video_subtitle_offsets|log\.txt|\.pre-)') -or
     ($_.Extension -match '(?i)^\.(nes|fds|sfc|smc|gba|gb|gbc|gg|sms|mdx|gen|32x|cue|iso|chd|pbp|sav|srm|state|mcr)$') -or
-    (($relative -match '(?i)^SD_ROOT\\roms\\') -and ($relative -notmatch '(?i)^SD_ROOT\\roms\\rockbox\\'))
+    (($relative -match '(?i)^SD_ROOT\\roms\\') -and
+     ($relative -notmatch '(?i)^SD_ROOT\\roms\\rockbox\\') -and
+     ($relative -notmatch '(?i)^SD_ROOT\\roms\\JSDev\\JSDev API Showcase\.js$'))
 }
 if ($forbidden) {
     $names = $forbidden.FullName -join "`n"

@@ -36,6 +36,9 @@ $required = @(
     $pcsxFont,
     $syscalls,
     (Join-Path $frogRoot 'frogui_libretro.c'),
+    (Join-Path $appsRoot 'jsdev\jsdev_libretro.c'),
+    (Join-Path $appsRoot 'jsdev\third_party\duktape\duktape.c'),
+    (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js'),
     (Join-Path $GnuRuntimeRoot 'video_player'),
     (Join-Path $GnuRuntimeRoot 'pcsx4all'),
     (Join-Path $GnuRuntimeRoot 'picoarch'),
@@ -120,6 +123,10 @@ try {
 Push-Location $appsRoot
 try {
     Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-fPIC','-G0','-O2','-DNDEBUG',
+        '-Ijsdev/third_party/duktape','-I../frogui','-shared','-Wl,--no-undefined','-s',
+        'jsdev/jsdev_libretro.c','jsdev/third_party/duktape/duktape.c',
+        '-lm','-lc','-o',(Join-Path $output 'jsdev_libretro.so'))
+    Invoke-Zig @('cc','-target',$target,'-march=mips32r2','-fPIC','-G0','-O2','-DNDEBUG',
         '-Icompat',"-I$hcSysInclude","-I$hcUapiInclude","-I$hcFfmpegInclude",
         '-shared','-Wl,--no-undefined','-s','video_player.c',$pcsxFont,
         '-ldl','-lm','-lpthread','-o',(Join-Path $output 'video_player_impl.so'))
@@ -162,12 +169,13 @@ $cardFonts = Join-Path $cardFiles 'frogui\fonts'
 $cardSounds = Join-Path $cardFiles 'frogui\sounds'
 $cardIconPacks = Join-Path $cardFiles 'frogui\icon-packs'
 New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks | Out-Null
-$optionalRomFolders = @('Ebook','doom','heretic','hexen','arcade','fbneo','mame2003',
+$optionalRomFolders = @('Ebook','JSDev','doom','heretic','hexen','arcade','fbneo','mame2003',
     'lynx','snes9x','vectrex','odyssey2','videopac')
 foreach ($folder in $optionalRomFolders) {
     New-Item -ItemType Directory -Force -Path (Join-Path $cardFiles "roms\$folder") | Out-Null
 }
 Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destination $cardCore
+Copy-Item -Force -LiteralPath (Join-Path $output 'jsdev_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-Path $cardFiles 'cubegm')
@@ -176,6 +184,8 @@ Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch_hi') -Destination (Jo
 Copy-Item -Force -LiteralPath (Join-Path $output 'ebook') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'o2em_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'vecx_libretro.so') -Destination $cardCore
+Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js') `
+    -Destination (Join-Path $cardFiles 'roms\JSDev')
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

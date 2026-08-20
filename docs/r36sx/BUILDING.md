@@ -65,6 +65,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
 Outputs are written to `.r36sx-build/out`:
 
 - `frogui_libretro.so`
+- `jsdev_libretro.so` (Duktape-powered JavaScript game runtime)
 - `video_player`
 - `video_player_impl.so`
 - `pcsx4all`
@@ -75,7 +76,7 @@ Outputs are written to `.r36sx-build/out`:
 - `nosleep`
 - `r36sx_displayfix.so`
 
-`out/card-files/` is also produced with the core, player, PicoArch pair,
+`out/card-files/` is also produced with the cores, JSDev API showcase, player, PicoArch pair,
 PCSX4ALL, the default editable keyboard map, ebook
 reader, missing Odyssey 2/Vectrex cores, twelve UI fonts, their OFL notices,
 icon packs, and the CC0 sound packs already arranged in their final SD-card

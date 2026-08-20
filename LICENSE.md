@@ -86,3 +86,11 @@ and statically links [MuPDF](https://github.com/ArtifexSoftware/mupdf). The
 reader and distributed combined binary are governed by **AGPL-3.0**. Complete
 corresponding build instructions and source links are provided by that reader
 repository; the main build consumes the official TreeFrogUI v1.0.12 binary.
+
+## 5. JSDev runtime
+
+The JSDev libretro integration is part of the SwitchFrogUI source changes and
+retains the project's applicable licensing terms. It embeds the unmodified
+[Duktape 2.7.0](https://duktape.org/) amalgamated source, distributed under the
+**MIT License**. Duktape's complete license is included at
+`apps/jsdev/third_party/duktape/LICENSE.txt`.

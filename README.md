@@ -19,14 +19,14 @@ installed over a user's own working stock card.
 |---|---|
 | Home and library | Three direct-launch last-played cards, Recent, Favourites, artwork platform cards, wrap-around navigation, box-art grids, condensed lists, search, game details, save indicators, and play-time records. |
 | Appearance | Static Switch-style layout, 62 themes including multi-colour gradients, selectable backgrounds, 12 bundled fonts, font-size control, platform icon packs, and configurable UI sounds. |
-| Media and files | Whole-card file browser, Rockbox Music card, hardware-decoded Videos player with pause-menu scaling/subtitles, Ebooks, a real BusyBox terminal, and a keyboard-driven text editor. |
+| Media, files, and development | Whole-card file browser, Rockbox Music, hardware-decoded Videos, Ebooks, a real BusyBox terminal, Text Editor, and the JSDev JavaScript game runtime with a full-API demo. |
 | R36SX hardware | Persistent one-pixel display-glitch correction, short-power display blanking, configurable screen timeout, gradual master-volume curve, display-resume safeguards, and hardware information. |
 | Emulation | PS1 Start+Select menu repair, additional PS1 scaling modes, duplicate-route cleanup, Doom/Heretic/Hexen folders, and additional emulator/core routes. |
 | Input and diagnostics | Editable USB-keyboard-to-gamepad mapping for FrogUI, libretro games and PCSX4ALL; live SD, USB/OTG, storage, audio, display, network, and Linux input inspection. |
 
 The complete maintained list is in [R36SX features and fixes](docs/r36sx/FEATURES.md).
 
-### Latest change: keyboard tools, Terminal, and text editing
+### Latest change: JSDev and keyboard development tools
 
 USB keyboards can now control Home and games through one persistent mapping in
 **Settings â†’ Keyboard Gamepad Mapping**. Defaults are arrows for the D-pad,
@@ -43,6 +43,13 @@ in `roms/Ebook`, creates and renames files with any extension, edits files up to
 It supports Page Up/Down, line and document Home/End, Ctrl+word navigation,
 Shift selection, Ctrl+A/C/X/V, Ctrl+Z/Y, Ctrl+F/F3, Ctrl+N, and Ctrl+O.
 The redundant Mini Linux shortcut page was removed.
+
+The permanent **JSDev** Home card opens `roms/JSDev`, where A runs a `.js`
+project, X creates a working starter, Y edits, and Select renames. Its compact
+source-built runtime provides 640x480 graphics and text, animation callbacks,
+gamepad input/events, synthesized sound, timers, console logging, and persistent
+JSON data. The bundled `JSDev API Showcase.js` exercises the full API; see the
+[JSDev guide](docs/r36sx/JSDEV.md).
 
 The selected Home card is saved by identity before entering a platform, game,
 or application. Returning from internal and external programs restores that

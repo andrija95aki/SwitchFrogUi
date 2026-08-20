@@ -4,7 +4,7 @@
 
 - Console-style horizontal Home screen with three direct-launch last-played
   games, Recent, Favourites, non-empty platform cards, Music, Videos, Ebooks,
-  Files, Terminal, Text Editor, and Settings.
+  Files, Terminal, Text Editor, JSDev, and Settings.
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
 - Platform collections use box-art grids; START switches to a condensed
   12-title list and L1/R1 changes pages quickly.
@@ -83,6 +83,12 @@
   Page Up/Down, Home/End and Ctrl+Home/End, Ctrl+word movement, Shift selection,
   Ctrl+A/C/X/V, eight-level Ctrl+Z/Y undo/redo, Ctrl+F and F3 find-next,
   Ctrl+N new, Ctrl+O browser, Ctrl+Backspace/Delete, Tab, and Shift+Tab.
+- JSDev is a permanent Home card and a source-built libretro JavaScript
+  runtime. Its `roms/JSDev` browser runs projects with A, creates a starter
+  project with X, edits with Y, and renames with Select. The API provides
+  graphics/text, 60 Hz animation, press/release and held gamepad input,
+  synthesized sound, timers, logs, and isolated persistent JSON storage. A
+  commented full-API showcase is included; see `docs/r36sx/JSDEV.md`.
 - The redundant Mini Linux shortcut page was removed; it only duplicated the
   existing Terminal, Files, and System Information entries and did not provide
   a second distribution or desktop stack.

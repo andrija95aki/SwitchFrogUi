@@ -42,6 +42,9 @@ licenses. Release packages include the corresponding notices and source links.
 - FFmpeg/libffplayer and HCRTOS headers/APIs: their respective upstream and
   component licenses apply; proprietary H.OS firmware is not redistributed.
 - libpng and zlib: the libpng and zlib licenses respectively.
+- Duktape 2.7.0 by the Duktape authors: MIT. The official unmodified
+  amalgamated source and license are vendored in
+  `apps/jsdev/third_party/duktape`; it powers the JSDev runtime.
 - stb_image and stb_truetype by Sean Barrett and contributors: public-domain or
   MIT dual-use terms offered by upstream.
 - SF3000-RE by goph-R: hardware research and boot-format reference material.

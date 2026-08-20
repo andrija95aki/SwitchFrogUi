@@ -18,6 +18,7 @@ images, save data, play history, or personal card logs**.
 - [Install the prebuilt R36SX overlay](docs/r36sx/INSTALL.md)
 - [Build from source](docs/r36sx/BUILDING.md)
 - [Features and fixes](docs/r36sx/FEATURES.md)
+- [Create JavaScript games with JSDev](docs/r36sx/JSDEV.md)
 
 This branch also carries the compatible, low-disruption parts of upstream
 TreeFrogUI 1.0.12: ten credited optional platform icon packs, optional friendly
@@ -48,6 +49,14 @@ Page Up/Down navigate, Home/End target a line, Ctrl+Home/End target the whole
 document, Ctrl+Left/Right moves by word, and Shift extends a selection. Ctrl+A,
 Ctrl+C/X/V, Ctrl+Z/Y (or Ctrl+Shift+Z), Ctrl+S, Ctrl+F with F3, Ctrl+N, Ctrl+O,
 Ctrl+Backspace/Delete, Tab, and Shift+Tab are supported.
+
+Home also includes **JSDev**, an offline JavaScript game-development runtime.
+Its project browser creates, edits, renames, and runs `.js` files from
+`roms/JSDev`. The API supplies RGB565 graphics and antialiased text, 60 Hz
+animation callbacks, gamepad events and held-button input, four synthesized
+sound waveforms, timers, logging, and per-project JSON storage. A complete
+`JSDev API Showcase.js` demo is bundled.
+
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
