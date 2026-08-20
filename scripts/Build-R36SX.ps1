@@ -80,7 +80,7 @@ if ($BuildPicoarch) {
 }
 
 $frogSources = @(
-    'frogui_libretro.c','render.c','font.c','recent_games.c','settings.c',
+    'frogui_libretro.c','io_diagnostics.c','render.c','font.c','recent_games.c','settings.c',
     'theme.c','favorites.c','banner.c','backlight.c','input.c','core_override.c',
     $syscalls
 )

@@ -40,6 +40,11 @@
   families used by the runtime and build process.
 - Hardware Information page with detected model, board, firmware, SoC, CPU,
   memory, display, kernel, serial availability, and SD-card capacity.
+- Live I/O Diagnostics page for both SD/MMC interfaces, USB host/OTG buses and
+  connected devices, USB mass storage, keyboards, mice, gamepads, Linux input
+  event nodes, audio/PCM and headphone output, framebuffers, serial/HID and
+  network interfaces. Insert a device or second card and press A/X to re-probe;
+  the complete shareable result is saved as `frogui/io_diagnostics.txt`.
 
 ## R36SX hardware fixes
 
