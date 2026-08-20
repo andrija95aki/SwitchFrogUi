@@ -65,7 +65,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --filter=blob:none https://github.com/tzubertowski/TreeFrogUI_picoarch.git "$RUNNER_TEMP/picoarch"
+          git clone --filter=blob:none --recurse-submodules \
+            https://github.com/tzubertowski/TreeFrogUI_picoarch.git "$RUNNER_TEMP/picoarch"
           git -C "$RUNNER_TEMP/picoarch" checkout f8ff5ba
           git -C "$RUNNER_TEMP/picoarch" apply "$GITHUB_WORKSPACE/patches/r36sx-picoarch.patch"
           cp "$GITHUB_WORKSPACE/toolchain/mips_syscalls.S" "$RUNNER_TEMP/picoarch/mips_syscalls.S"
