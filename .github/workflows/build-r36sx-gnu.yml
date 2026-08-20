@@ -37,7 +37,9 @@ jobs:
           gcc="$(find "$RUNNER_TEMP/sf3000-sdk" -path '*/bin/mips-mti-linux-gnu-gcc' -type f -print -quit)"
           test -x "$gcc"
           prefix="${gcc%gcc}"
-          dlfcn="$(find "$RUNNER_TEMP/sf3000-sdk" -path '*/usr/include/dlfcn.h' -type f -print -quit)"
+          # The archive also contains internal multilib sysroots.  PCSX4ALL's
+          # documented SDK sysroot is the relocated Buildroot target tree.
+          dlfcn="$(find "$RUNNER_TEMP/sf3000-sdk" -path '*/mipsel-buildroot-linux-gnu/sysroot/usr/include/dlfcn.h' -type f -print -quit)"
           test -n "$dlfcn"
           sysroot="$(dirname "$(dirname "$(dirname "$dlfcn")")")"
           test -d "$sysroot"
