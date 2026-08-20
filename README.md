@@ -91,7 +91,7 @@ A free, custom game-menu (frontend) for a range of MIPS-based Hichip handhelds -
 > payment. This avoids the PayPal Donate feature, which is unavailable in
 > Serbia.
 >
-> ### [Support SwitchFrogUI through PayPal.Me](https://paypal.me/andrija95aki)
+> ### [Support SwitchFrogUI through PayPal.Me](https://paypal.me/andrijakrstic42)
 > PayPal account: `andrija95aki@gmail.com`
 >
 > This link supports the SwitchFrogUI fork. The link below supports proszty's
