@@ -87,14 +87,19 @@
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
-- Hardware-decoded video playback with pause, 10/60-second seek, 1x/2x/4x/8x
-  speed, 0/90/180/270-degree rotation, Fit/Fill/Stretch/Original scaling,
-  volume, audio-track and subtitle-track selection.
-- Crash-safe local SRT and WebVTT subtitle parsing, including language-suffixed
-  sidecars, avoids the H.OS 1.2 external-subtitle decoder ABI that crashes the
-  vendor playback thread.
-- Per-video subtitle timing offsets in exact 100 ms steps, persisted across
-  reboots.
+- Hardware-decoded video playback uses the R36SX panel's real 640x480 display
+  coordinates, preventing HD videos from being clipped to their upper-left
+  region. Fit, Fill, Stretch, and Original modes are available from the pause
+  menu.
+- Playback controls stay deliberately small: A or Start opens the pause menu,
+  Left/Right seeks 10 seconds, and B exits. Volume remains under the OS master
+  controls; the player does not override it or expose audio-track selection.
+- Crash-safe local SRT and WebVTT parsing automatically loads at most one
+  sidecar whose complete basename exactly matches the video. This avoids the
+  H.OS 1.2 external-subtitle decoder ABI that crashes the vendor playback
+  thread.
+- Subtitle enable/disable and per-video timing offsets in exact 100 ms steps
+  are located in the pause menu; timing offsets persist across reboots.
 - The static SwitchFrogUI boot screen identifies the installed base as H.OS 1.2.
 - Standalone media launching uses a clean boot-loop handoff: PicoArch exits
   first, allowing the kernel to close its framebuffer, HCGE, `/dev/dis`, and
