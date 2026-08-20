@@ -1,6 +1,7 @@
 param(
     [string]$InputPng = (Join-Path $PSScriptRoot '..\assets\treefrogui-contributions-boot.png'),
-    [string]$OutputPng = (Join-Path $PSScriptRoot '..\assets\switchfrogui-boot.png')
+    [string]$OutputPng = (Join-Path $PSScriptRoot '..\assets\switchfrogui-boot.png'),
+    [string]$OsVersion = 'H.OS 1.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,8 +46,18 @@ try {
     }
     $graphics.DrawString('SwitchFrogUI', $font, [System.Drawing.Brushes]::White,
         $center, $format)
+
+    # Static firmware/OS identification requested for hardware test builds.
+    $versionFont = New-Object System.Drawing.Font('Arial', 34,
+        [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+    $versionBrush = New-Object System.Drawing.SolidBrush(
+        [System.Drawing.Color]::FromArgb(255, 170, 238, 245))
+    $versionPoint = New-Object System.Drawing.PointF(($source.Width / 2), ($source.Height * 0.84))
+    $graphics.DrawString($OsVersion, $versionFont, $versionBrush, $versionPoint, $format)
 }
 finally {
+    if ($versionBrush) { $versionBrush.Dispose() }
+    if ($versionFont) { $versionFont.Dispose() }
     if ($format) { $format.Dispose() }
     if ($font) { $font.Dispose() }
     $graphics.Dispose()

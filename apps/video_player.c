@@ -133,18 +133,27 @@ static void unload_ffplayer(void) {
 typedef struct {
     int fd;
     uint32_t *pixels;
-    size_t size;
+    uint32_t *back;
+    size_t size, frame_size;
     int width, height, stride;
 } Overlay;
 
-static Overlay osd = {-1, NULL, 0, 0, 0, 0};
+static Overlay osd = {-1, NULL, NULL, 0, 0, 0, 0, 0};
 static pthread_mutex_t subtitle_lock = PTHREAD_MUTEX_INITIALIZER;
 static char subtitle_text[1024];
 static bool subtitle_visible;
 static int64_t subtitle_start_ms;
 static int64_t subtitle_end_ms;
-static volatile int64_t player_position_ms;
 static int subtitle_offset_ms;
+
+typedef struct {
+    int64_t start_ms, end_ms;
+    char text[1024];
+} TimedCue;
+
+static TimedCue *local_cues;
+static int local_cue_count;
+static int local_cue_index;
 
 static int64_t clock_ms(void) {
     struct timespec ts;
@@ -169,17 +178,40 @@ static bool terminal_message(long type) {
            type == HCPLAYER_MSG_ERR_UNDEFINED;
 }
 
+/* H.OS's stock video UI blanks its framebuffer so the decoder's MAIN video
+ * plane is visible underneath the transparent controls layer.  FrogUI exits
+ * cleanly before this process starts, but its final file-list frame remains in
+ * scanout until explicitly blanked. */
+static void hide_frontend_framebuffer(void) {
+    int fd = open("/dev/fb0", O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "video_player: could not open fb0 for blanking: %s\n",
+                strerror(errno));
+        return;
+    }
+    int result = ioctl(fd, FBIOBLANK, FB_BLANK_NORMAL);
+    fprintf(stderr, "video_player: fb0 blank result=%d errno=%d\n",
+            result, result < 0 ? errno : 0);
+    close(fd);
+}
+
 static void overlay_clear(void) {
-    if (osd.pixels) memset(osd.pixels, 0, osd.size);
+    if (osd.back) memset(osd.back, 0, osd.frame_size);
+}
+
+static void overlay_present(void) {
+    if (osd.pixels && osd.back) memcpy(osd.pixels, osd.back, osd.frame_size);
 }
 
 static void overlay_close(void) {
     if (osd.pixels) {
-        overlay_clear();
+        memset(osd.pixels, 0, osd.frame_size);
         munmap(osd.pixels, osd.size);
     }
+    free(osd.back);
     if (osd.fd >= 0) close(osd.fd);
-    osd.fd = -1; osd.pixels = NULL; osd.size = 0;
+    osd.fd = -1; osd.pixels = NULL; osd.back = NULL;
+    osd.size = 0; osd.frame_size = 0;
 }
 
 static void overlay_open(void) {
@@ -195,25 +227,30 @@ static void overlay_open(void) {
     osd.size = fix.smem_len;
     osd.width = (int)var.xres; osd.height = (int)var.yres;
     osd.stride = (int)fix.line_length / 4;
+    osd.frame_size = (size_t)fix.line_length * osd.height;
+    if (osd.frame_size > osd.size) osd.frame_size = osd.size;
     osd.pixels = mmap(NULL, osd.size, PROT_READ | PROT_WRITE,
                       MAP_SHARED, osd.fd, 0);
     if (osd.pixels == MAP_FAILED) { osd.pixels = NULL; overlay_close(); return; }
+    osd.back = calloc(1, osd.frame_size);
+    if (!osd.back) { overlay_close(); return; }
+    memset(osd.pixels, 0, osd.frame_size);
     overlay_clear();
 }
 
 static void fill_rect(int x, int y, int w, int h, uint32_t color) {
-    if (!osd.pixels || w <= 0 || h <= 0) return;
+    if (!osd.back || w <= 0 || h <= 0) return;
     if (x < 0) { w += x; x = 0; } if (y < 0) { h += y; y = 0; }
     if (x + w > osd.width) w = osd.width - x;
     if (y + h > osd.height) h = osd.height - y;
     for (int yy = 0; yy < h; yy++) {
-        uint32_t *row = osd.pixels + (y + yy) * osd.stride + x;
+        uint32_t *row = osd.back + (y + yy) * osd.stride + x;
         for (int xx = 0; xx < w; xx++) row[xx] = color;
     }
 }
 
 static void draw_text(int x, int y, int scale, const char *text, uint32_t color) {
-    if (!osd.pixels || !text) return;
+    if (!osd.back || !text) return;
     int origin = x;
     for (; *text; text++) {
         unsigned ch = (unsigned char)*text;
@@ -274,59 +311,18 @@ static void subtitle_offset_save(const char *video_path, int offset_ms) {
     else unlink(SUBTITLE_OFFSET_TMP);
 }
 
-static const char *ass_dialogue_text(const char *ass) {
-    const char *p = ass; int commas = 0;
-    while (*p && commas < 9) if (*p++ == ',') commas++;
-    return commas == 9 ? p : ass;
-}
-
 static void copy_subtitle_text(char *dst, size_t n, const char *src) {
     size_t j = 0;
     if (!src || !n) return;
     for (size_t i = 0; src[i] && j + 1 < n; i++) {
         if (src[i] == '{') { while (src[i] && src[i] != '}') i++; continue; }
+        if (src[i] == '<') { while (src[i] && src[i] != '>') i++; continue; }
         if (src[i] == '\\' && (src[i + 1] == 'N' || src[i + 1] == 'n')) {
             dst[j++] = '\n'; i++; continue;
         }
         if (src[i] != '\r') dst[j++] = src[i];
     }
     dst[j] = '\0';
-}
-
-static void player_callback(HCPlayerCallbackType type, void *user_data, void *val) {
-    (void)user_data;
-    pthread_mutex_lock(&subtitle_lock);
-    if (type == HCPLAYER_CALLBACK_SUBTITLE_OFF) {
-        /* Keep a positive-delay cue alive for the same delay after ffplayer's
-         * nominal OFF event. Timestamped cues normally expire by themselves. */
-        if (subtitle_end_ms <= subtitle_start_ms)
-            subtitle_end_ms = player_position_ms;
-    } else if (type == HCPLAYER_CALLBACK_SUBTITLE_ON && val) {
-        AVSubtitle *sub = (AVSubtitle *)val;
-        subtitle_text[0] = '\0';
-        for (unsigned i = 0; i < sub->num_rects && !subtitle_text[0]; i++) {
-            AVSubtitleRect *r = sub->rects[i];
-            if (!r) continue;
-            if (r->type == SUBTITLE_TEXT && r->text)
-                copy_subtitle_text(subtitle_text, sizeof(subtitle_text), r->text);
-            else if (r->type == SUBTITLE_ASS && r->ass)
-                copy_subtitle_text(subtitle_text, sizeof(subtitle_text), ass_dialogue_text(r->ass));
-        }
-        subtitle_visible = subtitle_text[0] != '\0';
-        if (subtitle_visible) {
-            int64_t now = player_position_ms;
-            int64_t start = sub->pts == INT64_MIN ? now : sub->pts / 1000;
-            start += sub->start_display_time;
-            /* Broken/missing container PTS values are common in loose subtitle
-             * files. Fall back to the decoder's current presentation point. */
-            if (start < now - 300000 || start > now + 300000) start = now;
-            int64_t duration = (int64_t)sub->end_display_time - sub->start_display_time;
-            if (duration <= 0 || duration > 600000) duration = 5000;
-            subtitle_start_ms = start;
-            subtitle_end_ms = start + duration;
-        }
-    }
-    pthread_mutex_unlock(&subtitle_lock);
 }
 
 static bool extension_is_subtitle(const char *name) {
@@ -362,6 +358,114 @@ static int find_sidecar_subtitles(const char *video, char **uris, int capacity) 
     }
     closedir(dir);
     return count;
+}
+
+static void local_subtitles_clear(void) {
+    free(local_cues);
+    local_cues = NULL;
+    local_cue_count = 0;
+    local_cue_index = 0;
+    pthread_mutex_lock(&subtitle_lock);
+    subtitle_text[0] = '\0';
+    subtitle_visible = false;
+    pthread_mutex_unlock(&subtitle_lock);
+}
+
+static int64_t parse_subtitle_time(const char *text) {
+    int h = 0, m = 0, s = 0, ms = 0;
+    char separator = 0;
+    while (*text == ' ' || *text == '\t') text++;
+    if (sscanf(text, "%d:%d:%d%c%d", &h, &m, &s, &separator, &ms) == 5 &&
+        (separator == ',' || separator == '.'))
+        return ((int64_t)h * 3600 + m * 60 + s) * 1000 + ms;
+    h = 0;
+    if (sscanf(text, "%d:%d%c%d", &m, &s, &separator, &ms) == 4 &&
+        (separator == ',' || separator == '.'))
+        return ((int64_t)m * 60 + s) * 1000 + ms;
+    return -1;
+}
+
+/* Parse loose SRT/WebVTT text ourselves.  Passing an external subtitle URI to
+ * the stock H.OS 1.2 ffplayer causes a decoder-thread SIGSEGV on this device;
+ * local timed text keeps subtitles and persistent offset control without
+ * entering that incompatible ABI path. */
+static int local_subtitles_load(const char *path) {
+    local_subtitles_clear();
+    if (!path) return 0;
+    const char *dot = strrchr(path, '.');
+    if (!dot || (strcasecmp(dot, ".srt") && strcasecmp(dot, ".vtt"))) {
+        fprintf(stderr, "video_player: safe subtitle parser does not support %s\n", path);
+        return 0;
+    }
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char line[1200];
+    while (fgets(line, sizeof(line), f)) {
+        char *arrow = strstr(line, "-->");
+        if (!arrow) continue;
+        *arrow = '\0';
+        int64_t start = parse_subtitle_time(line);
+        int64_t end = parse_subtitle_time(arrow + 3);
+        if (start < 0 || end <= start) continue;
+
+        char joined[1024] = {0};
+        size_t used = 0;
+        while (fgets(line, sizeof(line), f)) {
+            line[strcspn(line, "\r\n")] = '\0';
+            if (!line[0]) break;
+            char clean[1024] = {0};
+            copy_subtitle_text(clean, sizeof(clean), line);
+            size_t length = strlen(clean);
+            if (!length) continue;
+            if (used && used + 1 < sizeof(joined)) joined[used++] = '\n';
+            if (length > sizeof(joined) - used - 1)
+                length = sizeof(joined) - used - 1;
+            memcpy(joined + used, clean, length);
+            used += length;
+            joined[used] = '\0';
+        }
+        if (!joined[0]) continue;
+        TimedCue *next = realloc(local_cues,
+            (size_t)(local_cue_count + 1) * sizeof(*local_cues));
+        if (!next) break;
+        local_cues = next;
+        TimedCue *cue = &local_cues[local_cue_count++];
+        cue->start_ms = start; cue->end_ms = end;
+        strncpy(cue->text, joined, sizeof(cue->text) - 1);
+        cue->text[sizeof(cue->text) - 1] = '\0';
+    }
+    fclose(f);
+    fprintf(stderr, "video_player: locally parsed %d cues from %s\n",
+            local_cue_count, path);
+    return local_cue_count;
+}
+
+static void local_subtitles_update(int64_t position_ms, int offset_ms, bool enabled) {
+    int64_t cue_time = position_ms - offset_ms;
+    pthread_mutex_lock(&subtitle_lock);
+    if (!enabled || !local_cues || local_cue_count <= 0) {
+        subtitle_visible = false;
+        pthread_mutex_unlock(&subtitle_lock);
+        return;
+    }
+    if (local_cue_index >= local_cue_count ||
+        cue_time < local_cues[local_cue_index].start_ms)
+        local_cue_index = 0;
+    while (local_cue_index < local_cue_count &&
+           cue_time >= local_cues[local_cue_index].end_ms)
+        local_cue_index++;
+    if (local_cue_index < local_cue_count &&
+        cue_time >= local_cues[local_cue_index].start_ms) {
+        TimedCue *cue = &local_cues[local_cue_index];
+        strncpy(subtitle_text, cue->text, sizeof(subtitle_text) - 1);
+        subtitle_text[sizeof(subtitle_text) - 1] = '\0';
+        subtitle_start_ms = cue->start_ms;
+        subtitle_end_ms = cue->end_ms;
+        subtitle_visible = true;
+    } else {
+        subtitle_visible = false;
+    }
+    pthread_mutex_unlock(&subtitle_lock);
 }
 
 static int volume_get(void) {
@@ -412,11 +516,11 @@ static void render_overlay(void *player, bool paused, float speed, int rotation,
                            int scale_mode, int volume, int subtitle_track,
                            int subtitle_count, int offset_ms,
                            int64_t controls_until) {
-    if (!osd.pixels) return;
+    if (!osd.pixels || !osd.back) return;
     overlay_clear();
     int text_scale = osd.width >= 900 ? 2 : 1;
     int64_t pos = hcplayer_get_position(player), dur = hcplayer_get_duration(player);
-    player_position_ms = pos;
+    local_subtitles_update(pos, offset_ms, subtitle_track >= 0);
     pthread_mutex_lock(&subtitle_lock);
     if (subtitle_visible && subtitle_track >= 0 &&
         pos >= subtitle_start_ms + offset_ms &&
@@ -438,7 +542,10 @@ static void render_overlay(void *player, bool paused, float speed, int rotation,
         draw_text(20 * text_scale, y + 6 * text_scale, text_scale, wrapped, 0xFFFFFFFFu);
     }
     pthread_mutex_unlock(&subtitle_lock);
-    if (clock_ms() >= controls_until) return;
+    if (clock_ms() >= controls_until) {
+        overlay_present();
+        return;
+    }
     int panel_h = 101 * text_scale, y = osd.height - panel_h;
     fill_rect(0, y, osd.width, panel_h, 0xD0101520u);
     char p[16], d[16], line[256]; format_time(p, sizeof p, pos); format_time(d, sizeof d, dur);
@@ -458,6 +565,7 @@ static void render_overlay(void *player, bool paused, float speed, int rotation,
               "UP/DOWN VOLUME   SELECT+Y AUDIO TRACK", 0xFFEAF0F7u);
     draw_text(10 * text_scale, y + 70 * text_scale, text_scale,
               "HOLD SELECT + LEFT/RIGHT: SUB DELAY -/+100MS", 0xFFEAF0F7u);
+    overlay_present();
 }
 
 int switchfrog_video_main(int argc, char **argv) {
@@ -475,8 +583,10 @@ int switchfrog_video_main(int argc, char **argv) {
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
     args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
     args.quick_mode = true; args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
-    args.callback = player_callback; args.ext_subtitle_stream_num = external_count;
-    args.ext_sub_uris = external_count ? external_subs : NULL;
+    /* External subtitle decode in this H.OS libffplayer build crashes its
+     * decoder thread. Sidecars are parsed and rendered locally below. */
+    args.callback = NULL; args.ext_subtitle_stream_num = 0;
+    args.ext_sub_uris = NULL;
     fprintf(stderr, "video_player: creating decoder\n");
     void *player = hcplayer_create(&args);
     if (!player) {
@@ -488,13 +598,17 @@ int switchfrog_video_main(int argc, char **argv) {
 
     fprintf(stderr, "video_player: decoder created; opening overlay\n");
     overlay_open();
+    hide_frontend_framebuffer();
     volatile uint32_t *keys = attach_keys();
     uint32_t previous = keys ? (*keys & 0xffffu) : 0;
     bool paused = false, done = false, ready = false;
     float speeds[] = {1.0f, 2.0f, 4.0f, 8.0f}; int speed_index = 0;
     int rotation = 0, scale_mode = 0, video_w = 1920, video_h = 1080;
-    int volume = volume_get(), subtitle_track = -1, subtitle_count = 0, audio_track = 0;
+    int volume = volume_get(), subtitle_track = -1;
+    int subtitle_count = external_count, audio_track = 0;
     subtitle_offset_ms = subtitle_offset_load(argv[1]);
+    if (external_count > 0 && local_subtitles_load(external_subs[0]) > 0)
+        subtitle_track = 0;
     bool select_chord_used = false;
     int64_t controls_until = clock_ms() + 8000, last_overlay = 0;
     hcplayer_play(player);
@@ -503,15 +617,17 @@ int switchfrog_video_main(int argc, char **argv) {
     while (!done) {
         HCPlayerMsg msg;
         while (msgrcv(msgid, &msg, sizeof(msg) - sizeof(msg.type), 0, IPC_NOWAIT) >= 0) {
-            if (terminal_message(msg.type)) done = true;
+            if (terminal_message(msg.type)) {
+                fprintf(stderr, "video_player: terminal message type=%ld\n", msg.type);
+                done = true;
+            }
             if (msg.type == HCPLAYER_MSG_STATE_READY) {
                 HCPlayerVideoInfo info; memset(&info, 0, sizeof(info));
                 if (hcplayer_get_cur_video_stream_info(player, &info) == 0) { video_w = info.width; video_h = info.height; }
-                subtitle_count = hcplayer_get_subtitle_streams_count(player);
-                if (subtitle_count > 0 && external_count > 0 && hcplayer_change_subtitle_track(player, 0) == 0)
-                    subtitle_track = 0;
                 apply_display_mode(player, scale_mode, rotation, video_w, video_h);
                 ready = true;
+                fprintf(stderr, "video_player: ready video=%dx%d subtitles=%d\n",
+                        video_w, video_h, subtitle_count);
             }
         }
 
@@ -553,10 +669,10 @@ int switchfrog_video_main(int argc, char **argv) {
             scale_mode = (scale_mode + 1) & 3;
             if (ready) apply_display_mode(player, scale_mode, rotation, video_w, video_h);
         } else if ((released & KEY_SELECT) && !select_chord_used) {
-            subtitle_count = hcplayer_get_subtitle_streams_count(player);
             subtitle_track++;
             if (subtitle_track >= subtitle_count) subtitle_track = -1;
-            hcplayer_change_subtitle_track(player, subtitle_track);
+            if (subtitle_track >= 0) local_subtitles_load(external_subs[subtitle_track]);
+            else local_subtitles_clear();
         } else if (pressed & (KEY_UP | KEY_DOWN)) {
             volume += (pressed & KEY_UP) ? 5 : -5;
             if (volume < 0) volume = 0; if (volume > 100) volume = 100; volume_set(volume);
@@ -572,6 +688,7 @@ int switchfrog_video_main(int argc, char **argv) {
     }
 
     overlay_close(); hcplayer_stop2(player, true, true); hcplayer_deinit();
+    local_subtitles_clear();
     if (keys) shmdt((const void *)keys); msgctl(msgid, IPC_RMID, NULL);
     for (int i = 0; i < external_count; i++) free(external_subs[i]);
     unload_ffplayer();

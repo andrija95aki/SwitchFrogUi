@@ -8,6 +8,8 @@ export LD_LIBRARY_PATH=/mnt/sdcard/rootfs/usr/lib:/mnt/sdcard/cubegm/usr/lib:/us
 unset LD_PRELOAD
 unset TF_R36SX_DISPLAYFIX_PRELOADED
 if [ -f /mnt/sdcard/log.txt ]; then
+    [ -f /mnt/sdcard/video_player.log ] &&
+        mv /mnt/sdcard/video_player.log /mnt/sdcard/video_player.log.prev
     echo "=== video_player: $1 ===" > /mnt/sdcard/video_player.log
     exec /mnt/sdcard/cubegm/video_player "$1" >> /mnt/sdcard/video_player.log 2>&1
 fi
