@@ -47,6 +47,9 @@ jobs:
           echo "SF_GCC=$gcc" >> "$GITHUB_ENV"
           echo "SF_PREFIX=$prefix" >> "$GITHUB_ENV"
           echo "SF_SYSROOT=$sysroot" >> "$GITHUB_ENV"
+          crt1="$($gcc -EL -print-file-name=crt1.o)"
+          test -f "$crt1"
+          echo "SF_CRT_DIR=$(dirname "$crt1")" >> "$GITHUB_ENV"
 
       - name: Assemble the pinned PCSX4ALL source
         shell: bash
@@ -108,12 +111,12 @@ jobs:
           make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
             CROSS_COMPILE="$SF_PREFIX" SYSROOT="$SF_SYSROOT" \
             EXTRA_CFLAGS="-I$SF_SYSROOT/usr/include -I$SF_PNG_INCLUDE" \
-            EXTRA_LDFLAGS="-L$SF_PNG_LIB -L$SF_SYSROOT/usr/lib -Wl,-rpath-link,$SF_SYSROOT/usr/lib" picoarch
+            EXTRA_LDFLAGS="--sysroot=$SF_SYSROOT -B$SF_CRT_DIR -L$SF_PNG_LIB -L$SF_SYSROOT/usr/lib -Wl,-rpath-link,$SF_SYSROOT/usr/lib" picoarch
           cp "$RUNNER_TEMP/picoarch/picoarch" artifacts/picoarch
           make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
             CROSS_COMPILE="$SF_PREFIX" SYSROOT="$SF_SYSROOT" BIN=picoarch_hi \
             EXTRA_CFLAGS="-I$SF_SYSROOT/usr/include -I$SF_PNG_INCLUDE" \
-            EXTRA_LDFLAGS="-L$SF_PNG_LIB -L$SF_SYSROOT/usr/lib -Wl,-rpath-link,$SF_SYSROOT/usr/lib -Wl,-Ttext-segment=0x20000000" picoarch_hi
+            EXTRA_LDFLAGS="--sysroot=$SF_SYSROOT -B$SF_CRT_DIR -L$SF_PNG_LIB -L$SF_SYSROOT/usr/lib -Wl,-rpath-link,$SF_SYSROOT/usr/lib -Wl,-Ttext-segment=0x20000000" picoarch_hi
           cp "$RUNNER_TEMP/picoarch/picoarch_hi" artifacts/picoarch_hi
           make -C "$RUNNER_TEMP/pcsx4all" -f Makefile.sf3000 -j2 \
             TOOLCHAIN="$SF_PREFIX" SYSROOT="$SF_SYSROOT"
