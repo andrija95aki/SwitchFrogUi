@@ -79,7 +79,10 @@
   creates a file with any extension, A opens it, Y renames it, Ctrl+S saves,
   F2 renames while editing, and B/Escape saves modified text before closing.
   Files are capped at 128 KiB to avoid loading a ROM or other large binary into
-  memory on this constrained device.
+  memory on this constrained device. Standard keyboard editing includes
+  Page Up/Down, Home/End and Ctrl+Home/End, Ctrl+word movement, Shift selection,
+  Ctrl+A/C/X/V, eight-level Ctrl+Z/Y undo/redo, Ctrl+F and F3 find-next,
+  Ctrl+N new, Ctrl+O browser, Ctrl+Backspace/Delete, Tab, and Shift+Tab.
 - The redundant Mini Linux shortcut page was removed; it only duplicated the
   existing Terminal, Files, and System Information entries and did not provide
   a second distribution or desktop stack.

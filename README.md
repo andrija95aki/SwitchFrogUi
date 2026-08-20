@@ -40,6 +40,8 @@ real `/bin/sh` (BusyBox ash) in a larger mixed-case monospace view, never idles
 the screen off, and keeps persistent Up/Down command history. Text Editor opens
 in `roms/Ebook`, creates and renames files with any extension, edits files up to
 128 KiB, saves with Ctrl+S, and saves modified text automatically on close.
+It supports Page Up/Down, line and document Home/End, Ctrl+word navigation,
+Shift selection, Ctrl+A/C/X/V, Ctrl+Z/Y, Ctrl+F/F3, Ctrl+N, and Ctrl+O.
 The redundant Mini Linux shortcut page was removed.
 
 The selected Home card is saved by identity before entering a platform, game,

@@ -633,7 +633,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..203ab78 100644
+index a72c4e6..a91d604 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -1942,7 +1942,7 @@ index a72c4e6..203ab78 100644
      const char *core = ov ? ov : get_core_for_folder(folder);
      if (!core) core = get_core_for_extension(path);
      if (ov)
-@@ -1133,60 +1874,574 @@ static void search_launch(int idx) {
+@@ -1133,121 +1874,975 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -1977,6 +1977,17 @@ index a72c4e6..203ab78 100644
 -                search_query[len] = KBD_ROWS[search_kbd_r][search_kbd_c];
 -                search_query[len+1] = '\0';
 -            }
+-        }
+-        if (input_was_pressed(FROG_BTN_Y)) {            /* quick backspace */
+-            int len = (int)strlen(search_query); if (len > 0) search_query[len-1] = '\0';
+-        }
+-        if (input_was_pressed(FROG_BTN_START)) run_search();
+-        if (input_was_pressed(FROG_BTN_B)) {           /* cancel → restore browser list */
+-            search_kbd_active = false;
+-            scan_directory(current_path);
+-            selected_index = 0; scroll_offset = 0;
+-        }
+-        return;
 +/* Fill a card completely, cropping the source around its center. Platform art
 + * is normally a 16:9 banner; letterboxing it into a portrait card made its logo
 + * look absent on the physical 3.5-inch display. */
@@ -1990,7 +2001,34 @@ index a72c4e6..203ab78 100644
 +    } else {
 +        crop_h = sw * bh / bw;
 +        sy0 = (sh - crop_h) / 2;
-+    }
+     }
+-
+-    /* Core picker overlay: choose an override core for the current ROM/folder */
+-    if (core_picker_active) {
+-        if (input_was_pressed(FROG_BTN_UP)) {
+-            core_picker_idx = (core_picker_idx - 1 + core_choice_count) % core_choice_count;
+-        }
+-        if (input_was_pressed(FROG_BTN_DOWN)) {
+-            core_picker_idx = (core_picker_idx + 1) % core_choice_count;
+-        }
+-        if (input_was_pressed(FROG_BTN_LEFT)) {
+-            core_picker_idx -= VISIBLE_ENTRIES;
+-            if (core_picker_idx < 0) core_picker_idx = 0;
+-        }
+-        if (input_was_pressed(FROG_BTN_RIGHT)) {
+-            core_picker_idx += VISIBLE_ENTRIES;
+-            if (core_picker_idx >= core_choice_count) core_picker_idx = core_choice_count - 1;
+-        }
+-        if (core_picker_idx < core_picker_scroll)
+-            core_picker_scroll = core_picker_idx;
+-        if (core_picker_idx >= core_picker_scroll + VISIBLE_ENTRIES)
+-            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
+-        if (input_was_pressed(FROG_BTN_A)) {
+-            core_override_set(core_picker_key, core_choices[core_picker_idx].path);
+-            core_picker_active = false;
+-        }
+-        if (input_was_pressed(FROG_BTN_B)) {
+-            core_picker_active = false;
 +    for (int y = 0; y < bh; y++) {
 +        int dy = by + y;
 +        if (dy < 0 || dy >= SCREEN_HEIGHT) continue;
@@ -2012,17 +2050,42 @@ index a72c4e6..203ab78 100644
 +                            (((sg*a+dg*(255-a))/255)<<5)|
 +                             ((sb*a+db*(255-a))/255));
          }
--        if (input_was_pressed(FROG_BTN_Y)) {            /* quick backspace */
--            int len = (int)strlen(search_query); if (len > 0) search_query[len-1] = '\0';
-+    }
+-        return;
+     }
 +}
-+
+ 
+-    /* Remap wizard: detect raw rising edge on any bit; B = skip this step */
+-    if (remap_wizard_active) {
+-        uint32_t raw   = input_get_raw_state();
+-        uint32_t risen = raw & ~remap_prev_raw;
+-        remap_prev_raw = raw;
+-        bool skip = (risen >> input_get_raw_bit(FROG_BTN_B)) & 1;
+-        int  pressed_bit = -1;
+-        if (!skip) {
+-            for (int bit = 0; bit < 16; bit++) {
+-                if ((risen >> bit) & 1) { pressed_bit = bit; break; }
+-            }
+-        }
+-        if (skip || pressed_bit >= 0) {
+-            if (!skip) input_set_raw_bit((FrogButton)remap_step, pressed_bit);
+-            remap_step++;
+-            if (remap_step >= FROG_BTN_COUNT) {
+-                remap_wizard_active = false;
+-                input_save_remap(KEYMAP_FILE);
+-            }
+-        }
+-        return;
+-    }
 +static bool any_button_was_pressed(void) {
 +    for (int button = 0; button < FROG_BTN_COUNT; button++)
 +        if (input_was_pressed((FrogButton)button)) return true;
 +    return false;
 +}
-+
+ 
+-    if (settings_menu_active) {
+-        extern const int theme_count;
+-        if (input_was_pressed(FROG_BTN_UP))
+-            settings_menu_idx = (settings_menu_idx - 1 + SETTINGS_ROW_COUNT) % SETTINGS_ROW_COUNT;
 +static bool any_button_is_down(void) {
 +    for (int button = 0; button < FROG_BTN_COUNT; button++)
 +        if (input_is_pressed((FrogButton)button)) return true;
@@ -2036,11 +2099,79 @@ index a72c4e6..203ab78 100644
 +#define EDITOR_NAME_CAP 128
 +static char *editor_text;
 +static size_t editor_length, editor_cursor;
++static size_t editor_selection_anchor;
 +static char editor_file_path[MAX_PATH_LEN];
 +static char editor_prompt_text[EDITOR_NAME_CAP];
-+static int editor_prompt_len, editor_prompt_rename;
++enum { EDITOR_PROMPT_CREATE, EDITOR_PROMPT_RENAME, EDITOR_PROMPT_FIND };
++static int editor_prompt_len, editor_prompt_cursor, editor_prompt_mode;
++static char editor_last_find[EDITOR_NAME_CAP];
 +static int editor_top_line, editor_left_column;
 +static bool editor_dirty;
++
++#define EDITOR_HISTORY_DEPTH 8
++typedef struct {
++    char *text;
++    size_t length, cursor, anchor;
++    bool dirty;
++} EditorSnapshot;
++static EditorSnapshot editor_undo[EDITOR_HISTORY_DEPTH];
++static EditorSnapshot editor_redo[EDITOR_HISTORY_DEPTH];
++static int editor_undo_count, editor_redo_count;
++static char *editor_clipboard;
++static size_t editor_clipboard_length;
++
++static int editor_buffer_ready(void);
++static void editor_cursor_view_update(void);
++
++static void editor_snapshot_free(EditorSnapshot *snapshot) {
++    if (!snapshot) return;
++    free(snapshot->text); memset(snapshot, 0, sizeof(*snapshot));
++}
++
++static void editor_history_clear_stack(EditorSnapshot *stack, int *count) {
++    for (int i = 0; i < *count; i++) editor_snapshot_free(&stack[i]);
++    *count = 0;
++}
++
++static int editor_history_push(EditorSnapshot *stack, int *count) {
++    EditorSnapshot *snapshot;
++    if (*count >= EDITOR_HISTORY_DEPTH) {
++        editor_snapshot_free(&stack[0]);
++        memmove(stack, stack + 1, sizeof(stack[0]) * (EDITOR_HISTORY_DEPTH - 1));
++        (*count)--;
++    }
++    snapshot = &stack[(*count)++];
++    memset(snapshot, 0, sizeof(*snapshot));
++    snapshot->text = (char *)malloc(editor_length + 1);
++    if (!snapshot->text) { (*count)--; return 0; }
++    memcpy(snapshot->text, editor_text, editor_length + 1);
++    snapshot->length = editor_length;
++    snapshot->cursor = editor_cursor;
++    snapshot->anchor = editor_selection_anchor;
++    snapshot->dirty = editor_dirty;
++    return 1;
++}
++
++static void editor_history_checkpoint(void) {
++    if (!editor_buffer_ready()) return;
++    editor_history_push(editor_undo, &editor_undo_count);
++    editor_history_clear_stack(editor_redo, &editor_redo_count);
++}
++
++static void editor_history_restore(EditorSnapshot *from, int *from_count,
++                                   EditorSnapshot *to, int *to_count) {
++    EditorSnapshot snapshot;
++    if (*from_count <= 0 || !editor_buffer_ready()) return;
++    editor_history_push(to, to_count);
++    snapshot = from[--(*from_count)];
++    memcpy(editor_text, snapshot.text, snapshot.length + 1);
++    editor_length = snapshot.length;
++    editor_cursor = snapshot.cursor;
++    editor_selection_anchor = snapshot.anchor;
++    editor_dirty = snapshot.dirty;
++    free(snapshot.text);
++    editor_cursor_view_update();
++}
 +
 +static void editor_keyboard_drain(void) {
 +    io_keyboard_test_poll();
@@ -2059,7 +2190,7 @@ index a72c4e6..203ab78 100644
 +
 +static void editor_cursor_view_update(void) {
 +    int line = 0, column = 0;
-+    int visible_lines = (SCREEN_HEIGHT - UI_S(88)) / font_mono_line_height(95);
++    int visible_lines = (SCREEN_HEIGHT - UI_S(104)) / font_mono_line_height(95);
 +    int visible_columns = (SCREEN_WIDTH - PADDING * 2) / font_mono_char_width(95);
 +    for (size_t i = 0; i < editor_cursor; i++) {
 +        if (editor_text[i] == '\n') { line++; column = 0; }
@@ -2103,20 +2234,42 @@ index a72c4e6..203ab78 100644
 +    editor_text[editor_length] = '\0';
 +    snprintf(editor_file_path, sizeof(editor_file_path), "%s", path);
 +    editor_cursor = 0; editor_top_line = 0; editor_left_column = 0;
++    editor_selection_anchor = 0;
++    editor_history_clear_stack(editor_undo, &editor_undo_count);
++    editor_history_clear_stack(editor_redo, &editor_redo_count);
 +    editor_dirty = false; text_editor_active = true;
 +    editor_keyboard_drain();
 +    return 1;
 +}
 +
-+static void editor_begin_prompt(int rename_existing) {
-+    editor_prompt_rename = rename_existing;
-+    if (rename_existing && editor_file_path[0])
++static void editor_begin_prompt(int mode) {
++    editor_prompt_mode = mode;
++    if (mode == EDITOR_PROMPT_RENAME && editor_file_path[0])
 +        snprintf(editor_prompt_text, sizeof(editor_prompt_text), "%s", editor_basename());
++    else if (mode == EDITOR_PROMPT_FIND)
++        snprintf(editor_prompt_text, sizeof(editor_prompt_text), "%s", editor_last_find);
 +    else
 +        snprintf(editor_prompt_text, sizeof(editor_prompt_text), "untitled.txt");
 +    editor_prompt_len = (int)strlen(editor_prompt_text);
++    editor_prompt_cursor = editor_prompt_len;
 +    editor_prompt_active = true;
 +    editor_keyboard_drain();
++}
++
++static int editor_find_next(const char *needle) {
++    char *match;
++    size_t start;
++    if (!needle || !needle[0] || !editor_text) return 0;
++    start = editor_cursor < editor_length ? editor_cursor + 1 : 0;
++    match = strstr(editor_text + start, needle);
++    if (!match && start) match = strstr(editor_text, needle);
++    if (!match) { ui_notice("Text not found"); return 0; }
++    editor_selection_anchor = (size_t)(match - editor_text);
++    editor_cursor = editor_selection_anchor + strlen(needle);
++    snprintf(editor_last_find, sizeof(editor_last_find), "%s", needle);
++    editor_cursor_view_update();
++    ui_notice("Match selected");
++    return 1;
 +}
 +
 +static int editor_name_valid(const char *name) {
@@ -2126,23 +2279,23 @@ index a72c4e6..203ab78 100644
 +
 +static void editor_finish_prompt(void) {
 +    char target[MAX_PATH_LEN];
++    if (editor_prompt_mode == EDITOR_PROMPT_FIND) {
++        if (!editor_prompt_text[0]) { ui_notice("Enter text to find"); return; }
++        editor_prompt_active = false;
++        editor_find_next(editor_prompt_text);
++        return;
++    }
 +    if (!editor_name_valid(editor_prompt_text)) { ui_notice("Invalid filename"); return; }
 +    if (snprintf(target, sizeof(target), "%s/%s", current_path, editor_prompt_text) >= (int)sizeof(target)) {
 +        ui_notice("Filename is too long"); return;
 +    }
-+    if (editor_prompt_rename) {
++    if (editor_prompt_mode == EDITOR_PROMPT_RENAME) {
 +        if (strcmp(target, editor_file_path) && access(target, F_OK) == 0) {
 +            ui_notice("A file with that name exists"); return;
-         }
--        if (input_was_pressed(FROG_BTN_START)) run_search();
--        if (input_was_pressed(FROG_BTN_B)) {           /* cancel → restore browser list */
--            search_kbd_active = false;
--            scan_directory(current_path);
--            selected_index = 0; scroll_offset = 0;
++        }
 +        if (strcmp(target, editor_file_path) && rename(editor_file_path, target) != 0) {
 +            ui_notice("Rename failed"); return;
-         }
--        return;
++        }
 +        snprintf(editor_file_path, sizeof(editor_file_path), "%s", target);
 +        editor_prompt_active = false;
 +        if (!text_editor_active) scan_directory(current_path);
@@ -2155,23 +2308,77 @@ index a72c4e6..203ab78 100644
 +        fflush(file); fsync(fileno(file)); fclose(file);
 +        editor_prompt_active = false;
 +        editor_open_file(target);
-     }
++    }
 +}
- 
--    /* Core picker overlay: choose an override core for the current ROM/folder */
--    if (core_picker_active) {
--        if (input_was_pressed(FROG_BTN_UP)) {
--            core_picker_idx = (core_picker_idx - 1 + core_choice_count) % core_choice_count;
--        }
--        if (input_was_pressed(FROG_BTN_DOWN)) {
--            core_picker_idx = (core_picker_idx + 1) % core_choice_count;
-+static void editor_insert_char(char c) {
-+    if (!editor_buffer_ready() || editor_length >= EDITOR_BUFFER_CAP) {
++
++static int editor_has_selection(void) {
++    return editor_cursor != editor_selection_anchor;
++}
++
++static void editor_selection_bounds(size_t *start, size_t *end) {
++    if (editor_cursor < editor_selection_anchor) {
++        *start = editor_cursor; *end = editor_selection_anchor;
++    } else {
++        *start = editor_selection_anchor; *end = editor_cursor;
++    }
++}
++
++static void editor_replace_selection(const char *text, size_t length) {
++    size_t start, end, removed;
++    if (!editor_buffer_ready()) return;
++    editor_selection_bounds(&start, &end); removed = end - start;
++    if (editor_length - removed + length > EDITOR_BUFFER_CAP) {
 +        ui_notice("128KB editor limit reached"); return;
 +    }
-+    memmove(editor_text + editor_cursor + 1, editor_text + editor_cursor,
-+            editor_length - editor_cursor + 1);
-+    editor_text[editor_cursor++] = c; editor_length++; editor_dirty = true;
++    editor_history_checkpoint();
++    memmove(editor_text + start + length, editor_text + end,
++            editor_length - end + 1);
++    if (length) memcpy(editor_text + start, text, length);
++    editor_length = editor_length - removed + length;
++    editor_cursor = start + length;
++    editor_selection_anchor = editor_cursor;
++    editor_dirty = true;
++}
++
++static void editor_insert_char(char c) {
++    editor_replace_selection(&c, 1);
++}
++
++static void editor_copy_selection(void) {
++    size_t start, end, length;
++    char *copy;
++    if (!editor_has_selection()) return;
++    editor_selection_bounds(&start, &end); length = end - start;
++    copy = (char *)realloc(editor_clipboard, length + 1);
++    if (!copy) { ui_notice("Clipboard allocation failed"); return; }
++    editor_clipboard = copy;
++    memcpy(editor_clipboard, editor_text + start, length);
++    editor_clipboard[length] = '\0'; editor_clipboard_length = length;
++    ui_notice("Copied");
++}
++
++static void editor_cut_selection(void) {
++    if (!editor_has_selection()) return;
++    editor_copy_selection();
++    editor_replace_selection(NULL, 0);
++    ui_notice("Cut");
++}
++
++static void editor_paste(void) {
++    if (editor_clipboard && editor_clipboard_length)
++        editor_replace_selection(editor_clipboard, editor_clipboard_length);
++}
++
++static size_t editor_word_left(size_t position) {
++    while (position > 0 && isspace((unsigned char)editor_text[position - 1])) position--;
++    while (position > 0 && !isspace((unsigned char)editor_text[position - 1])) position--;
++    return position;
++}
++
++static size_t editor_word_right(size_t position) {
++    while (position < editor_length && !isspace((unsigned char)editor_text[position])) position++;
++    while (position < editor_length && isspace((unsigned char)editor_text[position])) position++;
++    return position;
 +}
 +
 +static size_t editor_line_start(size_t position) {
@@ -2210,12 +2417,27 @@ index a72c4e6..203ab78 100644
 +        if (!value) continue;
 +        if (code == KEY_ENTER || code == KEY_KPENTER) { editor_finish_prompt(); return; }
 +        if (code == KEY_ESC) { editor_prompt_active = false; return; }
-+        if (code == KEY_BACKSPACE && editor_prompt_len > 0)
-+            editor_prompt_text[--editor_prompt_len] = '\0';
-+        else if ((ch = io_keyboard_key_to_ascii(code, io_keyboard_shift_held())) >= 32 &&
++        if (io_keyboard_ctrl_held() && code == KEY_A) {
++            editor_prompt_len=editor_prompt_cursor=0; editor_prompt_text[0]='\0';
++        } else if (code == KEY_LEFT && editor_prompt_cursor>0) editor_prompt_cursor--;
++        else if (code == KEY_RIGHT && editor_prompt_cursor<editor_prompt_len) editor_prompt_cursor++;
++        else if (code == KEY_HOME) editor_prompt_cursor=0;
++        else if (code == KEY_END) editor_prompt_cursor=editor_prompt_len;
++        else if (code == KEY_BACKSPACE && editor_prompt_cursor > 0) {
++            memmove(editor_prompt_text+editor_prompt_cursor-1,editor_prompt_text+editor_prompt_cursor,
++                    (size_t)(editor_prompt_len-editor_prompt_cursor+1));
++            editor_prompt_cursor--; editor_prompt_len--;
++        } else if (code == KEY_DELETE && editor_prompt_cursor<editor_prompt_len) {
++            memmove(editor_prompt_text+editor_prompt_cursor,editor_prompt_text+editor_prompt_cursor+1,
++                    (size_t)(editor_prompt_len-editor_prompt_cursor));
++            editor_prompt_len--;
++        }
++        else if (!io_keyboard_ctrl_held() &&
++                 (ch = io_keyboard_key_to_ascii(code, io_keyboard_shift_held())) >= 32 &&
 +                 editor_prompt_len < EDITOR_NAME_CAP - 1) {
-+            editor_prompt_text[editor_prompt_len++] = (char)ch;
-+            editor_prompt_text[editor_prompt_len] = '\0';
++            memmove(editor_prompt_text+editor_prompt_cursor+1,editor_prompt_text+editor_prompt_cursor,
++                    (size_t)(editor_prompt_len-editor_prompt_cursor+1));
++            editor_prompt_text[editor_prompt_cursor++]=(char)ch; editor_prompt_len++;
 +        }
 +    }
 +}
@@ -2224,28 +2446,80 @@ index a72c4e6..203ab78 100644
 +    int code, value;
 +    io_keyboard_test_poll();
 +    while (io_keyboard_pop_event(&code, &value)) {
-+        int ch;
++        int ch, ctrl, shift;
++        size_t start, end;
 +        if (!value) continue;
-+        if (io_keyboard_ctrl_held() && code == KEY_S) { editor_save(); continue; }
-+        if (code == KEY_F2) { editor_begin_prompt(1); return; }
-+        if (code == KEY_LEFT) { if (editor_cursor) editor_cursor--; }
-+        else if (code == KEY_RIGHT) { if (editor_cursor < editor_length) editor_cursor++; }
-+        else if (code == KEY_UP) editor_move_vertical(-1);
-+        else if (code == KEY_DOWN) editor_move_vertical(1);
-+        else if (code == KEY_HOME) editor_cursor = editor_line_start(editor_cursor);
-+        else if (code == KEY_END) editor_cursor = editor_line_end(editor_cursor);
-+        else if (code == KEY_BACKSPACE && editor_cursor > 0) {
-+            memmove(editor_text + editor_cursor - 1, editor_text + editor_cursor,
-+                    editor_length - editor_cursor + 1);
-+            editor_cursor--; editor_length--; editor_dirty = true;
-+        } else if (code == KEY_DELETE && editor_cursor < editor_length) {
-+            memmove(editor_text + editor_cursor, editor_text + editor_cursor + 1,
-+                    editor_length - editor_cursor);
-+            editor_length--; editor_dirty = true;
++        ctrl = io_keyboard_ctrl_held(); shift = io_keyboard_shift_held();
++        if (ctrl && code == KEY_S) { editor_save(); continue; }
++        if (ctrl && code == KEY_A) {
++            editor_selection_anchor = 0; editor_cursor = editor_length; continue;
++        }
++        if (ctrl && code == KEY_C) { editor_copy_selection(); continue; }
++        if (ctrl && code == KEY_X) { editor_cut_selection(); continue; }
++        if (ctrl && code == KEY_V) { editor_paste(); continue; }
++        if (ctrl && code == KEY_Z) {
++            if (shift) editor_history_restore(editor_redo,&editor_redo_count,editor_undo,&editor_undo_count);
++            else editor_history_restore(editor_undo,&editor_undo_count,editor_redo,&editor_redo_count);
++            continue;
++        }
++        if (ctrl && code == KEY_Y) {
++            editor_history_restore(editor_redo,&editor_redo_count,editor_undo,&editor_undo_count); continue;
++        }
++        if (ctrl && code == KEY_F) { editor_begin_prompt(EDITOR_PROMPT_FIND); return; }
++        if (ctrl && code == KEY_N) {
++            if (editor_dirty) editor_save();
++            editor_begin_prompt(EDITOR_PROMPT_CREATE); return;
++        }
++        if (ctrl && code == KEY_O) {
++            if (editor_dirty) editor_save();
++            text_editor_active=false; scan_directory(current_path); editor_keyboard_drain(); return;
++        }
++        if (code == KEY_F2) { editor_begin_prompt(EDITOR_PROMPT_RENAME); return; }
++        if (code == KEY_F3) { editor_find_next(editor_last_find); continue; }
++
++        if (code == KEY_LEFT) {
++            if (!shift && editor_has_selection()) {
++                editor_selection_bounds(&start,&end); editor_cursor=start;
++            } else editor_cursor = ctrl ? editor_word_left(editor_cursor) :
++                                          (editor_cursor ? editor_cursor-1 : 0);
++            if (!shift) editor_selection_anchor=editor_cursor;
++        } else if (code == KEY_RIGHT) {
++            if (!shift && editor_has_selection()) {
++                editor_selection_bounds(&start,&end); editor_cursor=end;
++            } else editor_cursor = ctrl ? editor_word_right(editor_cursor) :
++                                          (editor_cursor<editor_length?editor_cursor+1:editor_length);
++            if (!shift) editor_selection_anchor=editor_cursor;
++        } else if (code == KEY_UP || code == KEY_DOWN || code == KEY_PAGEUP || code == KEY_PAGEDOWN) {
++            int direction=(code==KEY_UP||code==KEY_PAGEUP)?-1:1;
++            int count=(code==KEY_PAGEUP||code==KEY_PAGEDOWN)
++                      ? (SCREEN_HEIGHT-UI_S(104))/font_mono_line_height(95) : 1;
++            for(int i=0;i<count;i++) editor_move_vertical(direction);
++            if (!shift) editor_selection_anchor=editor_cursor;
++        } else if (code == KEY_HOME) {
++            editor_cursor = ctrl ? 0 : editor_line_start(editor_cursor);
++            if (!shift) editor_selection_anchor=editor_cursor;
++        } else if (code == KEY_END) {
++            editor_cursor = ctrl ? editor_length : editor_line_end(editor_cursor);
++            if (!shift) editor_selection_anchor=editor_cursor;
++        } else if (code == KEY_BACKSPACE) {
++            if (!editor_has_selection() && editor_cursor>0) {
++                editor_selection_anchor=editor_cursor;
++                editor_cursor=ctrl?editor_word_left(editor_cursor):editor_cursor-1;
++            }
++            if (editor_has_selection()) editor_replace_selection(NULL,0);
++        } else if (code == KEY_DELETE) {
++            if (!editor_has_selection() && editor_cursor<editor_length) {
++                editor_selection_anchor=ctrl?editor_word_right(editor_cursor):editor_cursor+1;
++            }
++            if (editor_has_selection()) editor_replace_selection(NULL,0);
 +        } else if (code == KEY_ENTER || code == KEY_KPENTER) editor_insert_char('\n');
-+        else if (code == KEY_TAB) {
-+            for (int i = 0; i < 4; i++) editor_insert_char(' ');
-+        } else if (code != KEY_ESC && (ch = io_keyboard_key_to_ascii(code, io_keyboard_shift_held())) >= 32)
++        else if (code == KEY_TAB && shift) {
++            size_t line=editor_line_start(editor_cursor), remove=0;
++            while(remove<4 && line+remove<editor_length && editor_text[line+remove]==' ') remove++;
++            if(remove) { editor_cursor=line; editor_selection_anchor=line+remove; editor_replace_selection(NULL,0); }
++        } else if (code == KEY_TAB) editor_replace_selection("    ",4);
++        else if (code != KEY_ESC && !ctrl &&
++                 (ch = io_keyboard_key_to_ascii(code, shift)) >= 32)
 +            editor_insert_char((char)ch);
 +    }
 +    editor_cursor_view_update();
@@ -2543,65 +2817,56 @@ index a72c4e6..203ab78 100644
 +        }
 +        if (input_was_pressed(FROG_BTN_DOWN)) {
 +            core_picker_idx = (core_picker_idx + 1) % core_choice_count;
-         }
-         if (input_was_pressed(FROG_BTN_LEFT)) {
-             core_picker_idx -= VISIBLE_ENTRIES;
--            if (core_picker_idx < 0) core_picker_idx = 0;
++        }
++        if (input_was_pressed(FROG_BTN_LEFT)) {
++            core_picker_idx -= VISIBLE_ENTRIES;
 +            if (core_picker_idx < 0) core_picker_idx = core_choice_count - 1;
-         }
-         if (input_was_pressed(FROG_BTN_RIGHT)) {
-             core_picker_idx += VISIBLE_ENTRIES;
--            if (core_picker_idx >= core_choice_count) core_picker_idx = core_choice_count - 1;
++        }
++        if (input_was_pressed(FROG_BTN_RIGHT)) {
++            core_picker_idx += VISIBLE_ENTRIES;
 +            if (core_picker_idx >= core_choice_count) core_picker_idx = 0;
-         }
-         if (core_picker_idx < core_picker_scroll)
-             core_picker_scroll = core_picker_idx;
-@@ -1194,6 +2449,7 @@ static void handle_input(void) {
-             core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
-         if (input_was_pressed(FROG_BTN_A)) {
-             core_override_set(core_picker_key, core_choices[core_picker_idx].path);
++        }
++        if (core_picker_idx < core_picker_scroll)
++            core_picker_scroll = core_picker_idx;
++        if (core_picker_idx >= core_picker_scroll + VISIBLE_ENTRIES)
++            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
++        if (input_was_pressed(FROG_BTN_A)) {
++            core_override_set(core_picker_key, core_choices[core_picker_idx].path);
 +            ui_notice(core_picker_idx == 0 ? "Core override cleared" : "Core selection saved");
-             core_picker_active = false;
-         }
-         if (input_was_pressed(FROG_BTN_B)) {
-@@ -1202,29 +2458,132 @@ static void handle_input(void) {
-         return;
-     }
- 
--    /* Remap wizard: detect raw rising edge on any bit; B = skip this step */
++            core_picker_active = false;
++        }
++        if (input_was_pressed(FROG_BTN_B)) {
++            core_picker_active = false;
++        }
++        return;
++    }
++
 +    /* Remap wizard: B is always Back, returning to the Settings menu. */
-     if (remap_wizard_active) {
++    if (remap_wizard_active) {
 +        if (input_was_pressed(FROG_BTN_B)) {
 +            remap_wizard_active = false;
 +            settings_menu_active = true;
 +            return;
 +        }
-         uint32_t raw   = input_get_raw_state();
-         uint32_t risen = raw & ~remap_prev_raw;
-         remap_prev_raw = raw;
--        bool skip = (risen >> input_get_raw_bit(FROG_BTN_B)) & 1;
-         int  pressed_bit = -1;
--        if (!skip) {
--            for (int bit = 0; bit < 16; bit++) {
--                if ((risen >> bit) & 1) { pressed_bit = bit; break; }
--            }
++        uint32_t raw   = input_get_raw_state();
++        uint32_t risen = raw & ~remap_prev_raw;
++        remap_prev_raw = raw;
++        int  pressed_bit = -1;
 +        for (int bit = 0; bit < 16; bit++) {
 +            if ((risen >> bit) & 1) { pressed_bit = bit; break; }
-         }
--        if (skip || pressed_bit >= 0) {
--            if (!skip) input_set_raw_bit((FrogButton)remap_step, pressed_bit);
++        }
 +        if (pressed_bit >= 0) {
 +            input_set_raw_bit((FrogButton)remap_step, pressed_bit);
-             remap_step++;
-             if (remap_step >= FROG_BTN_COUNT) {
-                 remap_wizard_active = false;
-                 input_save_remap(KEYMAP_FILE);
++            remap_step++;
++            if (remap_step >= FROG_BTN_COUNT) {
++                remap_wizard_active = false;
++                input_save_remap(KEYMAP_FILE);
 +                ui_notice("Button mapping saved");
-             }
-         }
-         return;
-     }
- 
++            }
++        }
++        return;
++    }
++
 +    if (keyboard_test_active) {
 +        if (io_keyboard_test_poll()) ui_rendered_once = 0;
 +        if (input_was_pressed(FROG_BTN_X)) {
@@ -2659,9 +2924,9 @@ index a72c4e6..203ab78 100644
 +
 +    if (controls_help_active) {
 +        if (input_was_pressed(FROG_BTN_UP))
-+            controls_help_scroll=controls_help_scroll>0?controls_help_scroll-1:12;
++            controls_help_scroll=controls_help_scroll>0?controls_help_scroll-1:15;
 +        if (input_was_pressed(FROG_BTN_DOWN))
-+            controls_help_scroll=controls_help_scroll<12?controls_help_scroll+1:0;
++            controls_help_scroll=controls_help_scroll<15?controls_help_scroll+1:0;
 +        if (input_was_pressed(FROG_BTN_B) || input_was_pressed(FROG_BTN_A)) {
 +            controls_help_active = false;
 +            settings_menu_active = true;
@@ -2702,10 +2967,11 @@ index a72c4e6..203ab78 100644
 +        return;
 +    }
 +
-     if (settings_menu_active) {
-         extern const int theme_count;
-         if (input_was_pressed(FROG_BTN_UP))
-@@ -1233,21 +2592,33 @@ static void handle_input(void) {
++    if (settings_menu_active) {
++        extern const int theme_count;
++        if (input_was_pressed(FROG_BTN_UP))
++            settings_menu_idx = (settings_menu_idx - 1 + SETTINGS_ROW_COUNT) % SETTINGS_ROW_COUNT;
+         if (input_was_pressed(FROG_BTN_DOWN))
              settings_menu_idx = (settings_menu_idx + 1) % SETTINGS_ROW_COUNT;
          if (input_was_pressed(FROG_BTN_LEFT) || input_was_pressed(FROG_BTN_RIGHT)) {
              int delta = input_was_pressed(FROG_BTN_RIGHT) ? 1 : -1;
@@ -2745,7 +3011,7 @@ index a72c4e6..203ab78 100644
              } else if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
                  settings_game_switcher = (settings_game_switcher + delta + 2) % 2;
              } else if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
-@@ -1256,11 +2627,21 @@ static void handle_input(void) {
+@@ -1256,11 +2851,21 @@ static void handle_input(void) {
                  settings_volume += delta * 5;
                  if (settings_volume < 0)   settings_volume = 0;
                  if (settings_volume > 100) settings_volume = 100;
@@ -2768,7 +3034,7 @@ index a72c4e6..203ab78 100644
          if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_REMAP) {
              remap_step = 0;
              remap_prev_raw = input_get_raw_state();
-@@ -1268,20 +2649,72 @@ static void handle_input(void) {
+@@ -1268,20 +2873,72 @@ static void handle_input(void) {
              settings_menu_active = false;
              return;
          }
@@ -2844,7 +3110,7 @@ index a72c4e6..203ab78 100644
          search_query[0] = '\0';
          search_kbd_r = 0; search_kbd_c = 0;
          strncpy(search_scope, current_path, sizeof(search_scope)-1);
-@@ -1290,13 +2723,40 @@ static void handle_input(void) {
+@@ -1290,13 +2947,40 @@ static void handle_input(void) {
          goto input_done;
      }
  
@@ -2886,7 +3152,7 @@ index a72c4e6..203ab78 100644
          const char *cur;
          if (entries[selected_index].is_dir) {
              snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
-@@ -1324,6 +2784,7 @@ static void handle_input(void) {
+@@ -1324,6 +3008,7 @@ static void handle_input(void) {
          if (viewing_favourites) {
              /* Remove selected favourite */
              favorites_remove_by_index(selected_index);
@@ -2894,7 +3160,7 @@ index a72c4e6..203ab78 100644
              /* Refresh favourites view */
              const FavoriteGame *fl = favorites_get_list();
              int fc = favorites_get_count();
-@@ -1332,6 +2793,7 @@ static void handle_input(void) {
+@@ -1332,6 +3017,7 @@ static void handle_input(void) {
                  strncpy(entries[entry_count].name, fl[i].game_name, 255);
                  entries[entry_count].name[255] = '\0';
                  entries[entry_count].is_dir = 0;
@@ -2902,7 +3168,7 @@ index a72c4e6..203ab78 100644
                  entry_count++;
              }
              if (selected_index >= entry_count && selected_index > 0)
-@@ -1342,7 +2804,9 @@ static void handle_input(void) {
+@@ -1342,7 +3028,9 @@ static void handle_input(void) {
                  scan_directory(ROMS_PATH);
                  strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
              }
@@ -2913,7 +3179,7 @@ index a72c4e6..203ab78 100644
                     strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
                     strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
                     strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
-@@ -1350,45 +2814,89 @@ static void handle_input(void) {
+@@ -1350,45 +3038,89 @@ static void handle_input(void) {
              const char *folder = get_console_folder(current_path);
              const char *core   = get_core_for_folder(folder);
              if (!core) core = get_core_for_extension(entries[selected_index].name);
@@ -3019,7 +3285,7 @@ index a72c4e6..203ab78 100644
              /* Enter favourites view */
              const FavoriteGame *fl = favorites_get_list();
              int fc = favorites_get_count();
-@@ -1402,11 +2910,12 @@ static void handle_input(void) {
+@@ -1402,11 +3134,12 @@ static void handle_input(void) {
                  strncpy(entries[entry_count].name, fl[i].game_name, 255);
                  entries[entry_count].name[255] = '\0';
                  entries[entry_count].is_dir = 0;
@@ -3033,7 +3299,7 @@ index a72c4e6..203ab78 100644
              enter_recents_view();
          } else if (entries[selected_index].is_dir) {
              char new_path[MAX_PATH_LEN];
-@@ -1419,6 +2928,23 @@ static void handle_input(void) {
+@@ -1419,6 +3152,23 @@ static void handle_input(void) {
                  settings_menu_active = true;
                  settings_menu_idx = 0;
                  settings_filter_idx_on_enter = settings_filter_idx;
@@ -3057,7 +3323,7 @@ index a72c4e6..203ab78 100644
              } else {
                  const char *folder = get_console_folder(current_path);
                  char rom_path[MAX_PATH_LEN];
-@@ -1454,53 +2980,146 @@ static void handle_input(void) {
+@@ -1454,53 +3204,146 @@ static void handle_input(void) {
              viewing_favourites = false;
              scan_directory(ROMS_PATH);
              strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
@@ -3097,7 +3363,11 @@ index a72c4e6..203ab78 100644
 +    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_L1)) {
 +        selected_index = selected_index >= card_page_size ? selected_index - card_page_size :
 +                         ((nav_count-1)/card_page_size)*card_page_size;
-+    }
+     }
+-    if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
+-        selected_index++;
+-        if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
+-            scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
 +    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_R1)) {
 +        selected_index = selected_index + card_page_size < nav_count ?
 +                         selected_index + card_page_size : 0;
@@ -3107,11 +3377,7 @@ index a72c4e6..203ab78 100644
 +                                  (selected_index>=4 ? selected_index-4 : nav_count-1))
 +                         : launcher ? (selected_index>=3 ? selected_index-3 : nav_count-1)
 +                                    : (selected_index-1+nav_count)%nav_count;
-     }
--    if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
--        selected_index++;
--        if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
--            scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
++    }
 +    if (nav_count>0 && input_was_pressed(FROG_BTN_DOWN)) {
 +        selected_index = cards ? (compact_game_list ? (selected_index+1)%nav_count :
 +                                  (selected_index+4<nav_count ? selected_index+4 : 0))
@@ -3225,7 +3491,7 @@ index a72c4e6..203ab78 100644
      info->valid_extensions = "";
      info->need_fullpath    = false;
      info->block_extract    = false;
-@@ -1526,13 +3145,15 @@ void retro_set_environment(retro_environment_t cb) {
+@@ -1526,13 +3369,15 @@ void retro_set_environment(retro_environment_t cb) {
  }
  
  void retro_set_video_refresh(retro_video_refresh_t cb)          { video_cb      = cb; }
@@ -3243,7 +3509,7 @@ index a72c4e6..203ab78 100644
      dbg("retro_init start");
      /* Runtime panel geometry from picoarch (device-detected). Must run before
       * font_init / any layout use. Falls back to render.c defaults if env unset. */
-@@ -1547,6 +3168,7 @@ void retro_init(void) {
+@@ -1547,6 +3392,7 @@ void retro_init(void) {
          dbg("geometry set");
      }
      input_init();
@@ -3251,7 +3517,7 @@ index a72c4e6..203ab78 100644
      input_load_remap(KEYMAP_FILE);
      font_init();
      dbg("font_init done");
-@@ -1555,6 +3177,9 @@ void retro_init(void) {
+@@ -1555,6 +3401,9 @@ void retro_init(void) {
      theme_init();
      dbg("theme_init done");
      settings_load_file();
@@ -3261,7 +3527,7 @@ index a72c4e6..203ab78 100644
      fb1_set_visible(1);   /* restart cubevol for OSD overlay — also resets backlight */
      settings_apply();     /* apply AFTER cubevol restart so our brightness wins */
      dbg("settings loaded");
-@@ -1567,6 +3192,8 @@ void retro_init(void) {
+@@ -1567,142 +3416,60 @@ void retro_init(void) {
      dbg("core overrides loaded");
  
      framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
@@ -3269,41 +3535,40 @@ index a72c4e6..203ab78 100644
 +    ui_rendered_once = 0;
      dbg("calloc done");
      render_init(framebuffer);
-     dbg("render_init done");
-@@ -1584,15 +3211,28 @@ void retro_init(void) {
-     }
-     scan_directory(current_path);
-     dbg("scan_directory done");
+-    dbg("render_init done");
+-    /* Resolve the roms root before the first scan (see g_roms_path). */
+-    {
+-        DIR *d = opendir(g_roms_path);
+-        if (d) closedir(d);
+-        else {
+-            DIR *alt = opendir(SDCARD_BASE "/ROMS");
+-            if (alt) { closedir(alt); strcpy(g_roms_path, SDCARD_BASE "/ROMS"); }
+-            else mkdir(g_roms_path, 0777);
+-        }
+-        strncpy(current_path, g_roms_path, MAX_PATH_LEN - 1);
+-        current_path[MAX_PATH_LEN - 1] = '\0';
+-    }
+-    scan_directory(current_path);
+-    dbg("scan_directory done");
 -    if (settings_load_recents && recent_games_get_count() > 0)
-+    if (!returning_home && settings_load_recents && recent_games_get_count() > 0)
-         enter_recents_view();   /* "Start in Recents" setting */
-     shutdown_requested = false;
-     dbg("retro_init complete");
- }
- 
- void retro_deinit(void) {
-+    if (screen_blanked) cube_set_backlight(settings_brightness);
-+    screen_blanked = false;
-+    if (editor_dirty && editor_file_path[0]) editor_save();
-+    if (terminal_active) terminal_stop(); else io_keyboard_test_stop();
-+    io_mouse_stop();
-+    power_button_deinit();
-+    input_deinit();
-+    ui_sound_free_clips();
-+    ui_loaded_sound_pack = -1;
-+    for(int i=0;i<SWITCHER_CACHE_COUNT;i++) switcher_cache_entry_free(&switcher_cache[i]);
-+    switcher_cache_next=0;
-     free(framebuffer); framebuffer = NULL;
-+    free(displayfix_framebuffer); displayfix_framebuffer = NULL;
-     free(entries);     entries = NULL;
-+    free(editor_text); editor_text = NULL;
-     entry_count = entry_capacity = 0;
- }
- 
-@@ -1603,106 +3243,6 @@ bool retro_load_game(const struct retro_game_info *info) {
- 
- void retro_unload_game(void) {}
- 
+-        enter_recents_view();   /* "Start in Recents" setting */
+-    shutdown_requested = false;
+-    dbg("retro_init complete");
+-}
+-
+-void retro_deinit(void) {
+-    free(framebuffer); framebuffer = NULL;
+-    free(entries);     entries = NULL;
+-    entry_count = entry_capacity = 0;
+-}
+-
+-bool retro_load_game(const struct retro_game_info *info) {
+-    (void)info;
+-    return true;  /* supports no-game */
+-}
+-
+-void retro_unload_game(void) {}
+-
 -static void render_settings_menu(void) {
 -    extern const Theme themes[];
 -    if (banner_is_loaded())
@@ -3400,14 +3665,61 @@ index a72c4e6..203ab78 100644
 -        render_text_pillbox(framebuffer, PADDING, y10, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
 -    } else {
 -        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y10, line, COLOR_TEXT);
--    }
++    dbg("render_init done");
++    /* Resolve the roms root before the first scan (see g_roms_path). */
++    {
++        DIR *d = opendir(g_roms_path);
++        if (d) closedir(d);
++        else {
++            DIR *alt = opendir(SDCARD_BASE "/ROMS");
++            if (alt) { closedir(alt); strcpy(g_roms_path, SDCARD_BASE "/ROMS"); }
++            else mkdir(g_roms_path, 0777);
++        }
++        strncpy(current_path, g_roms_path, MAX_PATH_LEN - 1);
++        current_path[MAX_PATH_LEN - 1] = '\0';
+     }
 -    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
--}
--
++    scan_directory(current_path);
++    dbg("scan_directory done");
++    if (!returning_home && settings_load_recents && recent_games_get_count() > 0)
++        enter_recents_view();   /* "Start in Recents" setting */
++    shutdown_requested = false;
++    dbg("retro_init complete");
++}
++
++void retro_deinit(void) {
++    if (screen_blanked) cube_set_backlight(settings_brightness);
++    screen_blanked = false;
++    if (editor_dirty && editor_file_path[0]) editor_save();
++    if (terminal_active) terminal_stop(); else io_keyboard_test_stop();
++    io_mouse_stop();
++    power_button_deinit();
++    input_deinit();
++    ui_sound_free_clips();
++    ui_loaded_sound_pack = -1;
++    for(int i=0;i<SWITCHER_CACHE_COUNT;i++) switcher_cache_entry_free(&switcher_cache[i]);
++    switcher_cache_next=0;
++    free(framebuffer); framebuffer = NULL;
++    free(displayfix_framebuffer); displayfix_framebuffer = NULL;
++    free(entries);     entries = NULL;
++    free(editor_text); editor_text = NULL;
++    free(editor_clipboard); editor_clipboard = NULL; editor_clipboard_length = 0;
++    editor_history_clear_stack(editor_undo, &editor_undo_count);
++    editor_history_clear_stack(editor_redo, &editor_redo_count);
++    entry_count = entry_capacity = 0;
+ }
+ 
++bool retro_load_game(const struct retro_game_info *info) {
++    (void)info;
++    return true;  /* supports no-game */
++}
++
++void retro_unload_game(void) {}
++
  static void render_remap_wizard(void) {
      if (banner_is_loaded())
          banner_render(framebuffer);
-@@ -1716,14 +3256,11 @@ static void render_remap_wizard(void) {
+@@ -1716,14 +3483,11 @@ static void render_remap_wizard(void) {
      font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, line, COLOR_TEXT);
  
      y += ITEM_HEIGHT;
@@ -3424,7 +3736,7 @@ index a72c4e6..203ab78 100644
      render_header(framebuffer, "SELECT CORE");
  
      int y = START_Y;
-@@ -1731,18 +3268,19 @@ static void render_core_picker(void) {
+@@ -1731,18 +3495,19 @@ static void render_core_picker(void) {
      font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, core_picker_title, COLOR_TEXT);
      y += ITEM_HEIGHT;
  
@@ -3453,7 +3765,7 @@ index a72c4e6..203ab78 100644
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
-@@ -1774,7 +3312,1208 @@ static void render_search_kbd(void) {
+@@ -1774,7 +3539,1231 @@ static void render_search_kbd(void) {
      render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
  }
  
@@ -3772,9 +4084,9 @@ index a72c4e6..203ab78 100644
 +static void render_text_editor(void) {
 +    int percent=95, cw=font_mono_char_width(percent), lh=font_mono_line_height(percent);
 +    int columns=(SCREEN_WIDTH-PADDING*2)/cw;
-+    int visible=(SCREEN_HEIGHT-UI_S(82))/lh;
++    int visible=(SCREEN_HEIGHT-UI_S(104))/lh;
 +    int cursor_line=0,cursor_column=0;
-+    size_t offset=0;
++    size_t offset=0,selection_start=editor_cursor,selection_end=editor_cursor;
 +    char title[160],status[160];
 +    render_fill_rect(framebuffer,0,0,SCREEN_WIDTH,SCREEN_HEIGHT,0x0000);
 +    snprintf(title,sizeof(title),"%s%s",editor_basename(),editor_dirty?" *":"");
@@ -3782,6 +4094,7 @@ index a72c4e6..203ab78 100644
 +    for(size_t i=0;i<editor_cursor;i++) {
 +        if(editor_text[i]=='\n'){cursor_line++;cursor_column=0;} else cursor_column++;
 +    }
++    if(editor_has_selection()) editor_selection_bounds(&selection_start,&selection_end);
 +    for(int line=0;line<editor_top_line && offset<editor_length;line++) {
 +        while(offset<editor_length && editor_text[offset]!='\n') offset++;
 +        if(offset<editor_length) offset++;
@@ -3792,6 +4105,17 @@ index a72c4e6..203ab78 100644
 +        while(end<editor_length && editor_text[end]!='\n') end++;
 +        size_t p=offset;
 +        while(p<end && skip-->0) p++;
++        {
++            size_t visible_start=p;
++            size_t visible_end=end<visible_start+(size_t)columns?end:visible_start+(size_t)columns;
++            size_t highlight_start=selection_start>visible_start?selection_start:visible_start;
++            size_t highlight_end=selection_end<visible_end?selection_end:visible_end;
++            if(highlight_start<highlight_end) {
++                int hx=PADDING+(int)(highlight_start-visible_start)*cw;
++                int hw=(int)(highlight_end-highlight_start)*cw;
++                render_fill_rect(framebuffer,hx,UI_S(33)+row*lh,hw,lh,0x23EF);
++            }
++        }
 +        while(p<end && used<columns && used<(int)sizeof(shown)-1) shown[used++]=editor_text[p++];
 +        shown[used]='\0';
 +        font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
@@ -3805,20 +4129,28 @@ index a72c4e6..203ab78 100644
 +        int y=UI_S(33)+(cursor_line-editor_top_line)*lh;
 +        render_fill_rect(framebuffer,x,y+UI_S(2),UI_S(2),lh-UI_S(3),0x07FF);
 +    }
-+    snprintf(status,sizeof(status),"Ln %d Col %d  Ctrl+S save  F2 rename  Esc/B close",
++    snprintf(status,sizeof(status),"Ln %d Col %d  Ctrl+S Save  Ctrl+F Find  F3 Next",
 +             cursor_line+1,cursor_column+1);
 +    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
-+                        SCREEN_HEIGHT-lh-UI_S(4),status,0xBDF7,80);
++                        SCREEN_HEIGHT-lh*2-UI_S(3),status,0xBDF7,75);
++    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
++                        SCREEN_HEIGHT-lh-UI_S(3),
++                        "Shift select  Ctrl+C/X/V  Ctrl+Z/Y  PgUp/PgDn  F2 rename",0xBDF7,70);
 +}
 +
 +static void render_editor_prompt(void) {
 +    char prompt[EDITOR_NAME_CAP+4];
++    int cw=font_mono_char_width(100), cursor_x;
 +    render_fill_rect(framebuffer,0,0,SCREEN_WIDTH,SCREEN_HEIGHT,0x0000);
 +    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,UI_S(120),
-+        editor_prompt_rename?"Rename file":"Create file in roms/Ebook",0xFFFF,100);
-+    snprintf(prompt,sizeof(prompt),"> %s_",editor_prompt_text);
++        editor_prompt_mode==EDITOR_PROMPT_RENAME?"Rename file":
++        editor_prompt_mode==EDITOR_PROMPT_FIND?"Find text":"Create file in roms/Ebook",0xFFFF,100);
++    snprintf(prompt,sizeof(prompt),"> %s",editor_prompt_text);
 +    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,UI_S(175),prompt,0x07FF,100);
++    cursor_x=PADDING+(2+editor_prompt_cursor)*cw;
++    render_fill_rect(framebuffer,cursor_x,UI_S(177),UI_S(2),font_mono_line_height(100)-UI_S(3),0x07FF);
 +    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,UI_S(225),
++        editor_prompt_mode==EDITOR_PROMPT_FIND?"Enter find   Esc cancel   F3 finds next":
 +        "Enter confirm   Esc cancel   Any extension is allowed",0xBDF7,85);
 +}
 +
@@ -3894,7 +4226,8 @@ index a72c4e6..203ab78 100644
 +        "D-PAD", "A", "B", "X", "Y", "START", "SELECT",
 +        "L1 / R1", "L2 / R2", "RIGHT STICK", "SELECT + START",
 +        "SELECT + R2", "SELECT + L2", "SELECT + R1", "SELECT + B",
-+        "SELECT + L1", "POWER (tap)", "POWER (hold)", "VOLUME +/-"
++        "SELECT + L1", "POWER (tap)", "POWER (hold)", "VOLUME +/-",
++        "EDITOR NAVIGATION", "EDITOR SELECTION", "EDITOR SHORTCUTS"
 +    };
 +    static const char *const actions[] = {
 +        "Navigate menus", "Open / launch / confirm", "Back / close",
@@ -3902,7 +4235,9 @@ index a72c4e6..203ab78 100644
 +        "Game/core shoulder action", "Game/core trigger action",
 +        "Mirrors face buttons (hardware)", "Open in-game menu", "Save state",
 +        "Load state", "Fast-forward", "Rewind", "Take screenshot",
-+        "Display off/wake; sleep after 2m", "Safe shutdown", "System volume"
++        "Display off/wake; sleep after 2m", "Safe shutdown", "System volume",
++        "PgUp/PgDn, Home/End, Ctrl+arrows", "Shift+move; Ctrl+A selects all",
++        "Ctrl+C/X/V, Z/Y, S, F/F3, N/O"
 +    };
 +    const int count=(int)(sizeof(buttons)/sizeof(buttons[0]));
 +    const int visible=7;
@@ -4662,7 +4997,7 @@ index a72c4e6..203ab78 100644
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1791,8 +4530,131 @@ void retro_run(void) {
+@@ -1791,8 +4780,131 @@ void retro_run(void) {
          #undef RB
          input_set_ext_raw(raw);
      }
@@ -4794,7 +5129,7 @@ index a72c4e6..203ab78 100644
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +4664,11 @@ void retro_run(void) {
+@@ -1802,7 +4914,11 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
@@ -4807,7 +5142,7 @@ index a72c4e6..203ab78 100644
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +4684,8 @@ void retro_run(void) {
+@@ -1818,7 +4934,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -4817,7 +5152,7 @@ index a72c4e6..203ab78 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +4694,47 @@ void retro_run(void) {
+@@ -1827,20 +4944,47 @@ void retro_run(void) {
          }
      }
  
@@ -4868,7 +5203,7 @@ index a72c4e6..203ab78 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +4746,44 @@ void retro_run(void) {
+@@ -1852,22 +4996,44 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -4920,7 +5255,7 @@ index a72c4e6..203ab78 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +4812,24 @@ void retro_run(void) {
+@@ -1896,19 +5062,24 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -4948,7 +5283,7 @@ index a72c4e6..203ab78 100644
  
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1925,14 +4846,50 @@ void retro_run(void) {
+@@ -1925,14 +5096,50 @@ void retro_run(void) {
              }
          }
  

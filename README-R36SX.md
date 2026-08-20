@@ -42,6 +42,12 @@ open. The editor can create, open, edit, rename, and save text files with any
 extension. The earlier Mini Linux shortcut shell was removed because its cards
 only duplicated Terminal, Files, and System Information already available in
 the main interface.
+
+Text Editor keyboard controls follow desktop conventions: arrows and
+Page Up/Down navigate, Home/End target a line, Ctrl+Home/End target the whole
+document, Ctrl+Left/Right moves by word, and Shift extends a selection. Ctrl+A,
+Ctrl+C/X/V, Ctrl+Z/Y (or Ctrl+Shift+Z), Ctrl+S, Ctrl+F with F3, Ctrl+N, Ctrl+O,
+Ctrl+Backspace/Delete, Tab, and Shift+Tab are supported.
 - [Annotated hardware screenshot gallery](docs/r36sx/SCREENSHOTS.md)
 - [Third-party software and sample-audio notices](docs/r36sx/THIRD_PARTY_NOTICES.md)
 
