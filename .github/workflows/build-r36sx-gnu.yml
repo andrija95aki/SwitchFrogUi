@@ -79,18 +79,21 @@ jobs:
             https://github.com/glennrp/libpng/archive/refs/tags/v1.6.37.tar.gz
           tar -xzf "$RUNNER_TEMP/libpng-1.6.37.tar.gz" -C "$RUNNER_TEMP"
           cd "$RUNNER_TEMP/libpng-1.6.37"
-          CC="$SF_GCC" AR="${SF_PREFIX}ar" RANLIB="${SF_PREFIX}ranlib" \
-            CFLAGS="--sysroot=$SF_SYSROOT -O2 -mips32r2 -mhard-float -mfp32" \
-            LDFLAGS="--sysroot=$SF_SYSROOT" \
-            ./configure --host=mips-mti-linux-gnu --disable-shared --enable-static
-          make -j2
+          mkdir -p target-objects target-lib
+          sources=(png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c pngrio.c \
+            pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c pngwrite.c pngwtran.c pngwutil.c)
+          for source in "${sources[@]}"; do
+            "$SF_GCC" --sysroot="$SF_SYSROOT" -O2 -mips32r2 -mhard-float -mfp32 \
+              -I. -I"$SF_SYSROOT/usr/include" -c "$source" \
+              -o "target-objects/${source%.c}.o"
+          done
+          "${SF_PREFIX}ar" rcs target-lib/libpng12.a target-objects/*.o
           # PicoArch's historical Makefile requests -lpng12. Its readpng code
           # is already compatible with 1.6 (the local Zig build uses 1.6.37),
           # so provide the expected archive name without adding a card runtime
           # dependency.
-          cp .libs/libpng16.a .libs/libpng12.a
           echo "SF_PNG_INCLUDE=$RUNNER_TEMP/libpng-1.6.37" >> "$GITHUB_ENV"
-          echo "SF_PNG_LIB=$RUNNER_TEMP/libpng-1.6.37/.libs" >> "$GITHUB_ENV"
+          echo "SF_PNG_LIB=$RUNNER_TEMP/libpng-1.6.37/target-lib" >> "$GITHUB_ENV"
 
       - name: Build GNU launcher, PicoArch and PCSX4ALL
         shell: bash
