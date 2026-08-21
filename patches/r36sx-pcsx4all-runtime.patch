@@ -80,7 +80,7 @@ index a189b7b..4a3ae2f 100644
      g_active = 0;
  }
 diff --git a/src/port/sf3000/port.c b/src/port/sf3000/port.c
-index b2fbcf3..92011a8 100644
+index b2fbcf3..fd50143 100644
 --- a/src/port/sf3000/port.c
 +++ b/src/port/sf3000/port.c
 @@ -2,8 +2,7 @@
@@ -458,7 +458,7 @@ index b2fbcf3..92011a8 100644
          int up = btn(k, CV_UP)   && !btn(prev, CV_UP);
          int dn = btn(k, CV_DOWN) && !btn(prev, CV_DOWN);
          int a  = btn(k, CV_A)    && !btn(prev, CV_A);
-@@ -650,29 +776,31 @@ static void sf3000_controls_menu(void) {
+@@ -650,29 +776,91 @@ static void sf3000_controls_menu(void) {
                  port_printf(2, 0, "=== CONTROLS (remap) ==="); port_printf(2, 30, msg);
                  video_flip();
              }
@@ -481,6 +481,66 @@ index b2fbcf3..92011a8 100644
      }
  }
  
++#ifdef GPU_UNAI
++static void sf3000_apply_gpu_config(void) {
++#ifdef USE_GPULIB
++    /* Push the edited UNAI flags into the renderer immediately. The patched
++     * renderer_set_config copies gpu_unai_config_ext into its live state. */
++    gpulib_set_config(&gpulib_config);
++#endif
++}
++
++/* Native R36SX GPU page. The legacy SDL menu receives translated keys through
++ * a second event queue and could appear to accept changes without updating the
++ * active renderer. Keep accuracy controls in the same input/render path as the
++ * stable pause menu instead. */
++static void sf3000_gpu_menu(void) {
++    int sel = 0;
++    uint32_t prev = input_raw();
++    while (1) {
++        char rows[5][64]; const char *items[5];
++        snprintf(rows[0], sizeof rows[0], "Lighting:       %s",
++                 gpu_unai_config_ext.lighting ? "On" : "Off");
++        snprintf(rows[1], sizeof rows[1], "Fast Lighting:  %s",
++                 gpu_unai_config_ext.fast_lighting ? "On (speed)" : "Off (accurate)");
++        snprintf(rows[2], sizeof rows[2], "Blending:       %s",
++                 gpu_unai_config_ext.blending ? "On" : "Off");
++        snprintf(rows[3], sizeof rows[3], "Dithering:      %s",
++                 gpu_unai_config_ext.dithering ? "On" : "Off");
++        snprintf(rows[4], sizeof rows[4], "Restore Accurate Defaults");
++        for (int i = 0; i < 5; i++) items[i] = rows[i];
++        sf_menu_draw("GPU ACCURACY", items, 5, sel,
++                     "A/LEFT/RIGHT=change  B=back; save in main menu");
++        usleep(16000);
++        uint32_t k = input_raw();
++        int up = btn(k, CV_UP) && !btn(prev, CV_UP);
++        int dn = btn(k, CV_DOWN) && !btn(prev, CV_DOWN);
++        int change = (btn(k, CV_A) && !btn(prev, CV_A)) ||
++                     (btn(k, CV_LEFT) && !btn(prev, CV_LEFT)) ||
++                     (btn(k, CV_RIGHT) && !btn(prev, CV_RIGHT));
++        int back = btn(k, CV_B) && !btn(prev, CV_B);
++        prev = k;
++        if (up) sel = (sel + 4) % 5;
++        if (dn) sel = (sel + 1) % 5;
++        if (back) return;
++        if (!change) continue;
++        switch (sel) {
++            case 0: gpu_unai_config_ext.lighting = !gpu_unai_config_ext.lighting; break;
++            case 1: gpu_unai_config_ext.fast_lighting = !gpu_unai_config_ext.fast_lighting; break;
++            case 2: gpu_unai_config_ext.blending = !gpu_unai_config_ext.blending; break;
++            case 3: gpu_unai_config_ext.dithering = !gpu_unai_config_ext.dithering; break;
++            case 4:
++                gpu_unai_config_ext.lighting = 1;
++                gpu_unai_config_ext.fast_lighting = 0;
++                gpu_unai_config_ext.blending = 1;
++                gpu_unai_config_ext.dithering = 1;
++                break;
++        }
++        sf3000_apply_gpu_config();
++    }
++}
++#endif
++
  static void sf3000_menu(void) {
      int sel = 0;
 -    uint32_t prev = cv_keys ? *cv_keys : 0;
@@ -498,7 +558,16 @@ index b2fbcf3..92011a8 100644
          char gamma_label[48];
          if (gamma_percent <= 100)
              snprintf(gamma_label, sizeof(gamma_label), "Gamma:  Off");
-@@ -713,8 +841,7 @@ static void sf3000_menu(void) {
+@@ -701,7 +889,7 @@ static void sf3000_menu(void) {
+             pixskip_label,
+             ilace_label,
+             hires_label,
+-            "PCSX Settings",
++            "GPU Accuracy / Shadows",
+             "Controls (remap)",
+             "Save Config: Global",   /* 10 */
+             gamecfg_label,           /* 11 */
+@@ -713,8 +901,7 @@ static void sf3000_menu(void) {
          sf_menu_draw("PCSX4ALL MENU", items, n, sel, "UP/DOWN  A=select  B=back");
  
          usleep(16000);
@@ -508,7 +577,7 @@ index b2fbcf3..92011a8 100644
  
          int up  = btn(k, CV_UP)    && !btn(prev, CV_UP);
          int dn  = btn(k, CV_DOWN)  && !btn(prev, CV_DOWN);
-@@ -730,13 +857,9 @@ static void sf3000_menu(void) {
+@@ -730,13 +917,9 @@ static void sf3000_menu(void) {
          /* LEFT/RIGHT adjusts scale (sel 3) and gamma (sel 4) */
          if (lt || rt) {
              if (sel == 3) {
@@ -524,7 +593,7 @@ index b2fbcf3..92011a8 100644
              } else if (sel == 4) {
                  gamma_percent += rt ? 10 : -10;
                  if (gamma_percent < 100) gamma_percent = 100;
-@@ -755,9 +878,9 @@ static void sf3000_menu(void) {
+@@ -755,9 +938,9 @@ static void sf3000_menu(void) {
                  case 1: state_save(1); usleep(300000); fb1_blank(1); return;
                  case 2: state_load(1); usleep(300000); fb1_blank(1); return;
                  case 3:
@@ -536,15 +605,20 @@ index b2fbcf3..92011a8 100644
                      break;
                  case 4: /* gamma: A toggles off/default */
                      gamma_percent = (gamma_percent > 100) ? 100 : 130;
-@@ -774,29 +897,29 @@ static void sf3000_menu(void) {
+@@ -772,31 +955,30 @@ static void sf3000_menu(void) {
+                     hires_fix = !hires_fix;
+                     break;
                  case 8: {
-                     extern int GameMenu(void);
-                     extern void sdl_poll_reset(void);
+-                    extern int GameMenu(void);
+-                    extern void sdl_poll_reset(void);
 -                    while (cv_keys && btn(*cv_keys, CV_A)) usleep(10000);
-+                    while (btn(input_raw(), CV_A)) usleep(10000);
-                     sdl_poll_reset();
-                     GameMenu();
+-                    sdl_poll_reset();
+-                    GameMenu();
 -                    prev = cv_keys ? *cv_keys : 0;
++                    while (btn(input_raw(), CV_A)) usleep(10000);
++#ifdef GPU_UNAI
++                    sf3000_gpu_menu();
++#endif
 +                    prev = input_raw();
                      last_fb_y_off = -1; last_fb_y_len = -1;
                      break;
@@ -572,7 +646,7 @@ index b2fbcf3..92011a8 100644
                      break;
                  }
                  case 12: exit(0);   /* Exit: no autosave */
-@@ -806,7 +929,7 @@ static void sf3000_menu(void) {
+@@ -806,7 +988,7 @@ static void sf3000_menu(void) {
  }
  
  static uint32_t sdl_prev = 0;
@@ -581,7 +655,7 @@ index b2fbcf3..92011a8 100644
  
  /* SDL_PollEvent — translates cubevol buttons into SDL key events for frontend.c menu */
  int SDL_PollEvent(SDL_Event *e) {
-@@ -828,8 +951,8 @@ int SDL_PollEvent(SDL_Event *e) {
+@@ -828,8 +1010,8 @@ int SDL_PollEvent(SDL_Event *e) {
      if (!e) return 0;
  
      /* Refill queue from current cv_keys state */
@@ -592,7 +666,7 @@ index b2fbcf3..92011a8 100644
          uint32_t changed = k ^ prev;
          sdl_prev = k;
          for (int i = 0; i < NMAP && qtail < 32; i++) {
-@@ -850,19 +973,28 @@ int SDL_PollEvent(SDL_Event *e) {
+@@ -850,19 +1032,28 @@ int SDL_PollEvent(SDL_Event *e) {
  }
  
  void pad_update(void) {
@@ -628,7 +702,7 @@ index b2fbcf3..92011a8 100644
              usleep(10000);
          sf3000_menu();
      }
-@@ -927,6 +1059,11 @@ static uint16_t sf_col_text = 0xFFFF, sf_col_sel = 0x2FE6, sf_col_seltext = 0x00
+@@ -927,6 +1118,11 @@ static uint16_t sf_col_text = 0xFFFF, sf_col_sel = 0x2FE6, sf_col_seltext = 0x00
   * path points them at a panel-sized buffer and presents it 1:1. */
  static uint16_t *sf_tgt = NULL; static int sf_tw = 0, sf_th = 0;
  static uint16_t *sf_menu_fb = NULL; static int sf_pw = 0, sf_ph = 0;
@@ -640,7 +714,7 @@ index b2fbcf3..92011a8 100644
  static void sf_read_panel(void) {
      if (sf_pw) return;
      sf_pw = 640; sf_ph = 480;                 /* R36SX default */
-@@ -1106,9 +1243,18 @@ void sf3000_menu_present(void) {
+@@ -1106,9 +1302,18 @@ void sf3000_menu_present(void) {
      extern void hwdisp_set_target_aspect(int, int);
      extern void hwdisp_set_filter(int);
      if (!sf_menu_fb) return;
@@ -660,7 +734,19 @@ index b2fbcf3..92011a8 100644
      sf_tgt = SCREEN; sf_tw = SCREEN_WIDTH; sf_th = SCREEN_HEIGHT;  /* restore */
  }
  int  sf3000_panel_w(void) { sf_read_panel(); return sf_pw; }
-@@ -1243,7 +1389,8 @@ static void config_read(const char *path) {
+@@ -1203,7 +1408,10 @@ static void config_read(const char *path) {
+         linenum++;
+         int v; sscanf(arg, "%d", &v);
+ 
+-        if (!strcmp(line,"CONFIG_VERSION")) { if (v != 0) break; }
++        /* Version 1 was written by the stock SF3000 port and has the same
++         * key/value layout used here. Reject only genuinely newer formats;
++         * treating v1 as invalid silently discarded every GPU/menu setting. */
++        if (!strcmp(line,"CONFIG_VERSION")) { if (v < 0 || v > 1) break; }
+         else if (!strncmp(line,"PsxBind",7)) { int idx = atoi(line+7); if (idx >= 0 && idx < PB_COUNT) pb_bind[idx] = v; }
+         else if (!strcmp(line,"Xa"))              Config.Xa = v;
+         else if (!strcmp(line,"Mdec"))            Config.Mdec = v;
+@@ -1243,7 +1451,8 @@ static void config_read(const char *path) {
          else if (!strcmp(line,"SpuUseReverb"))        spu_config.iUseReverb = v;
          else if (!strcmp(line,"SpuVolume"))           spu_config.iVolume = v;
  #endif
@@ -670,10 +756,12 @@ index b2fbcf3..92011a8 100644
          else if (!strcmp(line,"HiResFix"))    hires_fix    = v ? 1 : 0;
          else if (!strcmp(line,"ScaleFilter")) scale_filter = v;
          else if (!strcmp(line,"Gamma"))       gamma_percent = (v < 100 ? 100 : (v > 250 ? 250 : v));
-@@ -1441,6 +1588,15 @@ static int bios_present(const char *dir, const char *name) {
+@@ -1440,18 +1649,32 @@ static int bios_present(const char *dir, const char *name) {
+     closedir(d);
      return hit;
  }
- static void probe_bios(void) {
+-static void probe_bios(void) {
++static int probe_bios(void) {
 +#ifdef GPU_UNAI
 +    {
 +        char b[96];
@@ -686,12 +774,33 @@ index b2fbcf3..92011a8 100644
      /* Respect a manual/existing selection: if the configured BIOS actually
       * resolves, leave BiosDir/Bios/HLE exactly as the user set them - no guess,
       * no HLE override. Only auto-detect when it's unset or the file is missing;
-@@ -1475,8 +1631,10 @@ int main(int argc, char *argv[]) {
+      * on a guess we switch HLE off so the found BIOS is actually used. */
+-    if (bios_present(Config.BiosDir, Config.Bios)) return;
+-    if (probe_bios_dir("/mnt/sdcard/cubegm/bios")) return;
+-    if (probe_bios_dir(homedir)) return;
++    if (bios_present(Config.BiosDir, Config.Bios)) {
++        Config.HLE = 0;
++        return 1;
++    }
++    if (probe_bios_dir("/mnt/sdcard/cubegm/bios")) return 1;
++    if (probe_bios_dir(homedir)) return 1;
+     /* nothing found anywhere: leave config_load()'s values; psxMemInit HLEs. */
++    return 0;
+ }
+ 
+ int main(int argc, char *argv[]) {
++    int real_bios_active;
+     plog("main: start");
+     if (argc < 2) { plog("main: no ROM arg, exit"); return 1; }
+     plog(argv[1]);
+@@ -1474,9 +1697,11 @@ int main(int argc, char *argv[]) {
+      * cfg pointing at an empty path. */
  
  #ifdef GPU_UNAI
-     gpu_unai_config_ext.lighting     = 0;
+-    gpu_unai_config_ext.lighting     = 0;
 -    gpu_unai_config_ext.fast_lighting= 1;
 -    gpu_unai_config_ext.blending     = 0;
++    gpu_unai_config_ext.lighting     = 1;
 +    /* Accuracy defaults.  In particular, disabling blending turns PS1
 +     * semi-transparent water/shadows into opaque black-backed primitives. */
 +    gpu_unai_config_ext.fast_lighting= 0;
@@ -699,3 +808,33 @@ index b2fbcf3..92011a8 100644
      gpu_unai_config_ext.dithering    = 0;
      gpu_unai_config_ext.clip_368     = 0;
      /* SF3000: keep GPU output full-quality by default — NO line skipping
+@@ -1518,7 +1743,17 @@ int main(int argc, char *argv[]) {
+      * file in place "just works", no menu dance, even if a stale pcsx4all.cfg
+      * (loaded above) still points HLE on or at an empty path. If none is found we
+      * leave config_load()'s values and psxMemInit() HLE-falls-back. */
+-    probe_bios();
++    real_bios_active = probe_bios();
++    if (!real_bios_active) {
++        /* This old PCSX4ALL HLE implements only a subset of the asynchronous
++         * memory-card BIOS protocol. Games such as Spyro can wait forever at
++         * "Accessing memory card" when an emulated card is advertised. Report
++         * empty slots in HLE mode instead: games remain playable and save
++         * states still work. Dropping a legal 512 KiB PS1 BIOS in cubegm/bios
++         * automatically restores both real memory-card slots next launch. */
++        Config.Mcd1[0] = Config.Mcd2[0] = '\0';
++        plog("bios: HLE safe mode (memory cards disabled; save states available)");
++    }
+ 
+     /* ROM from command line arg 1 */
+     if (argc >= 2) {
+@@ -1546,8 +1781,8 @@ int main(int argc, char *argv[]) {
+     /* This port hand-rolls plugin init and never calls LoadPlugins(), so do the
+      * memcard load here (creates the .mcr files if absent). Without this the
+      * cards are never inserted → games can't save. */
+-    LoadMcd(MCD1, Config.Mcd1);
+-    LoadMcd(MCD2, Config.Mcd2);
++    LoadMcd(MCD1, real_bios_active ? Config.Mcd1 : NULL);
++    LoadMcd(MCD2, real_bios_active ? Config.Mcd2 : NULL);
+ 
+     if (CDR_init() < 0) { plog("CDR_init FAILED"); return 1; }
+     if (GPU_init() < 0) { plog("GPU_init FAILED"); return 1; }

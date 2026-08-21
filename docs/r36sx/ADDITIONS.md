@@ -60,11 +60,14 @@ ROMs, console BIOS files, personal saves, or play history.
 - Subtitle enable/disable and persistent timing adjustment in exact 100 ms steps.
 - Whole-card Files browser rooted at `/mnt/sdcard`.
 - Automatic dispatch of audio files to Rockbox and video files to the video player.
+- Direct internal photo viewing for PNG, JPEG, BMP, GIF, TGA, PSD, PNM-family,
+  and PIC files, with panel-fit rendering, transparency, L1/R1 rotation, and B-back.
 - Automatic dispatch of text, Markdown, logs, configuration, source, subtitle,
   cue, and playlist files to Text Editor.
 - Ebooks application supporting EPUB, MOBI, PDF, FB2, CBZ, and XPS.
 - Three public-domain English EPUB test books with source and hash records.
-- Every application file picker begins at the SD-card root.
+- Every application file picker begins at the SD-card root and uses the same
+  bounded parent-folder/return-to-Home behavior for B.
 - File/video lists clear stale game artwork instead of retaining a residual banner.
 
 ### Productivity and development tools
@@ -117,6 +120,10 @@ ROMs, console BIOS files, personal saves, or play history.
 - Correct PS1 live scaling with 4:3 Fill, Raw Pixel Fit, Integer, Native 1x,
   Overscan 110%, 16:9 Letterbox, and true full-screen Stretch.
 - Correct PS1 transparency/blending defaults and live renderer updates.
+- Native PCSX GPU Accuracy / Shadows menu with persistent live Lighting, Fast
+  Lighting, Blending, and Dithering controls; legacy v1 configs load correctly.
+- BIOS-less PCSX safe mode avoids HLE memory-card detection hangs while keeping
+  save states; user-supplied real BIOS files restore both persistent cards.
 - Stable display geometry restoration when leaving PCSX4ALL.
 - Reduced PCSX4ALL menu flicker through double-buffered final presentation.
 - Duplicate PS1 history/favourite routes collapsed by ROM path.
@@ -163,6 +170,7 @@ ROMs, console BIOS files, personal saves, or play history.
 - Added Rockbox as the Music experience with corrected controls and OS volume behavior.
 - Added the H.OS hardware-decoded Videos application and its pause/scaling/subtitle UI.
 - Added the whole-card Files application with media and textual-file dispatch.
+- Added the internal Photo viewer and image-file dispatch from Files.
 - Added the Terminal and full keyboard-driven Text Editor.
 - Added the source-built Duktape-powered JSDev runtime and showcase project.
 - Added a permanent Ebooks card, root-based picker, and public-domain samples.

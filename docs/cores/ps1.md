@@ -19,6 +19,19 @@ Filenames are case-insensitive; `scph1001.bin`, `scph5501.bin`, `scph7001.bin`, 
 > in Core Settings" dance is gone; it was only needed because the file wasn't
 > being found. If you ever want to force HLE, delete the BIOS from `cubegm/bios/`.
 
+> [!IMPORTANT]
+> **BIOS-less compatibility mode:** the bundled PCSX4ALL HLE cannot safely
+> complete every asynchronous memory-card request. Without a real BIOS it now
+> presents empty card slots, preventing games such as Spyro from hanging at
+> `Accessing memory card`; emulator save states still work. Supplying your own
+> valid 512 KiB BIOS automatically enables both persistent `.mcr` cards again.
+
+For missing shadows, flat lighting, or opaque effects, open **Start+Select ->
+GPU Accuracy / Shadows** and choose **Restore Accurate Defaults**, then save it
+globally or for that game. This enables Lighting and Blending, disables the
+less-accurate Fast Lighting shortcut, and enables PS1 dithering. Changes apply
+to the running game immediately.
+
 **Speed toggles:** for heavy 3D games (e.g. Tekken 3) that don't run full speed, open the PCSX4ALL menu with **`START + SELECT`** (`SELECT + L1` also remains available) and turn on **Pixel Skip** and/or **Interlace** - they trade a little image quality for a real speed boost.
 
 ### Hi-Res Fix (for games that freeze or go black)

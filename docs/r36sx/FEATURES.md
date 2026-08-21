@@ -47,8 +47,10 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   timeout, and master volume.
 - Configurable Off/Classic/Bright/Soft/Cyber interaction-sound packs. The three
   sampled packs use Kenney CC0 UI audio and fall back safely to generated tones.
-- All UI animations removed for responsiveness; B consistently returns to the
-  previous menu.
+- All UI animations removed for responsiveness. Every Files, Videos, Ebooks,
+  Text Editor, and JSDev selector now shares one SD-root-bounded Back routine,
+  so B consistently returns to the parent folder and then the originating Home
+  card even when a path contains a trailing slash or cannot be reopened.
 - Long settings, core, theme, information, diagnostics, help, and file lists
   include a compact position indicator. Saved settings, themes, button maps,
   core overrides, and favourite changes show a short confirmation.
@@ -133,6 +135,15 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   when saved. Accurate GPU blending is enabled by default and live GPU setting
   changes reach the active renderer. Exit first returns the vendor display
   engine to a stable frame geometry to avoid freezing the resumed UI.
+- The old translated-key PCSX GPU screen is replaced by a native
+  `GPU Accuracy / Shadows` page. Lighting, Fast Lighting, Blending, and
+  Dithering change the live UNAI renderer and can be saved globally or per
+  game. Accurate defaults use lighting and blending with Fast Lighting off;
+  legacy version-1 configuration files are now loaded instead of discarded.
+- If no user-supplied real BIOS is available, PCSX4ALL reports empty memory-card
+  slots instead of advertising HLE card operations that can hang Spyro and
+  other games at `Accessing memory card`. Save states remain available. A legal
+  512 KiB BIOS in `cubegm/bios` automatically restores both persistent cards.
 - PCSX explicitly signals panel-fill to both the proprietary driver and the
   optional R36SX display-fix shim. Stretch therefore occupies all 640x480
   pixels instead of being re-letterboxed by the correction layer.
@@ -153,8 +164,11 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 ## Music, files, and video
 
 - Whole-card file browser with audio dispatch to Rockbox, video dispatch to the
-  hardware player, and direct Text Editor dispatch for common text, Markdown,
-  log, config, source-code, subtitle, and playlist extensions.
+  hardware player, an internal Photo viewer, and direct Text Editor dispatch
+  for common text, Markdown, log, config, source-code, subtitle, and playlist
+  extensions. Photos support PNG, JPEG, BMP, GIF, TGA, PSD, PNM/PPM/PGM, and
+  PIC, preserve transparent artwork against a checkerboard, fit the panel, and
+  rotate left/right with L1/R1; B returns to the exact source folder.
 - Permanent Ebooks Home card opens a clean browser at `/mnt/sdcard` and
   shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
   TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and

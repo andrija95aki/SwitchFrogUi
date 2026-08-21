@@ -36,7 +36,7 @@ and upstream TreeFrogUI start from very different feature sets.
 |:--|:--|
 | **Home and library** | Switch-style horizontal Home; three direct-launch last-played games; Recent and Favourites; automatic platform cards; box-art grids; condensed lists; search; game details; save badges; play-time records; wrap-around navigation. |
 | **Emulation** | Roughly 75 emulator cores instead of the stock selection; per-core options; save states; Quick Resume; optional auto-save/auto-load; improved PS1 menus, scaling, Stretch and blending; Doom, Heretic, Hexen, Vectrex, Odyssey 2 and many more systems. |
-| **Media and documents** | Rockbox Music; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; Ebooks; public-domain samples; whole-card Files with automatic audio, video, and text handlers. |
+| **Media and documents** | Rockbox Music; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; an internal fit/rotate Photo viewer; Ebooks; public-domain samples; whole-card Files with automatic audio, video, image, and text handlers. |
 | **Computer tools** | Real BusyBox terminal; keyboard-driven Text Editor; JSDev JavaScript game runtime with graphics, sound, input, animation, timers, logging and persistent data. |
 | **R36SX hardware** | Display-glitch correction; persistent FN+L1+R1 rotation; reliable short-power blanking; black-resume repair; configurable timeout; gradual volume curve. |
 | **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |
@@ -48,7 +48,7 @@ and upstream TreeFrogUI start from very different feature sets.
 | Area | SwitchFrogUI branch work |
 |:--|:--|
 | **New Home experience** | Horizontal console layout; last-played, utility and non-empty platform cards; artwork halo; persistent card restoration; grid/list switching; search; game detail panels. |
-| **New applications** | Rockbox Music integration; H.OS hardware Videos; whole-card Files; Terminal; Text Editor; JSDev; permanent Ebooks card and sample material. |
+| **New applications** | Rockbox Music integration; H.OS hardware Videos; internal Photo viewer; whole-card Files; Terminal; Text Editor; JSDev; permanent Ebooks card and sample material. |
 | **R36SX fixes** | Display correction across games/apps; global upside-down mode; power/sleep/resume fixes; perceptual volume; FAT32 discovery; optimized final-frame handling. |
 | **Emulator repairs** | PS1 Start+Select, live scaling and true Stretch, transparency defaults, exit stability, duplicate cleanup, menu flicker reduction and extra core routes. |
 | **Keyboard support** | One editable 14-button mapping shared by FrogUI, PicoArch/libretro and PCSX4ALL, plus a live keyboard tester and standard editor/terminal shortcuts. |
