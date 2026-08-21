@@ -13,6 +13,24 @@ PS1 has **two cores**. `PS`/`ps1`/`psx` folders prefer the standalone **PCSX4ALL
 
 Filenames are case-insensitive; `scph1001.bin`, `scph5501.bin`, `scph7001.bin`, etc. all work. One file in `cubegm/bios/` covers both cores.
 
+For the best compatibility, install one BIOS for each game region rather than
+letting every disc use the first file found. The expected normalized names are
+`scph5500.bin` (Japan), `scph5501.bin` (North America), and `scph5502.bin`
+(Europe/PAL). `scripts/Install-PS1Bioses.ps1` identifies known dumps by SHA-1,
+rejects known bad images, creates the normalized aliases, and writes minimal
+per-game PCSX4ALL overrides from the disc-serial report. It never downloads,
+commits, renames, or deletes a user's BIOS dump. Example:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Install-PS1Bioses.ps1 `
+  -SourceDirectory 'E:\PS1 BIOSES' -CardRoot 'E:\'
+```
+
+The script writes `cubegm/bios/PS1-BIOS-INSTALL.txt` and
+`PS1-GAME-BIOS-MAP.csv` so every decision can be audited. BIOS images are
+copyrighted console firmware and are intentionally excluded from source and
+release packages.
+
 > [!NOTE]
 > **PCSX4ALL now uses the BIOS automatically.** If a valid BIOS is present it
 > switches HLE off on its own at launch - no menu steps. The old "turn HLE off
