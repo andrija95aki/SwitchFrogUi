@@ -34,9 +34,9 @@ and upstream TreeFrogUI start from very different feature sets.
 
 | Area | Additions |
 |:--|:--|
-| **Home and library** | Switch-style horizontal Home; three direct-launch last-played games; Recent and Favourites; automatic platform cards; box-art grids; condensed lists; search; direct page-number jump; game details with category/description; save badges; play-time records; wrap-around navigation. |
+| **Home and library** | Switch-style horizontal Home; three direct-launch last-played games; Recent and Favourites; automatic platform cards; box-art grids; condensed lists; metadata category tabs; search; direct page-number jump; aligned game details with category/description; save badges; play-time records; wrap-around navigation. |
 | **Emulation** | Roughly 75 emulator cores instead of the stock selection; per-core options; save states; Quick Resume; optional auto-save/auto-load; improved PS1 menus, scaling, Stretch and blending; opt-in per-game PS1 FPS profiles; Doom, Heretic, Hexen, Vectrex, Odyssey 2 and many more systems. |
-| **Media and documents** | Rockbox Music; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; an internal fit/rotate Photo viewer; Ebooks; public-domain samples; whole-card Files with automatic audio, video, image, and text handlers. |
+| **Media and documents** | Rockbox Music; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; an internal fit/rotate Photo viewer; Ebooks; public-domain samples; whole-card Files with automatic handlers plus confirmed recursive copy/cut/paste/delete, rename, and folder creation. |
 | **Computer tools** | Real BusyBox terminal; keyboard-driven Text Editor; JSDev JavaScript game runtime with graphics, sound, input, animation, timers, logging and persistent data. |
 | **R36SX hardware** | Display-glitch correction; persistent FN+L1+R1 rotation; reliable short-power blanking; timeout stays dark until input; black-resume repair; gradual volume curve. |
 | **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |

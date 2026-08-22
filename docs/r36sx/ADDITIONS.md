@@ -22,9 +22,11 @@ ROMs, console BIOS files, personal saves, or play history.
 - Automatic platform cards for every detected platform containing at least one ROM.
 - Platform artwork contained inside cards instead of being stretched or cropped.
 - Box-art game grids with square, antialiased cards.
-- Condensed 12-game text-list mode for large libraries.
+- Condensed text-list mode for large libraries.
+- Metadata-driven category tabs with `ALL` first and L2/R2 tab switching.
 - L1/R1 fast page navigation and wrap-around navigation in cards, grids, and lists.
-- L2 direct page-number entry for browsers longer than five pages, using either
+- Select+Start direct page-number entry for category collections (L2 in utility
+  lists), using either
   a physical keyboard or the built-in numeric keypad.
 - Search inside platform game collections.
 - Favourite stars and save-data badges on game cards.
@@ -62,6 +64,8 @@ ROMs, console BIOS files, personal saves, or play history.
 - Automatic same-basename SRT and WebVTT subtitle loading.
 - Subtitle enable/disable and persistent timing adjustment in exact 100 ms steps.
 - Whole-card Files browser rooted at `/mnt/sdcard`.
+- Confirmed Copy, Cut, Paste, Rename, Delete, New Folder, and Clear Clipboard
+  actions, including recursive directory operations and a visible clipboard label.
 - Automatic dispatch of audio files to Rockbox and video files to the video player.
 - Direct internal photo viewing for PNG, JPEG, BMP, GIF, TGA, PSD, PNM-family,
   and PIC files, with panel-fit rendering, transparency, L1/R1 rotation, and B-back.

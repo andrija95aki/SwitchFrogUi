@@ -9,9 +9,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   games, Recent, Favourites, non-empty platform cards, Music, Videos, Ebooks,
   Files, Terminal, Text Editor, JSDev, and Settings.
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
-- Platform collections use box-art grids; START switches to a condensed
-  12-title list and L1/R1 changes pages quickly.
-- In browsers with more than five pages, L2 opens direct page entry. Type a
+- Platform collections use box-art grids with metadata-driven category tabs:
+  `ALL` is first, followed by the available categories for that platform.
+  L2/R2 changes tabs without moving or renaming a ROM. START switches to a
+  condensed list and L1/R1 changes pages quickly.
+- In browsers with more than five pages, Select+Start opens direct page entry
+  (L2 remains the shortcut in utility lists without category tabs). Type a
   page number on an external keyboard or use the on-screen numeric keypad.
 - Search across a platform collection, smaller antialiased titles, square
   antialiased cards, favourites stars, and save-data badges.
@@ -130,6 +133,10 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 
 ## Emulator fixes
 
+- Choppy-audio GBA titles can use a conservative gpSP profile with a seven-frame
+  audio buffer and threshold frameskip capped at one consecutive frame. The
+  included `scripts/Tune-GbaAudio.ps1` applies it to selected per-game configs
+  while retaining gpSP DRC and leaving `.sav`/save-state files untouched.
 - Start+Select opens the in-game menu without the stock parent menu forcing a
   return to Home.
 - PS1 video scaling now changes the actual presented geometry on the R36SX
@@ -173,6 +180,11 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 
 ## Music, files, and video
 
+- Files now has a controller-friendly X action palette for Copy, Cut, Paste,
+  Rename, Delete, New Folder, and Clear Clipboard. Every operation requires an
+  explicit A/Yes confirmation; B always cancels. Directory copy and deletion
+  recurse through all contents, name collisions receive a `- Copy` suffix, and
+  a compact COPY/CUT label keeps the clipboard filename visible while browsing.
 - Whole-card file browser with audio dispatch to Rockbox, video dispatch to the
   hardware player, an internal Photo viewer, and direct Text Editor dispatch
   for common text, Markdown, log, config, source-code, subtitle, and playlist
