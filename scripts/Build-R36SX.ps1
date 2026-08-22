@@ -205,4 +205,8 @@ $keyboardConfig = Join-Path $repoRoot 'assets\config\keyboard_gamepad.cfg'
 if (Test-Path -LiteralPath $keyboardConfig) {
     Copy-Item -Force -LiteralPath $keyboardConfig -Destination (Join-Path $cardFiles 'frogui')
 }
+$gamepadConfig = Join-Path $repoRoot 'assets\config\keymap.txt'
+if (Test-Path -LiteralPath $gamepadConfig) {
+    Copy-Item -Force -LiteralPath $gamepadConfig -Destination (Join-Path $cardFiles 'frogui')
+}
 Write-Host "R36SX build complete: $output"
