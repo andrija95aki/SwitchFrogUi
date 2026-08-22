@@ -11,10 +11,13 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
 - Platform collections use box-art grids; START switches to a condensed
   12-title list and L1/R1 changes pages quickly.
+- In browsers with more than five pages, L2 opens direct page entry. Type a
+  page number on an external keyboard or use the on-screen numeric keypad.
 - Search across a platform collection, smaller antialiased titles, square
   antialiased cards, favourites stars, and save-data badges.
-- Game details show the full title, artwork, total play time, and save-state
-  playtime records before launch.
+- Game details show the full title, artwork, category, short description, total
+  play time, and save-state playtime records before launch when the optional
+  sibling `.metadata.tsv` database is present.
 - Home, grids, lists, settings, help pages, the core picker, and page buttons
   wrap from the first item to the last and back again.
 - Existing artwork is found in `.res`, `images`, `Imgs`, `media`, and `boxart`
@@ -112,8 +115,9 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - Double-buffered panel presentation reduces PCSX4ALL menu text flicker.
 - Short power press is bridged from H.OS `cubevol` to FrogUI, blanks/restores
   the display, and preserves the separate long-press shutdown path.
-- Configurable 10/20/30/60-second UI screen timeout; two minutes of blank time
-  can request sleep and the frontend rebuilds the display after resume.
+- Configurable 10/20/30/60-second UI screen timeout. Once blanked, the panel
+  stays off indefinitely and wakes only for a real button or power-key event;
+  the unreliable R36SX suspend-to-RAM timer is never entered.
   Terminal and active text-edit/name-entry screens are exempt from idle blanking.
 - Perceptual master-volume curve gives useful gradual control across all 21
   volume positions instead of concentrating the change in the final levels.
@@ -140,6 +144,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   Dithering change the live UNAI renderer and can be saved globally or per
   game. Accurate defaults use lighting and blending with Fast Lighting off;
   legacy version-1 configuration files are now loaded instead of discarded.
+- A native `Performance / FPS` page adds Accurate, Balanced, Fast, and Maximum
+  FPS profiles plus independent Auto/Off/1-3 frame skip, CPU speedhack,
+  Fast Lighting, Pixel Skip, Interlace, and FPS-display controls. Accurate is
+  still the default; aggressive settings are opt-in and can be saved per game.
+  Every profile keeps lighting and blending enabled to protect shadows and
+  semi-transparent effects.
 - If no user-supplied real BIOS is available, PCSX4ALL reports empty memory-card
   slots instead of advertising HLE card operations that can hang Spyro and
   other games at `Accessing memory card`. Save states remain available. A legal

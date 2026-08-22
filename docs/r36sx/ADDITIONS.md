@@ -24,9 +24,12 @@ ROMs, console BIOS files, personal saves, or play history.
 - Box-art game grids with square, antialiased cards.
 - Condensed 12-game text-list mode for large libraries.
 - L1/R1 fast page navigation and wrap-around navigation in cards, grids, and lists.
+- L2 direct page-number entry for browsers longer than five pages, using either
+  a physical keyboard or the built-in numeric keypad.
 - Search inside platform game collections.
 - Favourite stars and save-data badges on game cards.
-- Game detail panel with full title, artwork, total play time, and save-state play time.
+- Game detail panel with full title, artwork, category, short description,
+  total play time, and save-state play time.
 - ROM discovery across nested folders and H.OS FAT32 directory metadata quirks.
 - Artwork discovery in `.res`, `images`, `Imgs`, `media`, and `boxart` layouts.
 - Optional friendly platform names without renaming ROM directories.
@@ -92,7 +95,8 @@ ROMs, console BIOS files, personal saves, or play history.
 - Persistent FN + L1 + R1 180-degree screen flip across the UI, supported apps,
   emulators, video, controls, and subtitles.
 - Short power press turns off/wakes the display; long press remains safe shutdown.
-- Configurable 10/20/30/60-second UI screen timeout and two-minute sleep request.
+- Configurable 10/20/30/60-second UI screen timeout which stays dark until a
+  real input; the board's self-waking suspend path is bypassed.
 - Safe framebuffer reconstruction after wake instead of a black resume screen.
 - Perceptual 21-step master-volume curve with useful gradual changes.
 - External USB-keyboard control of the UI and games.
@@ -122,6 +126,9 @@ ROMs, console BIOS files, personal saves, or play history.
 - Correct PS1 transparency/blending defaults and live renderer updates.
 - Native PCSX GPU Accuracy / Shadows menu with persistent live Lighting, Fast
   Lighting, Blending, and Dithering controls; legacy v1 configs load correctly.
+- Native PS1 Performance / FPS menu with four profiles, frame skip, CPU
+  speedhack, Fast Lighting, Pixel Skip, Interlace, FPS display, and per-game
+  persistence while preserving lighting/blending in every preset.
 - BIOS-less PCSX safe mode avoids HLE memory-card detection hangs while keeping
   save states; user-supplied real BIOS files restore both persistent cards.
 - Stable display geometry restoration when leaving PCSX4ALL.

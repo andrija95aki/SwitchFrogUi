@@ -115,3 +115,31 @@ powershell -ExecutionPolicy Bypass -File scripts/New-R36SXRelease.ps1 `
 
 Review `dist/SHA256SUMS.txt` and `dist/PUBLISH-AUDIT.txt` before attaching the
 ZIP to a GitHub Release.
+
+## 5. Curate an existing Nintendo library
+
+`Curate-EnglishNintendoRoms.ps1` checks GBA, NES, and SNES ZIP contents against
+the current Libretro No-Intro metadata. It recognizes headered NES/SNES dumps,
+uses the GBA cartridge region byte as a fallback, renames verified English
+titles, writes `.metadata.tsv` category/description data for the game-details
+panel, and moves verified non-English titles to a recoverable `Quarantine`
+folder. Ambiguous ROMs are reported and left untouched.
+
+Run a report first, review its CSV, then explicitly apply it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Curate-EnglishNintendoRoms.ps1 `
+  -CardRoot 'E:\' `
+  -DatabaseRoot 'C:\src\libretro-database\metadat' `
+  -ReportDirectory '.\reports'
+
+powershell -ExecutionPolicy Bypass -File scripts/Curate-EnglishNintendoRoms.ps1 `
+  -CardRoot 'E:\' `
+  -DatabaseRoot 'C:\src\libretro-database\metadat' `
+  -ReportDirectory '.\reports' `
+  -Apply
+```
+
+Artwork, PicoArch save/screenshot basenames, favourites, recent paths, and
+play-time records follow verified renames. The database checkout is not bundled;
+obtain it from <https://github.com/libretro/libretro-database>.
