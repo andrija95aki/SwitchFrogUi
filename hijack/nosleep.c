@@ -36,6 +36,7 @@ static const unsigned long power_marker_addr[POWER_MARKER_COUNT] = {
     0x0044bb1cUL, 0x0044bb28UL, 0x0044bb2cUL
 };
 #define POWER_EVENT_FILE  "/tmp/frogui_power_event"
+#define POWER_MARKER_SENTINEL 0x53464750u /* "SFGP": detects stores of 0 too */
 /* R36SX address order is 0x406d24, 0x40701c, 0x406b50. Redirect every known
  * sleep-arm store to its own unused data word. The previous bridge redirected
  * only the first path, but this firmware reaches a different path for some
@@ -93,9 +94,9 @@ static int patch_pid(pid_t pid, int naddr, char **addrs, int *mem_fd_out)
         *mem_fd_out = open(mem_path, O_RDWR);
         if (*mem_fd_out < 0) perror("nosleep: open process memory");
         else {
-            uint32_t zero = 0;
+            uint32_t marker = POWER_MARKER_SENTINEL;
             for (int i = 0; i < POWER_MARKER_COUNT; i++)
-                (void)!pwrite(*mem_fd_out, &zero, sizeof(zero),
+                (void)!pwrite(*mem_fd_out, &marker, sizeof(marker),
                               (off_t)power_marker_addr[i]);
         }
     }
@@ -168,8 +169,10 @@ int main(int argc, char **argv)
                 scan_ticks = 5; /* patch cubevol respawns within about 100 ms */
             }
 
-            /* A tap makes cubevol store 1 in the redirected marker. Polling its
-             * proc-memory fd does not stop the process and adds negligible load. */
+            /* A tap executes one of the redirected stores. Its value is not
+             * stable across cubevol paths/firmware revisions and can be zero,
+             * so detect a change from a nonzero sentinel instead of testing
+             * `marker != 0`. Polling proc memory does not stop cubevol. */
             int emitted = 0;
             for (int i = 0; i < nwatched; i++) {
                 for (int m = 0; m < POWER_MARKER_COUNT; m++) {
@@ -177,9 +180,9 @@ int main(int argc, char **argv)
                     if (watched[i].mem_fd >= 0 &&
                         pread(watched[i].mem_fd, &marker, sizeof(marker),
                               (off_t)power_marker_addr[m]) == (ssize_t)sizeof(marker) &&
-                        marker != 0) {
-                        uint32_t zero = 0;
-                        (void)!pwrite(watched[i].mem_fd, &zero, sizeof(zero),
+                        marker != POWER_MARKER_SENTINEL) {
+                        uint32_t sentinel = POWER_MARKER_SENTINEL;
+                        (void)!pwrite(watched[i].mem_fd, &sentinel, sizeof(sentinel),
                                       (off_t)power_marker_addr[m]);
                         printf("nosleep: power tap path %d value=0x%x pid=%d\n",
                                m + 1, marker, (int)watched[i].pid);
