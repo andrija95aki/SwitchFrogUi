@@ -123,7 +123,9 @@ the current Libretro No-Intro metadata. It recognizes headered NES/SNES dumps,
 uses the GBA cartridge region byte as a fallback, renames verified English
 titles, writes `.metadata.tsv` category/description data for the game-details
 panel, and moves verified non-English titles to a recoverable `Quarantine`
-folder. Ambiguous ROMs are reported and left untouched.
+folder. Ambiguous ROMs are reported and left untouched. ROMs referenced by
+favourites, recent/play-time history, battery saves, save states, or screenshots
+are marked `Protected` and always remain active, regardless of language.
 
 Run a report first, review its CSV, then explicitly apply it:
 

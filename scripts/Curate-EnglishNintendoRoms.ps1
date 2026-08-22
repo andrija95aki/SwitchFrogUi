@@ -141,6 +141,25 @@ if (-not (Test-Path -LiteralPath $CardRoot)) { throw "Card root not found: $Card
 if (-not (Test-Path -LiteralPath $DatabaseRoot)) { throw "Database root not found: $DatabaseRoot" }
 New-Item -ItemType Directory -Force -Path $ReportDirectory | Out-Null
 $rows = [Collections.Generic.List[object]]::new()
+$protectedPaths = @{}
+
+# User state always wins over regional curation. A favourite, play-time/history
+# entry, battery save, save state, or screenshot keeps its ROM in the active
+# library even when the cartridge itself is not English.
+$stateTextFiles = @(
+    (Join-Path $CardRoot 'frogui\favorites.txt'),
+    (Join-Path $CardRoot 'frogui\playtime.txt'),
+    (Join-Path $CardRoot 'frogui\state_playtime.txt'),
+    (Join-Path $CardRoot 'game_history.txt')
+)
+foreach ($stateFile in $stateTextFiles) {
+    if (-not (Test-Path -LiteralPath $stateFile)) { continue }
+    foreach ($line in Get-Content -LiteralPath $stateFile) {
+        foreach ($match in [regex]::Matches($line,'/mnt/sdcard/roms/(gba|nes|snes)/([^|\r\n]+\.zip)')) {
+            $protectedPaths[$match.Groups[1].Value + '|' + $match.Groups[2].Value] = $true
+        }
+    }
+}
 
 foreach ($system in $systems) {
     $romDir = Join-Path $CardRoot ("roms\" + $system.Tag)
@@ -149,7 +168,7 @@ foreach ($system in $systems) {
     $genres = Read-DatField (Join-Path (Join-Path $DatabaseRoot 'genre') $system.Dat) 'genre'
     $publishers = Read-DatField (Join-Path (Join-Path $DatabaseRoot 'publisher') $system.Dat) 'publisher'
     $years = Read-DatField (Join-Path (Join-Path $DatabaseRoot 'releaseyear') $system.Dat) 'releaseyear'
-    foreach ($file in Get-ChildItem -LiteralPath $romDir -Filter *.zip -File) {
+    foreach ($file in Get-ChildItem -LiteralPath $romDir -Filter *.zip -File | Sort-Object Name) {
         try {
             $id = Get-ZipIdentity $file $system.Tag
             $key = $id.Crc + ':' + $id.Size
@@ -163,6 +182,14 @@ foreach ($system in $systems) {
             $language = if ($canonical) { Test-EnglishName $canonical } else { $null }
             $status = if ($language -eq $true) { 'English' } elseif ($language -eq $false) { 'NonEnglish' } else {
                 Get-FallbackLanguage $file.BaseName $system.Tag $id.GbaRegion
+            }
+            if ($status -eq 'NonEnglish') {
+                $protectedKey = $system.Tag + '|' + $file.Name
+                $stateDir = Join-Path $CardRoot ("picoarch\" + $system.Tag)
+                $hasCompanion = (Test-Path -LiteralPath $stateDir) -and
+                    [bool](Get-ChildItem -LiteralPath $stateDir -File -ErrorAction SilentlyContinue |
+                        Where-Object Name -Like "$($file.BaseName).*" | Select-Object -First 1)
+                if ($protectedPaths[$protectedKey] -or $hasCompanion) { $status = 'Protected' }
             }
             $newStem = if ($canonical -and $status -eq 'English') { ConvertTo-SafeStem $canonical } else { $file.BaseName }
             $genre = if ($genres[$metaCrc]) { $genres[$metaCrc] } else { 'Unclassified' }
@@ -246,7 +273,9 @@ if ($Apply) {
 
     foreach ($system in $systems) {
         $metadataPath = Join-Path (Join-Path $CardRoot ("roms\" + $system.Tag)) '.metadata.tsv'
-        $metadataRows = $rows | Where-Object { $_.Platform -eq $system.Tag -and $_.Status -eq 'English' }
+        $metadataRows = $rows | Where-Object {
+            $_.Platform -eq $system.Tag -and $_.Status -in 'English','Protected'
+        } | Sort-Object NewName
         $metadataContent = @('# filename<TAB>category<TAB>description') + @($metadataRows | ForEach-Object {
             $_.NewName + "`t" + $_.Category + "`t" + ($_.Description -replace "[`r`n`t]",' ')
         })
@@ -257,6 +286,10 @@ if ($Apply) {
     # remove only entries which point to quarantined ROMs.
     foreach ($cfg in Get-ChildItem -LiteralPath (Join-Path $CardRoot 'frogui') -File -ErrorAction SilentlyContinue |
              Where-Object Extension -In '.txt','.cfg') {
+        $backup = $cfg.FullName + '.pre-rom-curation'
+        if (-not (Test-Path -LiteralPath $backup)) {
+            Copy-Item -LiteralPath $cfg.FullName -Destination $backup
+        }
         $content = @(Get-Content -LiteralPath $cfg.FullName)
         foreach ($row in $rows) {
             $oldPath = "/mnt/sdcard/roms/$($row.Platform)/$($row.OldName)"
