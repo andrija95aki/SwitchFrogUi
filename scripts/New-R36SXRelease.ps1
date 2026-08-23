@@ -113,6 +113,10 @@ Get-ChildItem -LiteralPath (Join-Path $sdRoot 'roms\rockbox\.rockbox') -Recurse 
 if (Test-Path -LiteralPath (Join-Path $repoRoot 'apps\rockbox-config.cfg')) {
     Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\rockbox-config.cfg') -Destination $rockboxConfig
 }
+$rockboxShortcuts = Join-Path $sdRoot 'roms\rockbox\.rockbox\shortcuts.txt'
+if (Test-Path -LiteralPath (Join-Path $repoRoot 'apps\rockbox-shortcuts.txt')) {
+    Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\rockbox-shortcuts.txt') -Destination $rockboxShortcuts
+}
 
 New-Item -ItemType Directory -Force -Path (Join-Path $sdRoot 'MD') | Out-Null
 [IO.File]::WriteAllText((Join-Path $sdRoot 'MD\dummy.md'), 'TF', [Text.Encoding]::ASCII)

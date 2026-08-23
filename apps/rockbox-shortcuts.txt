@@ -1,0 +1,7 @@
+[shortcut]
+type: file
+data: /.rockbox/rocks/demos/fft.rock
+name: Spectrum Visualizer
+icon: -1
+talkclip:
+

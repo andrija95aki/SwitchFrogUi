@@ -3,7 +3,7 @@ index 806fee6..e3936f8 100644
 --- a/Makefile.sf3000
 +++ b/Makefile.sf3000
 @@ -32,6 +32,7 @@ SOURCES = frogos_sf3000.c \
-
+ 
  # Source files for libretro core (picoarch loads this)
  LIBRETRO_SOURCES = frogui_libretro.c \
 +                   io_diagnostics.c \
@@ -28,7 +28,7 @@ index d79f4f4..d520d22 100644
 +    (void)!write(fd, &value, sizeof(value));
 +    close(fd);
 +}
-
+ 
  void cube_set_backlight(int level) {
      if (level < 0)   level = 0;
 @@ -10,18 +20,86 @@ void cube_set_backlight(int level) {
@@ -113,9 +113,9 @@ index d79f4f4..d520d22 100644
      close(fd);
 +    return written==3 ? 0 : -1;
  }
-
+ 
  #include <stdlib.h>
-
+ 
  void fb1_set_visible(int visible) {
 -    if (!visible) return;
 -    /* Restart cubevol — fresh process re-draws battery + volume on /dev/fb1.
@@ -133,7 +133,7 @@ index 6db3173..17e53c1 100644
 @@ -10,6 +10,20 @@
   * unavailable. */
  void cube_set_backlight(int level);
-
+ 
 +/* Turn the panel backlight fully off without entering the board's unreliable
 + * suspend path. A later cube_set_backlight() restores the configured level. */
 +void cube_set_backlight_off(void);
@@ -161,21 +161,21 @@ index 7f682a6..3514dfa 100644
 +#include "theme.h"
  #include <stdlib.h>
  #include <string.h>
-
+ 
 @@ -7,32 +8,12 @@
  #include "stb_image.h"
-
+ 
  static uint16_t *banner_buf = NULL;   /* current (target) banner */
 -static uint16_t *banner_prev = NULL;  /* outgoing banner during crossfade */
  static int banner_loaded = 0;
 -static int banner_anim = 1;           /* crossfade enabled */
 -#define FADE_FRAMES 20                /* ~330ms @ 60fps — slow, iPhone-like */
 -static int fade_frame = FADE_FRAMES;  /* 0..FADE_FRAMES; FADE_FRAMES = done */
-
+ 
  static inline uint16_t rgb_to_565(unsigned char r, unsigned char g, unsigned char b) {
      return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
  }
-
+ 
 -/* blend a->b by t (0..256): result = a*(256-t) + b*t */
 -static inline uint16_t blend565(uint16_t a, uint16_t b, int t) {
 -    int it = 256 - t;
@@ -198,7 +198,7 @@ index 7f682a6..3514dfa 100644
 @@ -50,20 +31,6 @@ void banner_load(const char *path) {
          return;
      }
-
+ 
 -    /* snapshot the outgoing banner for crossfade */
 -    if (banner_anim && banner_loaded) {
 -        if (!banner_prev)
@@ -217,12 +217,12 @@ index 7f682a6..3514dfa 100644
          int sy = (y * h) / sh;
          for (int x = 0; x < sw; x++) {
 @@ -79,34 +46,16 @@ void banner_load(const char *path) {
-
+ 
  void banner_clear(void) {
      banner_loaded = 0;
 -    fade_frame = FADE_FRAMES;
  }
-
+ 
  void banner_render(uint16_t *framebuffer) {
      if (!banner_loaded || !banner_buf || !framebuffer) return;
 -    int n = SCREEN_WIDTH * SCREEN_HEIGHT;
@@ -247,12 +247,12 @@ index 7f682a6..3514dfa 100644
 +    memcpy(framebuffer, banner_buf,
 +           (size_t)SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t));
  }
-
+ 
  int banner_is_loaded(void) {
 -    return banner_loaded;
 +    return banner_loaded && !theme_background_override_enabled();
  }
-
+ 
  /* Repaint a rect with the current background: the banner image slice when one
 @@ -119,7 +68,7 @@ void banner_fill_region(uint16_t *fb, int x, int y, int w, int h, uint16_t fallb
      if (x + w > SCREEN_WIDTH)  w = SCREEN_WIDTH - x;
@@ -278,9 +278,9 @@ index 177c879..d567545 100755
 --- a/build_libretro.sh
 +++ b/build_libretro.sh
 @@ -7,7 +7,7 @@ cd /home/tomaszz/sf3000-work/FrogUI
-
+ 
  CFLAGS="-mips32r2 -march=mips32r2 -mtune=24kc -mfp32 -mhard-float -mlong-calls -EL --sysroot=$SYSROOT -fPIC -G0 -Wall -I./ -I$SYSROOT/usr/include -Ofast -DPLATFORM_SF3000 -DNDEBUG -D__LIBRETRO__"
-
+ 
 -for src in frogui_libretro.c render.c font.c recent_games.c settings.c theme.c favorites.c banner.c backlight.c input.c core_override.c; do
 +for src in frogui_libretro.c io_diagnostics.c render.c font.c recent_games.c settings.c theme.c favorites.c banner.c backlight.c input.c core_override.c; do
      obj="${src%.c}.lo"
@@ -311,7 +311,7 @@ index ff082f3..100e400 100644
 +                favorites[favorite_count].game_name[sizeof(favorites[favorite_count].game_name) - 1] = '\0';
 +                strncpy(favorites[favorite_count].full_path, full_path, sizeof(favorites[favorite_count].full_path) - 1);
 +                favorites[favorite_count].full_path[sizeof(favorites[favorite_count].full_path) - 1] = '\0';
-
+ 
                  // Create display name
                  snprintf(favorites[favorite_count].display_name, sizeof(favorites[favorite_count].display_name),
 @@ -65,8 +78,11 @@ bool favorites_toggle(const char *core_name, const char *game_name, const char *
@@ -330,7 +330,7 @@ index ff082f3..100e400 100644
          }
 @@ -87,8 +103,11 @@ bool favorites_toggle(const char *core_name, const char *game_name, const char *
          }
-
+ 
          strncpy(favorites[favorite_count].core_name, core_name, sizeof(favorites[favorite_count].core_name) - 1);
 +        favorites[favorite_count].core_name[sizeof(favorites[favorite_count].core_name) - 1] = '\0';
          strncpy(favorites[favorite_count].game_name, game_name, sizeof(favorites[favorite_count].game_name) - 1);
@@ -343,7 +343,7 @@ index ff082f3..100e400 100644
 @@ -121,6 +140,13 @@ bool favorites_is_favorited(const char *core_name, const char *game_name) {
      return false;
  }
-
+ 
 +bool favorites_is_path_favorited(const char *full_path) {
 +    if (!full_path || !full_path[0]) return false;
 +    for (int i = 0; i < favorite_count; i++)
@@ -365,7 +365,7 @@ index a23769d..5f4f157 100644
 +bool favorites_is_path_favorited(const char *full_path);
  const FavoriteGame* favorites_get_list(void);
  int favorites_get_count(void);
-
+ 
 diff --git a/font.c b/font.c
 index 6a04e1d..50ddc31 100644
 --- a/font.c
@@ -378,12 +378,12 @@ index 6a04e1d..50ddc31 100644
 +static stbtt_fontinfo mono_font_info;
 +static unsigned char *mono_font_buffer = NULL;
 +static int mono_font_loaded = 0;
-
+ 
  #ifndef UI_SCALE
  #define UI_SCALE 100
  #endif
  #define FONT_SIZE (20.0f * UI_SCALE / 100.0f)
-
+ 
 +static int load_mono_font(void) {
 +    static const char *names[] = { "SpaceMono-Regular.ttf", "ShareTechMono-Regular.ttf", "monogram.ttf" };
 +    char path[256];
@@ -494,7 +494,7 @@ index 6a04e1d..50ddc31 100644
      // Free previous font if loaded
 @@ -65,7 +174,8 @@ static int load_font_file(const char *font_filename) {
      }
-
+ 
      // Calculate scale for desired pixel height
 -    font_scale = stbtt_ScaleForPixelHeight(&font_info, FONT_SIZE);
 +    font_scale = stbtt_ScaleForPixelHeight(&font_info,
@@ -519,7 +519,7 @@ index 6a04e1d..50ddc31 100644
 +        font_scale = stbtt_ScaleForPixelHeight(&font_info,
 +                     FONT_SIZE * (float)font_size_percent / 100.0f);
  }
-
+ 
 +int font_get_size_percent(void) { return font_size_percent; }
 +
  void font_load_from_settings(const char *font_name) {
@@ -527,16 +527,16 @@ index 6a04e1d..50ddc31 100644
      float custom_size = FONT_SIZE;
 @@ -92,7 +214,8 @@ void font_load_from_settings(const char *font_name) {
      load_font_file(font_filename);
-
+ 
      if (font_loaded) {
 -        font_scale = stbtt_ScaleForPixelHeight(&font_info, custom_size);
 +        font_scale = stbtt_ScaleForPixelHeight(&font_info,
 +                     custom_size * (float)font_size_percent / 100.0f);
      }
  }
-
+ 
 @@ -278,3 +401,24 @@ int font_measure_text(const char *text) {
-
+ 
      return width;
  }
 +
@@ -567,7 +567,7 @@ index 4a0fa5e..8b4fbcf 100644
 @@ -13,6 +13,10 @@ void font_load_from_settings(const char *font_name);
  // Searches the standard font directories. Used by the dynamic font picker.
  void font_load_file(const char *font_filename);
-
+ 
 +/* Runtime UI size, persisted by FrogUI. 100 is the original size. */
 +void font_set_size_percent(int percent);
 +int font_get_size_percent(void);
@@ -578,7 +578,7 @@ index 4a0fa5e..8b4fbcf 100644
 @@ -21,8 +25,23 @@ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
  void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
                     int x, int y, const char *text, uint16_t color);
-
+ 
 +/* Draw/measure at a percentage of the configured font size. This keeps compact
 + * card labels readable without loading a second font or losing antialiasing. */
 +void font_draw_text_scaled(uint16_t *framebuffer, int screen_width, int screen_height,
@@ -596,13 +596,13 @@ index 4a0fa5e..8b4fbcf 100644
 +                         int percent);
 +int font_mono_char_width(int percent);
 +int font_mono_line_height(int percent);
-
+ 
  // Vertical metrics for centering: baseline (top-of-cell to baseline) and
  // cap_height (pixel height of capitals = the visible ink band).
 @@ -36,4 +55,4 @@ void font_cap_metrics(int *baseline_out, int *cap_height_out);
  #define FONT_CHAR_HEIGHT   (20 * UI_SCALE / 100)
  #define FONT_CHAR_SPACING  (13 * UI_SCALE / 100)
-
+ 
 -#endif // FONT_H
 \ No newline at end of file
 +#endif // FONT_H
@@ -626,14 +626,14 @@ index 2426a64..e97ddce 100644
 @@ -336,7 +336,7 @@ static void handle_input(void) {
  static void render_screen(void) {
      render_clear_screen(framebuffer);
-
+ 
 -    const char *title = (strcmp(current_path, ROMS_PATH) == 0) ? "TREEFROGUI: SYSTEMS" : get_basename(current_path);
 +    const char *title = (strcmp(current_path, ROMS_PATH) == 0) ? "SWITCHFROGUI: SYSTEMS" : get_basename(current_path);
      render_header(framebuffer, title);
-
+ 
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..478577e 100644
+index a72c4e6..f228d8e 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -653,7 +653,7 @@ index a72c4e6..478577e 100644
 +#include <signal.h>
 +#include <sys/wait.h>
 +#include <linux/input.h>
-
+ 
  #include "libretro.h"
  #include "font.h"
 @@ -31,6 +38,7 @@
@@ -661,7 +661,7 @@ index a72c4e6..478577e 100644
  #include "input.h"
  #include "core_override.h"
 +#include "io_diagnostics.h"
-
+ 
  #define SDCARD_BASE  "/mnt/sdcard"
  #define CORES_PATH   SDCARD_BASE "/cubegm/cores"
 @@ -45,6 +53,8 @@ static char g_roms_path[64] = ROMS_PATH_DEFAULT;
@@ -670,7 +670,7 @@ index a72c4e6..478577e 100644
  #define ROCKBOX_BIN  SDCARD_BASE "/cubegm/rockbox.sh"  /* wrapper sets HOME+SDL env */
 +#define VIDEO_BIN    SDCARD_BASE "/cubegm/video_player.sh"
 +#define EBOOK_BIN    SDCARD_BASE "/cubegm/ebook"
-
+ 
  /* Console → core mapping (folder name → libretro .so)
   * Folder names match /mnt/sdcard/roms/ subdirectories (gb300_multicore convention). */
 @@ -60,6 +70,7 @@ static const ConsoleMapping console_mappings[] = {
@@ -744,11 +744,11 @@ index a72c4e6..478577e 100644
 +static retro_audio_sample_batch_t audio_batch_cb = NULL;
  static retro_input_poll_t        input_poll_cb = NULL;
  static retro_input_state_t       input_state_cb = NULL;
-
+ 
 @@ -333,7 +358,12 @@ static retro_input_state_t       input_state_cb = NULL;
  #define min(a,b) ((a)<(b)?(a):(b))
  #endif
-
+ 
 -typedef struct { char name[256]; int is_dir; } DirEntry;
 +typedef struct {
 +    char name[256];
@@ -756,10 +756,10 @@ index a72c4e6..478577e 100644
 +    int is_dir;
 +    int home_recent_index; /* recent_games[] index, or -1 for normal entries */
 +} DirEntry;
-
+ 
  static DirEntry *entries    = NULL;
  static int entry_count      = 0;
-@@ -341,10 +371,128 @@ static int entry_capacity   = 0;
+@@ -341,10 +371,132 @@ static int entry_capacity   = 0;
  static char current_path[MAX_PATH_LEN] = ROMS_PATH_DEFAULT;
  static int selected_index   = 0;
  static int scroll_offset    = 0;
@@ -849,6 +849,9 @@ index a72c4e6..478577e 100644
 +static bool photo_viewer_active = false;
 +static uint16_t *photo_pixels = NULL;
 +static int photo_width = 0, photo_height = 0, photo_rotation = 0;
++static const int photo_zoom_levels[] = { 100, 150, 200, 300, 400, 600, 800, 1200 };
++static int photo_zoom_index = 0;
++static int photo_pan_x = 0, photo_pan_y = 0;
 +static char photo_path[MAX_PATH_LEN] = "";
 +static void render_modern_row(const char *label, const char *value, int y, int selected);
 +static void render_controls_help(void);
@@ -863,6 +866,7 @@ index a72c4e6..478577e 100644
 +static void render_file_action_menu(void);
 +static void render_file_confirmation(void);
 +static void render_file_name_prompt(void);
++static int photo_viewer_open(const char *path);
 +static const char *card_full_path(int index, char *out, size_t n);
 +static void render_scroll_indicator(int total, int first, int visible, int y, int height);
 +static void render_ui_notice(void);
@@ -885,12 +889,20 @@ index a72c4e6..478577e 100644
 +    ui_notice_text[sizeof(ui_notice_text) - 1] = '\0';
 +    ui_notice_frames = 75;
 +}
-
+ 
  /* Search (X button): on-screen keyboard → filtered results.
   * Scope = the folder you were in (ROMS_PATH root = search everything). */
-@@ -445,33 +593,89 @@ static void font_scan(void) {
+@@ -359,6 +511,7 @@ static int search_results_count = 0, search_results_cap = 0;
+ 
+ /* Per-game / per-folder core picker overlay (opened with SELECT) */
+ static bool core_picker_active = false;
++static bool core_picker_return_to_details = false;
+ static int  core_picker_idx = 0;
+ static int  core_picker_scroll = 0;
+ static char core_picker_key[MAX_PATH_LEN];   /* ROM path (per-game) or folder path */
+@@ -445,33 +598,89 @@ static void font_scan(void) {
  }
-
+ 
  static bool settings_menu_active = false;
 -static int settings_menu_idx = 0;       /* row: 0=theme, 1=font, 2=brightness, 3=filter, 4=auto-resume, 5=remap */
 +static int settings_menu_idx = 0;       /* index into the SETTINGS_ROW_COUNT rows rendered below */
@@ -988,13 +1000,13 @@ index a72c4e6..478577e 100644
 +#define ABOUT_ROW_COUNT 35
 +static const char *sound_pack_names[] = {"Off", "Classic", "Bright", "Soft", "Cyber"};
 +#define SOUND_PACK_COUNT ((int)(sizeof(sound_pack_names)/sizeof(sound_pack_names[0])))
-
+ 
  static bool remap_wizard_active = false;
  static int  remap_step = 0;
-@@ -483,24 +687,111 @@ static void mkdir_p(const char *path) {
+@@ -483,24 +692,111 @@ static void mkdir_p(const char *path) {
      system(cmd);
  }
-
+ 
 +/* Human hearing is approximately logarithmic. Writing the UI percentage
 + * straight to the PCM multiplier made most of the slider sound almost equally
 + * loud, with the useful adjustment compressed into its bottom few positions.
@@ -1108,9 +1120,9 @@ index a72c4e6..478577e 100644
 +      if (vf) { fprintf(vf, "%d\n", output_gain); fflush(vf); fsync(fileno(vf)); fclose(vf); }
 +    }
  }
-
+ 
  static void settings_load_file(void) {
-@@ -519,25 +810,42 @@ static void settings_load_file(void) {
+@@ -519,25 +815,42 @@ static void settings_load_file(void) {
          if (strcmp(line, "theme") == 0) {
              for (int i = 0; i < theme_count; i++)
                  if (strcmp(themes[i].name, val) == 0) { settings_theme_idx = i; break; }
@@ -1156,7 +1168,7 @@ index a72c4e6..478577e 100644
          } else if (strcmp(line, "game_switcher") == 0) {
              settings_game_switcher = (strcmp(val, "on") == 0) ? 1 : 0;
          } else if (strcmp(line, "load_recents") == 0) {
-@@ -553,16 +861,22 @@ static void settings_save_file(void) {
+@@ -553,16 +866,22 @@ static void settings_save_file(void) {
      FILE *f = fopen(SETTINGS_FILE, "w");
      if (!f) { dbg("settings save: fopen failed"); return; }
      fprintf(f, "theme=%s\n", themes[settings_theme_idx].name);
@@ -1180,10 +1192,10 @@ index a72c4e6..478577e 100644
      fflush(f);
      fsync(fileno(f));
      fclose(f);
-@@ -572,6 +886,80 @@ static void settings_save_file(void) {
+@@ -572,6 +891,80 @@ static void settings_save_file(void) {
        dbg(buf); }
  }
-
+ 
 +/* Hardware information is read from procfs/device-tree when the page is
 + * rendered. H.OS does not expose a serial on every board, so never invent one:
 + * show a clear unavailable value when neither device-tree nor cpuinfo has it. */
@@ -1261,10 +1273,10 @@ index a72c4e6..478577e 100644
  static const char* get_basename(const char *path) {
      const char *b = strrchr(path, '/');
      return b ? b+1 : path;
-@@ -596,9 +984,188 @@ static const char* get_console_folder(const char *path) {
+@@ -596,9 +989,188 @@ static const char* get_console_folder(const char *path) {
      return NULL;
  }
-
+ 
 -#define SETTINGS_ENTRY_NAME    ">> Settings"
 -#define RECENTS_ENTRY_NAME     ">> Recents"
 -#define FAVOURITES_ENTRY_NAME  ">> Favourites"
@@ -1450,13 +1462,13 @@ index a72c4e6..478577e 100644
 +    };
 +    return has_extension(name, exts);
 +}
-
+ 
  #define BANNER_DIR SDCARD_BASE "/frogui"
-
-@@ -632,6 +1199,20 @@ static void load_banner_for_view(const char *path, bool is_recents, bool is_favo
+ 
+@@ -632,6 +1204,20 @@ static void load_banner_for_view(const char *path, bool is_recents, bool is_favo
      banner_clear();
  }
-
+ 
 +/* Avoid stat() here: the portable MIPS/glibc build's struct-stat ABI does not
 + * match this H.OS kernel on FAT32, causing every real ROM entry to be rejected.
 + * d_type is sufficient on this card; opendir is the safe DT_UNKNOWN fallback. */
@@ -1474,7 +1486,7 @@ index a72c4e6..478577e 100644
  /* True if `path` contains at least one game (any file that isn't artwork/metadata),
   * recursing into subfolders. Used to hide empty rom folders. Bounded depth. */
  static int folder_has_games(const char *path, int depth) {
-@@ -642,11 +1223,19 @@ static int folder_has_games(const char *path, int depth) {
+@@ -642,11 +1228,19 @@ static int folder_has_games(const char *path, int depth) {
      int found = 0;
      while ((e = readdir(d)) != NULL) {
          if (e->d_name[0] == '.') continue;
@@ -1497,7 +1509,7 @@ index a72c4e6..478577e 100644
              if (folder_has_games(full, depth + 1)) { found = 1; break; }
          } else {
              size_t nlen = strlen(e->d_name);
-@@ -654,6 +1243,7 @@ static int folder_has_games(const char *path, int depth) {
+@@ -654,6 +1248,7 @@ static int folder_has_games(const char *path, int depth) {
              const char *ext = strrchr(e->d_name, '.');
              if (ext && !is_p8png &&
                  (strcasecmp(ext,".csv")==0 || strcasecmp(ext,".txt")==0 ||
@@ -1505,10 +1517,10 @@ index a72c4e6..478577e 100644
                   strcasecmp(ext,".xml")==0 || strcasecmp(ext,".jpg")==0 ||
                   strcasecmp(ext,".png")==0)) continue;
              found = 1; break;
-@@ -663,35 +1253,255 @@ static int folder_has_games(const char *path, int depth) {
+@@ -663,35 +1258,255 @@ static int folder_has_games(const char *path, int depth) {
      return found;
  }
-
+ 
 +static int dir_entry_compare(const void *pa, const void *pb) {
 +    const DirEntry *a = (const DirEntry *)pa;
 +    const DirEntry *b = (const DirEntry *)pb;
@@ -1769,7 +1781,7 @@ index a72c4e6..478577e 100644
              strcmp(path, ROMS_PATH) == 0 && !folder_has_games(full, 0)) continue;
          if (entry_count >= entry_capacity) {
              entry_capacity = entry_capacity ? entry_capacity*2 : INITIAL_ENTRIES_CAPACITY;
-@@ -700,48 +1510,69 @@ static void scan_directory(const char *path) {
+@@ -700,48 +1515,69 @@ static void scan_directory(const char *path) {
          }
          strncpy(entries[entry_count].name, e->d_name, 255);
          entries[entry_count].name[255] = '\0';
@@ -1872,7 +1884,7 @@ index a72c4e6..478577e 100644
      }
  done:
      if (!entries) entry_count = 0;   /* belt: renderer must never walk NULL */
-@@ -749,6 +1580,9 @@ done:
+@@ -749,6 +1585,9 @@ done:
      viewing_favourites = false;
      selected_index = 0;
      scroll_offset  = 0;
@@ -1880,18 +1892,69 @@ index a72c4e6..478577e 100644
 +        !viewing_ebooks && !viewing_editor && !viewing_jsdev)
 +        home_selection_restore();
  }
-
+ 
  /* Total seconds played for a game, from picoarch's playtime.txt. */
-@@ -815,6 +1649,157 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
+@@ -815,6 +1654,211 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
      }
  }
-
+ 
 +static void photo_viewer_close(void) {
 +    free(photo_pixels);
 +    photo_pixels = NULL;
 +    photo_width = photo_height = photo_rotation = 0;
++    photo_zoom_index = 0;
++    photo_pan_x = photo_pan_y = 0;
 +    photo_path[0] = '\0';
 +    photo_viewer_active = false;
++}
++
++static void photo_viewer_layout(int *scaled_w, int *scaled_h, int *view_h) {
++    const int footer_h = UI_S(34);
++    const int rw = (photo_rotation & 1) ? photo_height : photo_width;
++    const int rh = (photo_rotation & 1) ? photo_width : photo_height;
++    int base_w = SCREEN_WIDTH;
++    int base_h = rw > 0 ? rh * SCREEN_WIDTH / rw : 1;
++    *view_h = SCREEN_HEIGHT - footer_h;
++    if (base_h > *view_h) {
++        base_h = *view_h;
++        base_w = rh > 0 ? rw * base_h / rh : 1;
++    }
++    if (base_w < 1) base_w = 1;
++    if (base_h < 1) base_h = 1;
++    int zoom = photo_zoom_levels[photo_zoom_index];
++    *scaled_w = base_w * zoom / 100;
++    *scaled_h = base_h * zoom / 100;
++}
++
++static void photo_viewer_clamp_pan(void) {
++    int sw, sh, vh;
++    photo_viewer_layout(&sw, &sh, &vh);
++    int max_x = sw > SCREEN_WIDTH ? (sw - SCREEN_WIDTH) / 2 : 0;
++    int max_y = sh > vh ? (sh - vh) / 2 : 0;
++    if (photo_pan_x < -max_x) photo_pan_x = -max_x;
++    if (photo_pan_x >  max_x) photo_pan_x =  max_x;
++    if (photo_pan_y < -max_y) photo_pan_y = -max_y;
++    if (photo_pan_y >  max_y) photo_pan_y =  max_y;
++}
++
++/* Keep the viewer inside the current file-manager directory and wrap between
++ * image files. Failed/unsupported neighbours leave the current photo open. */
++static void photo_viewer_step(int direction) {
++    if (entry_count <= 0) return;
++    int start = selected_index;
++    for (int i = 1; i <= entry_count; i++) {
++        int idx = (start + direction * i) % entry_count;
++        if (idx < 0) idx += entry_count;
++        if (entries[idx].is_dir || !is_image_file(entries[idx].name)) continue;
++        char path[MAX_PATH_LEN];
++        snprintf(path, sizeof(path), "%s/%s", current_path, entries[idx].name);
++        if (photo_viewer_open(path)) {
++            selected_index = idx;
++            ui_rendered_once = 0;
++            return;
++        }
++    }
++    ui_notice("No other photos in this folder");
 +}
 +
 +static int photo_viewer_open(const char *path) {
@@ -1939,23 +2002,21 @@ index a72c4e6..478577e 100644
 +static void render_photo_viewer(void) {
 +    render_fill_rect(framebuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0x0000);
 +    if (!photo_pixels || photo_width <= 0 || photo_height <= 0) return;
-+    const int footer_h = UI_S(30);
++    const int footer_h = UI_S(34);
 +    const int rw = (photo_rotation & 1) ? photo_height : photo_width;
 +    const int rh = (photo_rotation & 1) ? photo_width : photo_height;
-+    int dw = SCREEN_WIDTH, dh = rh * SCREEN_WIDTH / rw;
-+    if (dh > SCREEN_HEIGHT - footer_h) {
-+        dh = SCREEN_HEIGHT - footer_h;
-+        dw = rw * dh / rh;
-+    }
-+    if (dw < 1) dw = 1;
-+    if (dh < 1) dh = 1;
-+    int dx = (SCREEN_WIDTH - dw) / 2;
-+    int dy = (SCREEN_HEIGHT - footer_h - dh) / 2;
-+    for (int y = 0; y < dh; y++) {
-+        int oy = y * rh / dh;
-+        uint16_t *dst = framebuffer + (size_t)(dy + y) * SCREEN_WIDTH + dx;
-+        for (int x = 0; x < dw; x++) {
-+            int ox = x * rw / dw, sx, sy;
++    int dw, dh, view_h;
++    photo_viewer_layout(&dw, &dh, &view_h);
++    photo_viewer_clamp_pan();
++    int dx = (SCREEN_WIDTH - dw) / 2 - photo_pan_x;
++    int dy = (view_h - dh) / 2 - photo_pan_y;
++    int y0 = dy < 0 ? 0 : dy, y1 = dy + dh > view_h ? view_h : dy + dh;
++    int x0 = dx < 0 ? 0 : dx, x1 = dx + dw > SCREEN_WIDTH ? SCREEN_WIDTH : dx + dw;
++    for (int y = y0; y < y1; y++) {
++        int oy = (y - dy) * rh / dh;
++        uint16_t *dst = framebuffer + (size_t)y * SCREEN_WIDTH;
++        for (int x = x0; x < x1; x++) {
++            int ox = (x - dx) * rw / dw, sx, sy;
 +            switch (photo_rotation & 3) {
 +                default: sx = ox; sy = oy; break;
 +                case 1: sx = oy; sy = photo_height - 1 - ox; break;
@@ -1969,13 +2030,18 @@ index a72c4e6..478577e 100644
 +                     SCREEN_WIDTH, footer_h, 0x1082);
 +    const char *base = strrchr(photo_path, '/'); base = base ? base + 1 : photo_path;
 +    char label[128]; strncpy(label, base, sizeof(label) - 1); label[sizeof(label) - 1] = '\0';
-+    while (strlen(label) > 3 && font_measure_text_scaled(label, 72) > SCREEN_WIDTH - UI_S(250))
++    while (strlen(label) > 3 && font_measure_text_scaled(label, 66) > SCREEN_WIDTH - UI_S(360))
 +        label[strlen(label) - 1] = '\0';
 +    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING,
-+                          SCREEN_HEIGHT - UI_S(20), label, 0xffff, 72);
++                          SCREEN_HEIGHT - UI_S(22), label, 0xffff, 66);
++    char zoom_label[32];
++    snprintf(zoom_label, sizeof(zoom_label), "%d%%", photo_zoom_levels[photo_zoom_index]);
 +    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT,
-+                          SCREEN_WIDTH - UI_S(220), SCREEN_HEIGHT - UI_S(20),
-+                          "L1/R1 ROTATE     B BACK", 0xbdf7, 68);
++                          SCREEN_WIDTH - UI_S(345), SCREEN_HEIGHT - UI_S(22),
++                          zoom_label, 0xffe0, 66);
++    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT,
++                          SCREEN_WIDTH - UI_S(275), SCREEN_HEIGHT - UI_S(22),
++                          "A/Y ZOOM  X FIT  L/R PHOTO  B BACK", 0xbdf7, 58);
 +}
 +
 +#define SWITCHER_CACHE_COUNT 3
@@ -2040,9 +2106,9 @@ index a72c4e6..478577e 100644
  static void render_game_switcher(uint16_t *framebuffer) {
      const RecentGame *list = recent_games_get_list();
      int n = recent_games_get_count();
-@@ -837,28 +1822,10 @@ static void render_game_switcher(uint16_t *framebuffer) {
+@@ -837,28 +1881,10 @@ static void render_game_switcher(uint16_t *framebuffer) {
      render_fill_rect(framebuffer, bx, by, bw, bh, 0x0000);
-
+ 
      int drawn = 0;
 -    char path[1024];
 -    get_thumbnail_path(g->full_path, path, sizeof path);
@@ -2073,19 +2139,19 @@ index a72c4e6..478577e 100644
      }
      if (!drawn)
          font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, bx + UI_S(16), by + bh/2,
-@@ -895,10 +1862,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
+@@ -895,10 +1921,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
      int ph   = bot - top;
      if (pw < UI_S(60) || ph < UI_S(60)) return;          /* too narrow to bother */
-
+ 
 -    char tpath[1024];
 -    get_thumbnail_path(full_path, tpath, sizeof tpath);
      Thumbnail tb;
 -    if (!(load_thumbnail(tpath, &tb) && tb.data)) return; /* no art → no panel */
 +    if (!(load_game_thumbnail(full_path, ROMS_PATH, &tb) && tb.data)) return; /* no art → no panel */
-
+ 
      int nameh = UI_S(22);
      int aw = pw, ah = ph - nameh;
-@@ -936,6 +1901,7 @@ static void enter_recents_view(void) {
+@@ -936,6 +1960,7 @@ static void enter_recents_view(void) {
          strncpy(entries[entry_count].name, rg[i].game_name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -2093,7 +2159,7 @@ index a72c4e6..478577e 100644
          entry_count++;
      }
      viewing_recents = true;
-@@ -982,18 +1948,31 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
+@@ -982,18 +2007,31 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
      recent_games_add(core_path, game_name, rom_path);
@@ -2102,7 +2168,7 @@ index a72c4e6..478577e 100644
      dbg("launch file written, requesting shutdown");
      if (environ_cb) environ_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL);
  }
-
+ 
 -static void request_standalone_launch(const char *bin_path, const char *rom_path) {
 +static void request_standalone_launch_internal(const char *bin_path, const char *rom_path,
 +                                               bool add_to_history) {
@@ -2131,7 +2197,7 @@ index a72c4e6..478577e 100644
      const char *rom_base = strrchr(rom_path, '/');
      rom_base = rom_base ? rom_base + 1 : rom_path;
      char game_name[256];
-@@ -1001,11 +1980,62 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
+@@ -1001,11 +2039,62 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
      game_name[sizeof(game_name) - 1] = '\0';
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
@@ -2197,12 +2263,12 @@ index a72c4e6..478577e 100644
 +    dbg("home platform: opened game grid");
 +    return true;
  }
-
+ 
  static bool is_ps1_folder(const char *folder) {
-@@ -1015,20 +2045,31 @@ static bool is_ps1_folder(const char *folder) {
+@@ -1015,20 +2104,31 @@ static bool is_ps1_folder(const char *folder) {
             strcasecmp(folder, "PS")  == 0;
  }
-
+ 
 -static bool is_pico286_folder(const char *folder) {
 -    return folder && strcasecmp(folder, "pico286") == 0;
 -}
@@ -2238,9 +2304,9 @@ index a72c4e6..478577e 100644
 +        request_game_launch(saved_core, full_path);
 +    }
  }
-
+ 
  /* ----------------------------- Search (X button) ----------------------------- */
-@@ -1079,9 +2120,8 @@ static void search_walk(const char *dir, int depth) {
+@@ -1079,9 +2179,8 @@ static void search_walk(const char *dir, int depth) {
          if (e->d_name[0] == '.') continue;
          char p[MAX_PATH_LEN];
          snprintf(p, sizeof(p), "%s/%s", dir, e->d_name);
@@ -2252,7 +2318,7 @@ index a72c4e6..478577e 100644
              if (depth < 3) search_walk(p, depth + 1);
          } else if (str_icontains(e->d_name, search_query)) {
              search_add_result(e->d_name, p);
-@@ -1106,6 +2146,7 @@ static void run_search(void) {
+@@ -1106,6 +2205,7 @@ static void run_search(void) {
          strncpy(entries[entry_count].name, search_results[i].name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -2260,10 +2326,10 @@ index a72c4e6..478577e 100644
          entry_count++;
      }
      viewing_search = true;
-@@ -1113,11 +2154,27 @@ static void run_search(void) {
+@@ -1113,11 +2213,27 @@ static void run_search(void) {
      selected_index = 0; scroll_offset = 0;
  }
-
+ 
 -static void search_launch(int idx) {
 -    if (idx < 0 || idx >= search_results_count) return;
 -    const char *path = search_results[idx].path;
@@ -2292,7 +2358,7 @@ index a72c4e6..478577e 100644
      const char *core = ov ? ov : get_core_for_folder(folder);
      if (!core) core = get_core_for_extension(path);
      if (ov)
-@@ -1133,26 +2190,1305 @@ static void search_launch(int idx) {
+@@ -1133,648 +2249,3815 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -2300,14 +2366,14 @@ index a72c4e6..478577e 100644
 +        dbg("details/search: no core mapping for game");
      }
  }
-
+ 
 -static void handle_input(void) {
 -    input_update();
 +static void search_launch(int idx) {
 +    if (idx < 0 || idx >= search_results_count) return;
 +    launch_game_path(search_results[idx].path);
 +}
-
+ 
 -    /* Search keyboard overlay */
 -    if (search_kbd_active) {
 -        if (input_was_pressed(FROG_BTN_UP))    search_kbd_r = (search_kbd_r - 1 + KBD_NROWS) % KBD_NROWS;
@@ -2321,6 +2387,12 @@ index a72c4e6..478577e 100644
 -            int len = (int)strlen(search_query);
 -            if (search_kbd_r == KBD_SPECIAL_ROW) {
 -                if (search_kbd_c == 0) { if (len < (int)sizeof(search_query)-1) { search_query[len]=' '; search_query[len+1]='\0'; } }
+-                else if (search_kbd_c == 1) { if (len > 0) search_query[len-1] = '\0'; }
+-                else run_search();
+-            } else if (len < (int)sizeof(search_query)-1) {
+-                search_query[len] = KBD_ROWS[search_kbd_r][search_kbd_c];
+-                search_query[len+1] = '\0';
+-            }
 +/* Fill a card completely, cropping the source around its center. Platform art
 + * is normally a 16:9 banner; letterboxing it into a portrait card made its logo
 + * look absent on the physical 3.5-inch display. */
@@ -2355,7 +2427,9 @@ index a72c4e6..478577e 100644
 +            *dst=(uint16_t)((((sr*a+dr*(255-a))/255)<<11)|
 +                            (((sg*a+dg*(255-a))/255)<<5)|
 +                             ((sb*a+db*(255-a))/255));
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_Y)) {            /* quick backspace */
+-            int len = (int)strlen(search_query); if (len > 0) search_query[len-1] = '\0';
 +    }
 +}
 +
@@ -2437,7 +2511,12 @@ index a72c4e6..478577e 100644
 +            case KEY_KP8: keypad_digit = 8; break;
 +            case KEY_KP9: keypad_digit = 9; break;
 +            default: break;
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_START)) run_search();
+-        if (input_was_pressed(FROG_BTN_B)) {           /* cancel → restore browser list */
+-            search_kbd_active = false;
+-            scan_directory(current_path);
+-            selected_index = 0; scroll_offset = 0;
 +        if (code >= KEY_1 && code <= KEY_9) page_jump_add_digit(code - KEY_1 + 1);
 +        else if (code == KEY_0) page_jump_add_digit(0);
 +        else if (keypad_digit >= 0) page_jump_add_digit(keypad_digit);
@@ -2715,10 +2794,10 @@ index a72c4e6..478577e 100644
 +                file_selected_items[i].path[n] == '/' &&
 +                !strchr(file_selected_items[i].path + n + 1, '/'))
 +                file_selection_remove_index(i);
-+        }
+         }
 +        ui_notice("Folder selection cleared");
-+        return;
-+    }
+         return;
+     }
 +    for (int i = 0; i < entry_count && file_selected_count < MAX_FILE_MULTI_ITEMS; i++) {
 +        snprintf(path, sizeof(path), "%s/%s", current_path, entries[i].name);
 +        if (file_selected_path(path)) continue;
@@ -2729,7 +2808,14 @@ index a72c4e6..478577e 100644
 +    }
 +    ui_notice("Folder items selected");
 +}
-+
+ 
+-    /* Core picker overlay: choose an override core for the current ROM/folder */
+-    if (core_picker_active) {
+-        if (input_was_pressed(FROG_BTN_UP)) {
+-            core_picker_idx = (core_picker_idx - 1 + core_choice_count) % core_choice_count;
+-        }
+-        if (input_was_pressed(FROG_BTN_DOWN)) {
+-            core_picker_idx = (core_picker_idx + 1) % core_choice_count;
 +static void file_capture_action_items(void) {
 +    file_action_count = 0;
 +    if (file_selected_count > 0) {
@@ -2771,7 +2857,10 @@ index a72c4e6..478577e 100644
 +            ssize_t put = write(out, p, (size_t)left);
 +            if (put <= 0) { ok = 0; break; }
 +            p += put; left -= put;
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_LEFT)) {
+-            core_picker_idx -= VISIBLE_ENTRIES;
+-            if (core_picker_idx < 0) core_picker_idx = 0;
 +        if (!ok) break;
 +    }
 +    if (got < 0) ok = 0;
@@ -2805,7 +2894,10 @@ index a72c4e6..478577e 100644
 +            snprintf(child, sizeof(child), "%s/%s", target, entry->d_name);
 +            if (dirent_is_directory(child, entry)) file_delete_tree(child, 1, depth + 1);
 +            else unlink(child);
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_RIGHT)) {
+-            core_picker_idx += VISIBLE_ENTRIES;
+-            if (core_picker_idx >= core_choice_count) core_picker_idx = core_choice_count - 1;
 +        if (cleanup) closedir(cleanup);
 +        rmdir(target);
 +    }
@@ -2912,25 +3004,46 @@ index a72c4e6..478577e 100644
 +                failures++;
 +                if (file_clipboard_cut) file_remaining_items[remaining++] = *item;
 +            }
-+        }
+         }
+-        if (core_picker_idx < core_picker_scroll)
+-            core_picker_scroll = core_picker_idx;
+-        if (core_picker_idx >= core_picker_scroll + VISIBLE_ENTRIES)
+-            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
+-        if (input_was_pressed(FROG_BTN_A)) {
+-            core_override_set(core_picker_key, core_choices[core_picker_idx].path);
+-            core_picker_active = false;
 +        if (file_clipboard_cut) {
 +            file_clipboard_count = remaining;
 +            if (remaining) memcpy(file_clipboard_items, file_remaining_items,
 +                                  (size_t)remaining * sizeof(file_clipboard_items[0]));
 +            file_clipboard_active = remaining > 0;
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_B)) {
+-            core_picker_active = false;
 +        if (file_clipboard_active && file_clipboard_count > 0) {
 +            snprintf(file_clipboard_path, sizeof(file_clipboard_path), "%s", file_clipboard_items[0].path);
 +            snprintf(file_clipboard_name, sizeof(file_clipboard_name), "%s", file_clipboard_items[0].name);
 +            file_clipboard_is_dir = file_clipboard_items[0].is_dir;
-+        }
+         }
+-        return;
 +        if (completed > 0) file_refresh_select(NULL);
 +        ok = completed > 0;
 +        if (failures && completed) ui_notice("Paste partly completed");
 +        else if (failures) ui_notice("Paste failed");
 +        else if (completed) ui_notice("Paste complete");
 +        break;
-+    }
+     }
+-
+-    /* Remap wizard: detect raw rising edge on any bit; B = skip this step */
+-    if (remap_wizard_active) {
+-        uint32_t raw   = input_get_raw_state();
+-        uint32_t risen = raw & ~remap_prev_raw;
+-        remap_prev_raw = raw;
+-        bool skip = (risen >> input_get_raw_bit(FROG_BTN_B)) & 1;
+-        int  pressed_bit = -1;
+-        if (!skip) {
+-            for (int bit = 0; bit < 16; bit++) {
+-                if ((risen >> bit) & 1) { pressed_bit = bit; break; }
 +    case FILE_ACTION_RENAME:
 +        if (snprintf(target, sizeof(target), "%s/%s", current_path, file_name_text) < (int)sizeof(target) &&
 +            (strcmp(target, file_action_source) == 0 || access(target, F_OK) != 0) &&
@@ -2940,10 +3053,16 @@ index a72c4e6..478577e 100644
 +                    snprintf(file_clipboard_items[i].path, sizeof(file_clipboard_items[i].path), "%s", target);
 +                    snprintf(file_clipboard_items[i].name, sizeof(file_clipboard_items[i].name), "%s", file_name_text);
 +                }
-+            }
+             }
 +            file_selected_count = 0;
 +            ok = 1; file_refresh_select(file_name_text); ui_notice("Rename complete");
-+        }
+         }
+-        if (skip || pressed_bit >= 0) {
+-            if (!skip) input_set_raw_bit((FrogButton)remap_step, pressed_bit);
+-            remap_step++;
+-            if (remap_step >= FROG_BTN_COUNT) {
+-                remap_wizard_active = false;
+-                input_save_remap(KEYMAP_FILE);
 +        break;
 +    case FILE_ACTION_DELETE: {
 +        int deleted = 0;
@@ -2957,8 +3076,9 @@ index a72c4e6..478577e 100644
 +                            (size_t)(file_clipboard_count - c - 1) * sizeof(file_clipboard_items[0]));
 +                    file_clipboard_count--;
 +                }
-+            }
-+        }
+             }
+         }
+-        return;
 +        file_clipboard_active = file_clipboard_count > 0;
 +        if (file_clipboard_active) {
 +            snprintf(file_clipboard_path, sizeof(file_clipboard_path), "%s", file_clipboard_items[0].path);
@@ -2969,12 +3089,54 @@ index a72c4e6..478577e 100644
 +        if (deleted) { file_refresh_select(NULL); ui_notice(ok ? "Deleted" : "Some items could not be deleted"); }
 +        else ui_notice("Delete failed");
 +        break;
-+    }
+     }
+-
+-    if (settings_menu_active) {
+-        extern const int theme_count;
+-        if (input_was_pressed(FROG_BTN_UP))
+-            settings_menu_idx = (settings_menu_idx - 1 + SETTINGS_ROW_COUNT) % SETTINGS_ROW_COUNT;
+-        if (input_was_pressed(FROG_BTN_DOWN))
+-            settings_menu_idx = (settings_menu_idx + 1) % SETTINGS_ROW_COUNT;
+-        if (input_was_pressed(FROG_BTN_LEFT) || input_was_pressed(FROG_BTN_RIGHT)) {
+-            int delta = input_was_pressed(FROG_BTN_RIGHT) ? 1 : -1;
+-            if (settings_menu_idx == 0) {
+-                settings_theme_idx = (settings_theme_idx + delta + theme_count) % theme_count;
+-            } else if (settings_menu_idx == 1) {
+-                if (font_count > 0)
+-                    settings_font_idx = (settings_font_idx + delta + font_count) % font_count;
+-            } else if (settings_menu_idx == 2) {
+-                settings_brightness += delta * SETTINGS_BRIGHTNESS_STEP;
+-                if (settings_brightness < 0)   settings_brightness = 0;
+-                if (settings_brightness > 100) settings_brightness = 100;
+-            } else if (settings_menu_idx == SETTINGS_ROW_AUTORESUME) {
+-                settings_auto_resume = (settings_auto_resume + delta + 2) % 2;
+-            } else if (settings_menu_idx == SETTINGS_ROW_ANIM) {
+-                settings_anim = (settings_anim + delta + 2) % 2;
+-            } else if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
+-                settings_hide_empty = (settings_hide_empty + delta + 2) % 2;
+-            } else if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
+-                settings_game_switcher = (settings_game_switcher + delta + 2) % 2;
+-            } else if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
+-                settings_load_recents = (settings_load_recents + delta + 2) % 2;
+-            } else if (settings_menu_idx == SETTINGS_ROW_VOLUME) {
+-                settings_volume += delta * 5;
+-                if (settings_volume < 0)   settings_volume = 0;
+-                if (settings_volume > 100) settings_volume = 100;
+-            } else if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
+-                settings_disable_sleep = (settings_disable_sleep + delta + 2) % 2;
+-            }
+-            settings_apply();
 +    case FILE_ACTION_NEW_FOLDER:
 +        if (snprintf(target, sizeof(target), "%s/%s", current_path, file_name_text) < (int)sizeof(target) &&
 +            access(target, F_OK) != 0 && mkdir(target, 0777) == 0) {
 +            ok = 1; file_refresh_select(file_name_text); ui_notice("Folder created");
-+        }
+         }
+-        if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_REMAP) {
+-            remap_step = 0;
+-            remap_prev_raw = input_get_raw_state();
+-            remap_wizard_active = true;
+-            settings_menu_active = false;
+-            return;
 +        break;
 +    case FILE_ACTION_CLEAR:
 +        file_clipboard_active = false; file_clipboard_path[0] = file_clipboard_name[0] = '\0';
@@ -3004,10 +3166,19 @@ index a72c4e6..478577e 100644
 +    if (editor_prompt_mode == EDITOR_PROMPT_RENAME) {
 +        if (strcmp(target, editor_file_path) && access(target, F_OK) == 0) {
 +            ui_notice("A file with that name exists"); return;
-+        }
+         }
+-        if ((input_was_pressed(FROG_BTN_A) && settings_menu_idx != SETTINGS_ROW_REMAP) ||
+-             input_was_pressed(FROG_BTN_B)) {
+-            settings_save_file();
+-            settings_menu_active = false;
+-            /* re-scan root so a hide-empty-folders change takes effect now */
+-            scan_directory(ROMS_PATH);
+-            strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
+-            selected_index = 0; scroll_offset = 0;
 +        if (strcmp(target, editor_file_path) && rename(editor_file_path, target) != 0) {
 +            ui_notice("Rename failed"); return;
-+        }
+         }
+-        return;
 +        snprintf(editor_file_path, sizeof(editor_file_path), "%s", target);
 +        editor_prompt_active = false;
 +        if (!text_editor_active) scan_directory(current_path);
@@ -3022,9 +3193,17 @@ index a72c4e6..478577e 100644
 +        fflush(file); fsync(fileno(file)); fclose(file);
 +        editor_prompt_active = false;
 +        editor_open_file(target);
-+    }
+     }
 +}
-+
+ 
+-    /* X: open search. Scope = current folder (ROMS root → search everything). */
+-    if (input_was_pressed(FROG_BTN_X) && !viewing_recents && !viewing_favourites && !viewing_search) {
+-        search_query[0] = '\0';
+-        search_kbd_r = 0; search_kbd_c = 0;
+-        strncpy(search_scope, current_path, sizeof(search_scope)-1);
+-        search_scope[sizeof(search_scope)-1] = '\0';
+-        search_kbd_active = true;
+-        goto input_done;
 +static int editor_has_selection(void) {
 +    return editor_cursor != editor_selection_anchor;
 +}
@@ -3034,16 +3213,43 @@ index a72c4e6..478577e 100644
 +        *start = editor_cursor; *end = editor_selection_anchor;
 +    } else {
 +        *start = editor_selection_anchor; *end = editor_cursor;
-+    }
+     }
 +}
-+
+ 
+-    /* SELECT: open core picker. On a ROM file → per-game override; on a system
+-     * folder → per-folder override. Not available in recents/favourites views. */
+-    if (input_was_pressed(FROG_BTN_SELECT) && !viewing_recents && !viewing_favourites && !viewing_search &&
+-        selected_index < entry_count &&
+-        strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
+-        strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
+-        strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
+-        const char *cur;
+-        if (entries[selected_index].is_dir) {
+-            snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
+-                     current_path, entries[selected_index].name);
+-            snprintf(core_picker_title, sizeof(core_picker_title), "Folder: %s",
+-                     entries[selected_index].name);
+-            cur = core_override_lookup(NULL, core_picker_key);
+-        } else {
+-            snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
+-                     current_path, entries[selected_index].name);
+-            snprintf(core_picker_title, sizeof(core_picker_title), "Game: %s",
+-                     entries[selected_index].name);
+-            cur = core_override_lookup(core_picker_key, NULL);
+-        }
+-        core_picker_idx = core_choice_index_for_path(cur);
+-        core_picker_scroll = 0;
+-        if (core_picker_idx >= VISIBLE_ENTRIES)
+-            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
+-        core_picker_active = true;
+-        return;
 +static void editor_replace_selection(const char *text, size_t length) {
 +    size_t start, end, removed;
 +    if (!editor_buffer_ready()) return;
 +    editor_selection_bounds(&start, &end); removed = end - start;
 +    if (editor_length - removed + length > EDITOR_BUFFER_CAP) {
 +        ui_notice("128KB editor limit reached"); return;
-+    }
+     }
 +    editor_history_checkpoint();
 +    memmove(editor_text + start + length, editor_text + end,
 +            editor_length - end + 1);
@@ -3053,7 +3259,46 @@ index a72c4e6..478577e 100644
 +    editor_selection_anchor = editor_cursor;
 +    editor_dirty = true;
 +}
-+
+ 
+-    /* Y: toggle favourite for current ROM, or remove from favourites view */
+-    if (input_was_pressed(FROG_BTN_Y) && selected_index < entry_count) {
+-        if (viewing_favourites) {
+-            /* Remove selected favourite */
+-            favorites_remove_by_index(selected_index);
+-            /* Refresh favourites view */
+-            const FavoriteGame *fl = favorites_get_list();
+-            int fc = favorites_get_count();
+-            entry_count = 0;
+-            for (int i = 0; i < fc; i++) {
+-                strncpy(entries[entry_count].name, fl[i].game_name, 255);
+-                entries[entry_count].name[255] = '\0';
+-                entries[entry_count].is_dir = 0;
+-                entry_count++;
+-            }
+-            if (selected_index >= entry_count && selected_index > 0)
+-                selected_index = entry_count - 1;
+-            if (entry_count == 0) {
+-                /* No more favourites — go back to root */
+-                viewing_favourites = false;
+-                scan_directory(ROMS_PATH);
+-                strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
+-            }
+-        } else if (!viewing_recents && !entries[selected_index].is_dir &&
+-                   strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
+-                   strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
+-                   strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
+-            /* Toggle favourite for current ROM */
+-            const char *folder = get_console_folder(current_path);
+-            const char *core   = get_core_for_folder(folder);
+-            if (!core) core = get_core_for_extension(entries[selected_index].name);
+-            char rom_path[MAX_PATH_LEN];
+-            snprintf(rom_path, sizeof(rom_path), "%s/%s", current_path, entries[selected_index].name);
+-            char game_name[256];
+-            strncpy(game_name, entries[selected_index].name, sizeof(game_name)-1);
+-            game_name[sizeof(game_name)-1] = '\0';
+-            char *dot = strrchr(game_name, '.');
+-            if (dot) *dot = '\0';
+-            if (core) favorites_toggle(core, game_name, rom_path);
 +static void editor_insert_char(char c) {
 +    editor_replace_selection(&c, 1);
 +}
@@ -3152,10 +3397,24 @@ index a72c4e6..478577e 100644
 +            memmove(editor_prompt_text+editor_prompt_cursor+1,editor_prompt_text+editor_prompt_cursor,
 +                    (size_t)(editor_prompt_len-editor_prompt_cursor+1));
 +            editor_prompt_text[editor_prompt_cursor++]=(char)ch; editor_prompt_len++;
-+        }
-+    }
+         }
+     }
 +}
-+
+ 
+-    if (input_was_pressed(FROG_BTN_A) && selected_index < entry_count) {
+-        if (viewing_search) {
+-            search_launch(selected_index);
+-        } else if (viewing_favourites) {
+-            /* Launch from favourites list */
+-            const FavoriteGame *fl = favorites_get_list();
+-            int fc = favorites_get_count();
+-            if (selected_index < fc) {
+-                if (is_standalone_bin(fl[selected_index].core_name))
+-                    request_standalone_launch(fl[selected_index].core_name,
+-                                              fl[selected_index].full_path);
+-                else
+-                    request_game_launch(fl[selected_index].core_name,
+-                                        fl[selected_index].full_path);
 +static void editor_handle_keyboard(void) {
 +    int code, value;
 +    io_keyboard_test_poll();
@@ -3219,12 +3478,31 @@ index a72c4e6..478577e 100644
 +            if (!editor_has_selection() && editor_cursor>0) {
 +                editor_selection_anchor=editor_cursor;
 +                editor_cursor=ctrl?editor_word_left(editor_cursor):editor_cursor-1;
-+            }
+             }
+-        } else if (viewing_recents) {
+-            /* Launch from recent games list */
+-            const RecentGame *rg = recent_games_get_list();
+-            int rc = recent_games_get_count();
+-            if (selected_index < rc) {
+-                if (is_standalone_bin(rg[selected_index].core_name))
+-                    request_standalone_launch(rg[selected_index].core_name,
+-                                              rg[selected_index].full_path);
+-                else
+-                    request_game_launch(rg[selected_index].core_name,
+-                                        rg[selected_index].full_path);
 +            if (editor_has_selection()) editor_replace_selection(NULL,0);
 +        } else if (code == KEY_DELETE) {
 +            if (!editor_has_selection() && editor_cursor<editor_length) {
 +                editor_selection_anchor=ctrl?editor_word_right(editor_cursor):editor_cursor+1;
-+            }
+             }
+-        } else if (strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) == 0) {
+-            /* Enter favourites view */
+-            const FavoriteGame *fl = favorites_get_list();
+-            int fc = favorites_get_count();
+-            while (fc > entry_capacity) {
+-                entry_capacity = entry_capacity ? entry_capacity*2 : INITIAL_ENTRIES_CAPACITY;
+-                entries = realloc(entries, entry_capacity * sizeof(DirEntry));
+-                if (!entries) goto input_done;
 +            if (editor_has_selection()) editor_replace_selection(NULL,0);
 +        } else if (code == KEY_ENTER || code == KEY_KPENTER) editor_insert_char('\n');
 +        else if (code == KEY_TAB && shift) {
@@ -3270,7 +3548,13 @@ index a72c4e6..478577e 100644
 +                memmove(terminal_history, terminal_history + 1,
 +                        sizeof(terminal_history[0]) * (TERMINAL_HISTORY_COUNT - 1));
 +                terminal_history_count = TERMINAL_HISTORY_COUNT - 1;
-+            }
+             }
+-            entry_count = 0;
+-            for (int i = 0; i < fc; i++) {
+-                strncpy(entries[entry_count].name, fl[i].game_name, 255);
+-                entries[entry_count].name[255] = '\0';
+-                entries[entry_count].is_dir = 0;
+-                entry_count++;
 +            snprintf(terminal_history[terminal_history_count++], TERMINAL_LINE_LEN, "%s", line);
 +        }
 +        fclose(file);
@@ -3339,7 +3623,16 @@ index a72c4e6..478577e 100644
 +            if (c == '\n') {
 +                terminal_pending_line[terminal_pending_used] = '\0';
 +                terminal_add_line(terminal_pending_line); terminal_pending_used = 0; continue;
-+            }
+             }
+-            viewing_favourites = true;
+-            selected_index = 0; scroll_offset = 0;
+-        } else if (strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) == 0) {
+-            enter_recents_view();
+-        } else if (entries[selected_index].is_dir) {
+-            char new_path[MAX_PATH_LEN];
+-            snprintf(new_path, sizeof(new_path), "%s/%s", current_path, entries[selected_index].name);
+-            strncpy(current_path, new_path, MAX_PATH_LEN-1);
+-            current_path[MAX_PATH_LEN-1] = '\0';
 +            if (c >= 32 && c < 127 && terminal_pending_used < TERMINAL_LINE_LEN - 1)
 +                terminal_pending_line[terminal_pending_used++] = (char)c;
 +        }
@@ -3491,6 +3784,23 @@ index a72c4e6..478577e 100644
 +    else file_open_confirmation(file_action_menu_index);
 +}
 +
++static void core_picker_open_game(const char *path, bool return_to_details) {
++    if (!path || !*path) return;
++    strncpy(core_picker_key, path, sizeof(core_picker_key) - 1);
++    core_picker_key[sizeof(core_picker_key) - 1] = '\0';
++    const char *base = strrchr(path, '/');
++    base = base ? base + 1 : path;
++    snprintf(core_picker_title, sizeof(core_picker_title), "Game: %s", base);
++    core_picker_idx = core_choice_index_for_path(core_override_lookup(path, NULL));
++    core_picker_scroll = 0;
++    if (core_picker_idx >= VISIBLE_ENTRIES)
++        core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
++    core_picker_return_to_details = return_to_details;
++    if (return_to_details) game_details_active = false;
++    core_picker_active = true;
++    ui_rendered_once = 0;
++}
++
 +static void handle_input(void) {
 +    input_update();
 +
@@ -3500,9 +3810,37 @@ index a72c4e6..478577e 100644
 +            ui_rendered_once = 0;
 +        } else if (input_was_pressed(FROG_BTN_L1)) {
 +            photo_rotation = (photo_rotation + 3) & 3;
++            photo_pan_x = photo_pan_y = 0;
 +            ui_rendered_once = 0;
 +        } else if (input_was_pressed(FROG_BTN_R1)) {
 +            photo_rotation = (photo_rotation + 1) & 3;
++            photo_pan_x = photo_pan_y = 0;
++            ui_rendered_once = 0;
++        } else if (input_was_pressed(FROG_BTN_A)) {
++            if (photo_zoom_index < (int)(sizeof(photo_zoom_levels) / sizeof(photo_zoom_levels[0])) - 1)
++                photo_zoom_index++;
++            photo_viewer_clamp_pan();
++            ui_rendered_once = 0;
++        } else if (input_was_pressed(FROG_BTN_Y)) {
++            if (photo_zoom_index > 0) photo_zoom_index--;
++            if (photo_zoom_index == 0) photo_pan_x = photo_pan_y = 0;
++            photo_viewer_clamp_pan();
++            ui_rendered_once = 0;
++        } else if (input_was_pressed(FROG_BTN_X)) {
++            photo_zoom_index = 0;
++            photo_pan_x = photo_pan_y = 0;
++            ui_rendered_once = 0;
++        } else if (photo_zoom_index == 0 && input_was_pressed(FROG_BTN_LEFT)) {
++            photo_viewer_step(-1);
++        } else if (photo_zoom_index == 0 && input_was_pressed(FROG_BTN_RIGHT)) {
++            photo_viewer_step(1);
++        } else if (photo_zoom_index > 0) {
++            int step = UI_S(36);
++            if (input_was_pressed(FROG_BTN_LEFT))  photo_pan_x -= step;
++            if (input_was_pressed(FROG_BTN_RIGHT)) photo_pan_x += step;
++            if (input_was_pressed(FROG_BTN_UP))    photo_pan_y -= step;
++            if (input_was_pressed(FROG_BTN_DOWN))  photo_pan_y += step;
++            photo_viewer_clamp_pan();
 +            ui_rendered_once = 0;
 +        }
 +        return;
@@ -3529,7 +3867,33 @@ index a72c4e6..478577e 100644
 +        if (!editor_prompt_active && input_was_pressed(FROG_BTN_B)) {
 +            if (editor_dirty) editor_save();
 +            text_editor_active = false;
-+            scan_directory(current_path);
+             scan_directory(current_path);
+-        } else {
+-            if (strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) == 0) {
+-                settings_menu_active = true;
+-                settings_menu_idx = 0;
+-                settings_filter_idx_on_enter = settings_filter_idx;
+-            } else {
+-                const char *folder = get_console_folder(current_path);
+-                char rom_path[MAX_PATH_LEN];
+-                snprintf(rom_path, sizeof(rom_path), "%s/%s", current_path, entries[selected_index].name);
+-                /* per-game / per-folder override wins over folder/extension default */
+-                const char *ov = core_override_lookup(rom_path, current_path);
+-                const char *core = ov ? ov : get_core_for_folder(folder);
+-                if (!core)
+-                    core = get_core_for_extension(entries[selected_index].name);
+-                if (ov) {
+-                    request_game_launch(ov, rom_path);   /* override → always libretro */
+-                } else if (core) {
+-                    if (is_ps1_folder(folder) && access(PCSX4ALL_BIN, F_OK) == 0)
+-                        request_standalone_launch(PCSX4ALL_BIN, rom_path);
+-                    else if (is_standalone_bin(core) && access(core, F_OK) == 0)
+-                        request_standalone_launch(core, rom_path);
+-                    else
+-                        request_game_launch(core, rom_path);
+-                } else {
+-                    dbg("no core mapping for this folder or extension");
+-                }
 +            editor_keyboard_drain();
 +        }
 +        ui_rendered_once = 0;
@@ -3586,11 +3950,15 @@ index a72c4e6..478577e 100644
 +        return;
 +    }
 +
-+    /* Full-screen game information panel. A launches; B always returns to the
-+     * exact grid/search/favourites view that opened it. */
++    /* Full-screen game information panel. The emulator picker is explicit here
++     * so it is discoverable and works from grids, search and favourites. */
 +    if (game_details_active) {
 +        if (input_was_pressed(FROG_BTN_A))
 +            launch_game_path(game_details_path);
++        if (input_was_pressed(FROG_BTN_X)) {
++            core_picker_open_game(game_details_path, true);
++            return;
++        }
 +        if (input_was_pressed(FROG_BTN_B)) {
 +            game_details_active = false;
 +            ui_rendered_once = 0;
@@ -3611,69 +3979,86 @@ index a72c4e6..478577e 100644
 +            int len = (int)strlen(search_query);
 +            if (search_kbd_r == KBD_SPECIAL_ROW) {
 +                if (search_kbd_c == 0) { if (len < (int)sizeof(search_query)-1) { search_query[len]=' '; search_query[len+1]='\0'; } }
-                 else if (search_kbd_c == 1) { if (len > 0) search_query[len-1] = '\0'; }
-                 else run_search();
-             } else if (len < (int)sizeof(search_query)-1) {
-@@ -1182,11 +3518,11 @@ static void handle_input(void) {
++                else if (search_kbd_c == 1) { if (len > 0) search_query[len-1] = '\0'; }
++                else run_search();
++            } else if (len < (int)sizeof(search_query)-1) {
++                search_query[len] = KBD_ROWS[search_kbd_r][search_kbd_c];
++                search_query[len+1] = '\0';
+             }
          }
-         if (input_was_pressed(FROG_BTN_LEFT)) {
-             core_picker_idx -= VISIBLE_ENTRIES;
--            if (core_picker_idx < 0) core_picker_idx = 0;
++        if (input_was_pressed(FROG_BTN_Y)) {            /* quick backspace */
++            int len = (int)strlen(search_query); if (len > 0) search_query[len-1] = '\0';
++        }
++        if (input_was_pressed(FROG_BTN_START)) run_search();
++        if (input_was_pressed(FROG_BTN_B)) {           /* cancel → restore browser list */
++            search_kbd_active = false;
++            scan_directory(current_path);
++            selected_index = 0; scroll_offset = 0;
++        }
++        return;
++    }
++
++    /* Core picker overlay: choose an override core for the current ROM/folder */
++    if (core_picker_active) {
++        if (input_was_pressed(FROG_BTN_UP)) {
++            core_picker_idx = (core_picker_idx - 1 + core_choice_count) % core_choice_count;
++        }
++        if (input_was_pressed(FROG_BTN_DOWN)) {
++            core_picker_idx = (core_picker_idx + 1) % core_choice_count;
++        }
++        if (input_was_pressed(FROG_BTN_LEFT)) {
++            core_picker_idx -= VISIBLE_ENTRIES;
 +            if (core_picker_idx < 0) core_picker_idx = core_choice_count - 1;
-         }
-         if (input_was_pressed(FROG_BTN_RIGHT)) {
-             core_picker_idx += VISIBLE_ENTRIES;
--            if (core_picker_idx >= core_choice_count) core_picker_idx = core_choice_count - 1;
++        }
++        if (input_was_pressed(FROG_BTN_RIGHT)) {
++            core_picker_idx += VISIBLE_ENTRIES;
 +            if (core_picker_idx >= core_choice_count) core_picker_idx = 0;
-         }
-         if (core_picker_idx < core_picker_scroll)
-             core_picker_scroll = core_picker_idx;
-@@ -1194,6 +3530,7 @@ static void handle_input(void) {
-             core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
-         if (input_was_pressed(FROG_BTN_A)) {
-             core_override_set(core_picker_key, core_choices[core_picker_idx].path);
++        }
++        if (core_picker_idx < core_picker_scroll)
++            core_picker_scroll = core_picker_idx;
++        if (core_picker_idx >= core_picker_scroll + VISIBLE_ENTRIES)
++            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
++        if (input_was_pressed(FROG_BTN_A)) {
++            core_override_set(core_picker_key, core_choices[core_picker_idx].path);
 +            ui_notice(core_picker_idx == 0 ? "Core override cleared" : "Core selection saved");
-             core_picker_active = false;
-         }
-         if (input_was_pressed(FROG_BTN_B)) {
-@@ -1202,29 +3539,132 @@ static void handle_input(void) {
-         return;
-     }
-
--    /* Remap wizard: detect raw rising edge on any bit; B = skip this step */
++            core_picker_active = false;
++            if (core_picker_return_to_details) game_details_active = true;
++            core_picker_return_to_details = false;
++        }
++        if (input_was_pressed(FROG_BTN_B)) {
++            core_picker_active = false;
++            if (core_picker_return_to_details) game_details_active = true;
++            core_picker_return_to_details = false;
++        }
++        return;
++    }
++
 +    /* Remap wizard: B is always Back, returning to the Settings menu. */
-     if (remap_wizard_active) {
++    if (remap_wizard_active) {
 +        if (input_was_pressed(FROG_BTN_B)) {
 +            remap_wizard_active = false;
 +            settings_menu_active = true;
 +            return;
 +        }
-         uint32_t raw   = input_get_raw_state();
-         uint32_t risen = raw & ~remap_prev_raw;
-         remap_prev_raw = raw;
--        bool skip = (risen >> input_get_raw_bit(FROG_BTN_B)) & 1;
-         int  pressed_bit = -1;
--        if (!skip) {
--            for (int bit = 0; bit < 16; bit++) {
--                if ((risen >> bit) & 1) { pressed_bit = bit; break; }
--            }
++        uint32_t raw   = input_get_raw_state();
++        uint32_t risen = raw & ~remap_prev_raw;
++        remap_prev_raw = raw;
++        int  pressed_bit = -1;
 +        for (int bit = 0; bit < 16; bit++) {
 +            if ((risen >> bit) & 1) { pressed_bit = bit; break; }
-         }
--        if (skip || pressed_bit >= 0) {
--            if (!skip) input_set_raw_bit((FrogButton)remap_step, pressed_bit);
++        }
 +        if (pressed_bit >= 0) {
 +            input_set_raw_bit((FrogButton)remap_step, pressed_bit);
-             remap_step++;
-             if (remap_step >= FROG_BTN_COUNT) {
-                 remap_wizard_active = false;
-                 input_save_remap(KEYMAP_FILE);
++            remap_step++;
++            if (remap_step >= FROG_BTN_COUNT) {
++                remap_wizard_active = false;
++                input_save_remap(KEYMAP_FILE);
 +                ui_notice("Button mapping saved");
-             }
-         }
-         return;
-     }
-
++            }
++        }
++        return;
++    }
++
 +    if (keyboard_test_active) {
 +        if (io_keyboard_test_poll()) ui_rendered_once = 0;
 +        if (input_was_pressed(FROG_BTN_X)) {
@@ -3774,77 +4159,71 @@ index a72c4e6..478577e 100644
 +        return;
 +    }
 +
-     if (settings_menu_active) {
-         extern const int theme_count;
-         if (input_was_pressed(FROG_BTN_UP))
-@@ -1233,21 +3673,33 @@ static void handle_input(void) {
-             settings_menu_idx = (settings_menu_idx + 1) % SETTINGS_ROW_COUNT;
-         if (input_was_pressed(FROG_BTN_LEFT) || input_was_pressed(FROG_BTN_RIGHT)) {
-             int delta = input_was_pressed(FROG_BTN_RIGHT) ? 1 : -1;
--            if (settings_menu_idx == 0) {
--                settings_theme_idx = (settings_theme_idx + delta + theme_count) % theme_count;
--            } else if (settings_menu_idx == 1) {
++    if (settings_menu_active) {
++        extern const int theme_count;
++        if (input_was_pressed(FROG_BTN_UP))
++            settings_menu_idx = (settings_menu_idx - 1 + SETTINGS_ROW_COUNT) % SETTINGS_ROW_COUNT;
++        if (input_was_pressed(FROG_BTN_DOWN))
++            settings_menu_idx = (settings_menu_idx + 1) % SETTINGS_ROW_COUNT;
++        if (input_was_pressed(FROG_BTN_LEFT) || input_was_pressed(FROG_BTN_RIGHT)) {
++            int delta = input_was_pressed(FROG_BTN_RIGHT) ? 1 : -1;
 +            if (settings_menu_idx == SETTINGS_ROW_BACKGROUND) {
 +                settings_background_idx =
 +                    (settings_background_idx + delta + BACKGROUND_COUNT) % BACKGROUND_COUNT;
 +            } else if (settings_menu_idx == SETTINGS_ROW_FONT) {
-                 if (font_count > 0)
-                     settings_font_idx = (settings_font_idx + delta + font_count) % font_count;
--            } else if (settings_menu_idx == 2) {
++                if (font_count > 0)
++                    settings_font_idx = (settings_font_idx + delta + font_count) % font_count;
 +            } else if (settings_menu_idx == SETTINGS_ROW_FONT_SIZE) {
 +                settings_font_size += delta * SETTINGS_FONT_SIZE_STEP;
 +                if (settings_font_size < 70) settings_font_size = 70;
 +                if (settings_font_size > 130) settings_font_size = 130;
 +            } else if (settings_menu_idx == SETTINGS_ROW_BRIGHTNESS) {
-                 settings_brightness += delta * SETTINGS_BRIGHTNESS_STEP;
-                 if (settings_brightness < 0)   settings_brightness = 0;
-                 if (settings_brightness > 100) settings_brightness = 100;
++                settings_brightness += delta * SETTINGS_BRIGHTNESS_STEP;
++                if (settings_brightness < 0)   settings_brightness = 0;
++                if (settings_brightness > 100) settings_brightness = 100;
 +            } else if (settings_menu_idx == SETTINGS_ROW_TIMEOUT) {
 +                settings_screen_timeout_idx =
 +                    (settings_screen_timeout_idx + delta + SCREEN_TIMEOUT_COUNT) % SCREEN_TIMEOUT_COUNT;
 +                screen_idle_frames = 0;
-             } else if (settings_menu_idx == SETTINGS_ROW_AUTORESUME) {
-                 settings_auto_resume = (settings_auto_resume + delta + 2) % 2;
--            } else if (settings_menu_idx == SETTINGS_ROW_ANIM) {
--                settings_anim = (settings_anim + delta + 2) % 2;
-             } else if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
-                 settings_hide_empty = (settings_hide_empty + delta + 2) % 2;
++            } else if (settings_menu_idx == SETTINGS_ROW_AUTORESUME) {
++                settings_auto_resume = (settings_auto_resume + delta + 2) % 2;
++            } else if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
++                settings_hide_empty = (settings_hide_empty + delta + 2) % 2;
 +            } else if (settings_menu_idx == SETTINGS_ROW_ICONPACK) {
 +                settings_icon_pack_idx =
 +                    (settings_icon_pack_idx + delta + ICON_PACK_COUNT) % ICON_PACK_COUNT;
 +            } else if (settings_menu_idx == SETTINGS_ROW_FRIENDLY_NAMES) {
 +                settings_friendly_names = (settings_friendly_names + delta + 2) % 2;
-             } else if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
-                 settings_game_switcher = (settings_game_switcher + delta + 2) % 2;
-             } else if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
-@@ -1256,11 +3708,21 @@ static void handle_input(void) {
-                 settings_volume += delta * 5;
-                 if (settings_volume < 0)   settings_volume = 0;
-                 if (settings_volume > 100) settings_volume = 100;
++            } else if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
++                settings_game_switcher = (settings_game_switcher + delta + 2) % 2;
++            } else if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
++                settings_load_recents = (settings_load_recents + delta + 2) % 2;
++            } else if (settings_menu_idx == SETTINGS_ROW_VOLUME) {
++                settings_volume += delta * 5;
++                if (settings_volume < 0)   settings_volume = 0;
++                if (settings_volume > 100) settings_volume = 100;
 +            } else if (settings_menu_idx == SETTINGS_ROW_SOUNDS) {
 +                settings_sound_pack=(settings_sound_pack+delta+SOUND_PACK_COUNT)%SOUND_PACK_COUNT;
-             } else if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
--                settings_disable_sleep = (settings_disable_sleep + delta + 2) % 2;
++            } else if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
 +                settings_disable_sleep = 1;
 +            } else if (settings_menu_idx == SETTINGS_ROW_DISPLAYFIX) {
 +                settings_r36sx_display_fix = (settings_r36sx_display_fix + delta + 2) % 2;
-             }
-             settings_apply();
-         }
++            }
++            settings_apply();
++        }
 +        if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_THEME) {
 +            theme_gallery_idx=settings_theme_idx;
 +            theme_gallery_active=true;
 +            settings_menu_active=false;
 +            return;
 +        }
-         if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_REMAP) {
-             remap_step = 0;
-             remap_prev_raw = input_get_raw_state();
-@@ -1268,20 +3730,103 @@ static void handle_input(void) {
-             settings_menu_active = false;
-             return;
-         }
--        if ((input_was_pressed(FROG_BTN_A) && settings_menu_idx != SETTINGS_ROW_REMAP) ||
++        if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_REMAP) {
++            remap_step = 0;
++            remap_prev_raw = input_get_raw_state();
++            remap_wizard_active = true;
++            settings_menu_active = false;
++            return;
++        }
 +        if (input_was_pressed(FROG_BTN_A) && settings_menu_idx == SETTINGS_ROW_CONTROLS) {
 +            controls_help_scroll = 0;
 +            controls_help_active = true;
@@ -3883,22 +4262,20 @@ index a72c4e6..478577e 100644
 +             settings_menu_idx != SETTINGS_ROW_IO_DIAGNOSTICS &&
 +             settings_menu_idx != SETTINGS_ROW_KEYBOARD_MAP &&
 +             settings_menu_idx != SETTINGS_ROW_ABOUT) ||
-              input_was_pressed(FROG_BTN_B)) {
-             settings_save_file();
++             input_was_pressed(FROG_BTN_B)) {
++            settings_save_file();
 +            ui_notice("Settings saved");
-             settings_menu_active = false;
-             /* re-scan root so a hide-empty-folders change takes effect now */
-             scan_directory(ROMS_PATH);
-             strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
--            selected_index = 0; scroll_offset = 0;
++            settings_menu_active = false;
++            /* re-scan root so a hide-empty-folders change takes effect now */
++            scan_directory(ROMS_PATH);
++            strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
 +            selected_index = min(home_selected_index,entry_count>0?entry_count-1:0);
 +            scroll_offset = 0;
-         }
-         return;
-     }
-
-     /* X: open search. Scope = current folder (ROMS root → search everything). */
--    if (input_was_pressed(FROG_BTN_X) && !viewing_recents && !viewing_favourites && !viewing_search) {
++        }
++        return;
++    }
++
++    /* X: open search. Scope = current folder (ROMS root → search everything). */
 +    if (viewing_files && input_was_pressed(FROG_BTN_X)) {
 +        file_capture_action_items();
 +        if (file_overlay_background && framebuffer)
@@ -3944,13 +4321,14 @@ index a72c4e6..478577e 100644
 +
 +    if (input_was_pressed(FROG_BTN_X) && !viewing_files && !viewing_videos && !viewing_ebooks && !viewing_editor && !viewing_jsdev &&
 +        !viewing_recents && !viewing_favourites && !viewing_search) {
-         search_query[0] = '\0';
-         search_kbd_r = 0; search_kbd_c = 0;
-         strncpy(search_scope, current_path, sizeof(search_scope)-1);
-@@ -1290,13 +3835,70 @@ static void handle_input(void) {
-         goto input_done;
-     }
-
++        search_query[0] = '\0';
++        search_kbd_r = 0; search_kbd_c = 0;
++        strncpy(search_scope, current_path, sizeof(search_scope)-1);
++        search_scope[sizeof(search_scope)-1] = '\0';
++        search_kbd_active = true;
++        goto input_done;
++    }
++
 +    bool page_jump_combo = (input_was_pressed(FROG_BTN_START) && input_is_pressed(FROG_BTN_SELECT)) ||
 +                           (input_was_pressed(FROG_BTN_SELECT) && input_is_pressed(FROG_BTN_START));
 +    if (page_jump_combo && !is_launcher_view()) {
@@ -3999,15 +4377,22 @@ index a72c4e6..478577e 100644
 +        }
 +    }
 +
-     /* SELECT: open core picker. On a ROM file → per-game override; on a system
-      * folder → per-folder override. Not available in recents/favourites views. */
--    if (input_was_pressed(FROG_BTN_SELECT) && !viewing_recents && !viewing_favourites && !viewing_search &&
++    /* SELECT: open core picker. On a ROM file → per-game override; on a system
++     * folder → per-folder override. Not available in recents/favourites views. */
++    /* The per-game picker works in normal grids, search and favourites. */
++    if (!page_jump_combo && input_was_pressed(FROG_BTN_SELECT) && is_game_card_view()) {
++        char full[MAX_PATH_LEN];
++        if (card_full_path(selected_index, full, sizeof(full))) {
++            core_picker_open_game(full, false);
++            return;
++        }
++    }
++
 +    if (!page_jump_combo && input_was_pressed(FROG_BTN_SELECT) && !viewing_recents && !viewing_favourites && !viewing_search &&
-         selected_index < entry_count &&
++        selected_index < entry_count &&
 +        entries[selected_index].home_recent_index < 0 &&
-         strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-         strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
--        strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
++        strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
++        strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
 +        strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0 &&
 +        strcmp(entries[selected_index].name, MUSIC_ENTRY_NAME) != 0 &&
 +        strcmp(entries[selected_index].name, VIDEOS_ENTRY_NAME) != 0 &&
@@ -4017,63 +4402,84 @@ index a72c4e6..478577e 100644
 +        strcmp(entries[selected_index].name, EDITOR_ENTRY_NAME) != 0 &&
 +        strcmp(entries[selected_index].name, JSDEV_ENTRY_NAME) != 0 &&
 +        !viewing_files && !viewing_videos && !viewing_ebooks && !viewing_editor && !viewing_jsdev) {
-         const char *cur;
-         if (entries[selected_index].is_dir) {
-             snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
-@@ -1324,6 +3926,7 @@ static void handle_input(void) {
-         if (viewing_favourites) {
-             /* Remove selected favourite */
-             favorites_remove_by_index(selected_index);
++        const char *cur;
++        if (entries[selected_index].is_dir) {
++            snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
++                     current_path, entries[selected_index].name);
++            snprintf(core_picker_title, sizeof(core_picker_title), "Folder: %s",
++                     entries[selected_index].name);
++            cur = core_override_lookup(NULL, core_picker_key);
++        } else {
++            snprintf(core_picker_key, sizeof(core_picker_key), "%s/%s",
++                     current_path, entries[selected_index].name);
++            snprintf(core_picker_title, sizeof(core_picker_title), "Game: %s",
++                     entries[selected_index].name);
++            cur = core_override_lookup(core_picker_key, NULL);
++        }
++        core_picker_idx = core_choice_index_for_path(cur);
++        core_picker_scroll = 0;
++        if (core_picker_idx >= VISIBLE_ENTRIES)
++            core_picker_scroll = core_picker_idx - VISIBLE_ENTRIES + 1;
++        core_picker_return_to_details = false;
++        core_picker_active = true;
++        return;
++    }
++
++    /* Y: toggle favourite for current ROM, or remove from favourites view */
++    if (input_was_pressed(FROG_BTN_Y) && selected_index < entry_count) {
++        if (viewing_favourites) {
++            /* Remove selected favourite */
++            favorites_remove_by_index(selected_index);
 +            ui_notice("Removed from favourites");
-             /* Refresh favourites view */
-             const FavoriteGame *fl = favorites_get_list();
-             int fc = favorites_get_count();
-@@ -1332,6 +3935,7 @@ static void handle_input(void) {
-                 strncpy(entries[entry_count].name, fl[i].game_name, 255);
-                 entries[entry_count].name[255] = '\0';
-                 entries[entry_count].is_dir = 0;
++            /* Refresh favourites view */
++            const FavoriteGame *fl = favorites_get_list();
++            int fc = favorites_get_count();
++            entry_count = 0;
++            for (int i = 0; i < fc; i++) {
++                strncpy(entries[entry_count].name, fl[i].game_name, 255);
++                entries[entry_count].name[255] = '\0';
++                entries[entry_count].is_dir = 0;
 +                entries[entry_count].home_recent_index = -1;
-                 entry_count++;
-             }
-             if (selected_index >= entry_count && selected_index > 0)
-@@ -1342,7 +3946,9 @@ static void handle_input(void) {
-                 scan_directory(ROMS_PATH);
-                 strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
-             }
--        } else if (!viewing_recents && !entries[selected_index].is_dir &&
++                entry_count++;
++            }
++            if (selected_index >= entry_count && selected_index > 0)
++                selected_index = entry_count - 1;
++            if (entry_count == 0) {
++                /* No more favourites — go back to root */
++                viewing_favourites = false;
++                scan_directory(ROMS_PATH);
++                strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
++            }
 +        } else if (!viewing_recents && !viewing_videos && !viewing_ebooks && !viewing_editor && !viewing_jsdev &&
 +                   entries[selected_index].home_recent_index < 0 &&
 +                   !entries[selected_index].is_dir &&
-                    strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-                    strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
-                    strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
-@@ -1350,45 +3956,93 @@ static void handle_input(void) {
-             const char *folder = get_console_folder(current_path);
-             const char *core   = get_core_for_folder(folder);
-             if (!core) core = get_core_for_extension(entries[selected_index].name);
++                   strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
++                   strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) != 0 &&
++                   strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) != 0) {
++            /* Toggle favourite for current ROM */
++            const char *folder = get_console_folder(current_path);
++            const char *core   = get_core_for_folder(folder);
++            if (!core) core = get_core_for_extension(entries[selected_index].name);
 +            if (is_ps1_folder(folder) && access(PCSX4ALL_BIN, F_OK) == 0)
 +                core = PCSX4ALL_BIN;
-             char rom_path[MAX_PATH_LEN];
-             snprintf(rom_path, sizeof(rom_path), "%s/%s", current_path, entries[selected_index].name);
-             char game_name[256];
--            strncpy(game_name, entries[selected_index].name, sizeof(game_name)-1);
++            char rom_path[MAX_PATH_LEN];
++            snprintf(rom_path, sizeof(rom_path), "%s/%s", current_path, entries[selected_index].name);
++            char game_name[256];
 +            const char *display_name = strrchr(entries[selected_index].name, '/');
 +            display_name = display_name ? display_name + 1 : entries[selected_index].name;
 +            strncpy(game_name, display_name, sizeof(game_name)-1);
-             game_name[sizeof(game_name)-1] = '\0';
-             char *dot = strrchr(game_name, '.');
-             if (dot) *dot = '\0';
--            if (core) favorites_toggle(core, game_name, rom_path);
++            game_name[sizeof(game_name)-1] = '\0';
++            char *dot = strrchr(game_name, '.');
++            if (dot) *dot = '\0';
 +            if (core) {
 +                int was_favourite=favorites_is_path_favorited(rom_path);
 +                favorites_toggle(core, game_name, rom_path);
 +                ui_notice(was_favourite ? "Removed from favourites" : "Added to favourites");
 +            }
-         }
-     }
-
-     if (input_was_pressed(FROG_BTN_A) && selected_index < entry_count) {
--        if (viewing_search) {
++        }
++    }
++
++    if (input_was_pressed(FROG_BTN_A) && selected_index < entry_count) {
 +        if(is_launcher_view()) home_selection_save(selected_index);
 +        if (is_launcher_view() && entries[selected_index].home_recent_index >= 0) {
 +            int ri = entries[selected_index].home_recent_index;
@@ -4084,36 +4490,23 @@ index a72c4e6..478577e 100644
 +        } else if (enter_selected_home_platform()) {
 +            /* Platform probe opened the flat artwork grid. */
 +        } else if (viewing_search) {
-             search_launch(selected_index);
-         } else if (viewing_favourites) {
-             /* Launch from favourites list */
-             const FavoriteGame *fl = favorites_get_list();
-             int fc = favorites_get_count();
-             if (selected_index < fc) {
--                if (is_standalone_bin(fl[selected_index].core_name))
--                    request_standalone_launch(fl[selected_index].core_name,
--                                              fl[selected_index].full_path);
--                else
--                    request_game_launch(fl[selected_index].core_name,
--                                        fl[selected_index].full_path);
++            search_launch(selected_index);
++        } else if (viewing_favourites) {
++            /* Launch from favourites list */
++            const FavoriteGame *fl = favorites_get_list();
++            int fc = favorites_get_count();
++            if (selected_index < fc) {
 +                request_saved_launch(fl[selected_index].core_name,
 +                                     fl[selected_index].full_path);
-             }
-         } else if (viewing_recents) {
-             /* Launch from recent games list */
-             const RecentGame *rg = recent_games_get_list();
-             int rc = recent_games_get_count();
-             if (selected_index < rc) {
--                if (is_standalone_bin(rg[selected_index].core_name))
--                    request_standalone_launch(rg[selected_index].core_name,
--                                              rg[selected_index].full_path);
--                else
--                    request_game_launch(rg[selected_index].core_name,
--                                        rg[selected_index].full_path);
++            }
++        } else if (viewing_recents) {
++            /* Launch from recent games list */
++            const RecentGame *rg = recent_games_get_list();
++            int rc = recent_games_get_count();
++            if (selected_index < rc) {
 +                request_saved_launch(rg[selected_index].core_name,
 +                                     rg[selected_index].full_path);
-             }
--        } else if (strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) == 0) {
++            }
 +        } else if (is_launcher_view() && strcmp(entries[selected_index].name, MUSIC_ENTRY_NAME) == 0) {
 +            request_utility_launch(ROCKBOX_BIN, SDCARD_BASE);
 +        } else if (is_launcher_view() && strcmp(entries[selected_index].name, VIDEOS_ENTRY_NAME) == 0) {
@@ -4154,33 +4547,38 @@ index a72c4e6..478577e 100644
 +            scan_directory(current_path);
 +            io_keyboard_test_start(); editor_keyboard_drain();
 +        } else if (is_launcher_view() && strcmp(entries[selected_index].name, FAVOURITES_ENTRY_NAME) == 0) {
-             /* Enter favourites view */
-             const FavoriteGame *fl = favorites_get_list();
-             int fc = favorites_get_count();
-@@ -1402,23 +4056,53 @@ static void handle_input(void) {
-                 strncpy(entries[entry_count].name, fl[i].game_name, 255);
-                 entries[entry_count].name[255] = '\0';
-                 entries[entry_count].is_dir = 0;
++            /* Enter favourites view */
++            const FavoriteGame *fl = favorites_get_list();
++            int fc = favorites_get_count();
++            while (fc > entry_capacity) {
++                entry_capacity = entry_capacity ? entry_capacity*2 : INITIAL_ENTRIES_CAPACITY;
++                entries = realloc(entries, entry_capacity * sizeof(DirEntry));
++                if (!entries) goto input_done;
++            }
++            entry_count = 0;
++            for (int i = 0; i < fc; i++) {
++                strncpy(entries[entry_count].name, fl[i].game_name, 255);
++                entries[entry_count].name[255] = '\0';
++                entries[entry_count].is_dir = 0;
 +                entries[entry_count].home_recent_index = -1;
-                 entry_count++;
-             }
-             viewing_favourites = true;
-             selected_index = 0; scroll_offset = 0;
--        } else if (strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) == 0) {
++                entry_count++;
++            }
++            viewing_favourites = true;
++            selected_index = 0; scroll_offset = 0;
 +        } else if (is_launcher_view() && strcmp(entries[selected_index].name, RECENTS_ENTRY_NAME) == 0) {
-             enter_recents_view();
-         } else if (entries[selected_index].is_dir) {
-             char new_path[MAX_PATH_LEN];
-             snprintf(new_path, sizeof(new_path), "%s/%s", current_path, entries[selected_index].name);
-             strncpy(current_path, new_path, MAX_PATH_LEN-1);
-             current_path[MAX_PATH_LEN-1] = '\0';
++            enter_recents_view();
++        } else if (entries[selected_index].is_dir) {
++            char new_path[MAX_PATH_LEN];
++            snprintf(new_path, sizeof(new_path), "%s/%s", current_path, entries[selected_index].name);
++            strncpy(current_path, new_path, MAX_PATH_LEN-1);
++            current_path[MAX_PATH_LEN-1] = '\0';
 +            if (viewing_files) file_selected_count = 0;
-             scan_directory(current_path);
-         } else {
-             if (strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) == 0) {
-                 settings_menu_active = true;
-                 settings_menu_idx = 0;
-                 settings_filter_idx_on_enter = settings_filter_idx;
++            scan_directory(current_path);
++        } else {
++            if (strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) == 0) {
++                settings_menu_active = true;
++                settings_menu_idx = 0;
++                settings_filter_idx_on_enter = settings_filter_idx;
 +            } else if (viewing_jsdev) {
 +                char file_path[MAX_PATH_LEN];
 +                snprintf(file_path, sizeof(file_path), "%s/%s", current_path,
@@ -4209,30 +4607,54 @@ index a72c4e6..478577e 100644
 +                }
 +                else
 +                    dbg("file browser: no application for selected file");
-             } else {
-                 const char *folder = get_console_folder(current_path);
-                 char rom_path[MAX_PATH_LEN];
-@@ -1454,53 +4138,135 @@ static void handle_input(void) {
-             viewing_favourites = false;
-             scan_directory(ROMS_PATH);
-             strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
++            } else {
++                const char *folder = get_console_folder(current_path);
++                char rom_path[MAX_PATH_LEN];
++                snprintf(rom_path, sizeof(rom_path), "%s/%s", current_path, entries[selected_index].name);
++                /* per-game / per-folder override wins over folder/extension default */
++                const char *ov = core_override_lookup(rom_path, current_path);
++                const char *core = ov ? ov : get_core_for_folder(folder);
++                if (!core)
++                    core = get_core_for_extension(entries[selected_index].name);
++                if (ov) {
++                    request_game_launch(ov, rom_path);   /* override → always libretro */
++                } else if (core) {
++                    if (is_ps1_folder(folder) && access(PCSX4ALL_BIN, F_OK) == 0)
++                        request_standalone_launch(PCSX4ALL_BIN, rom_path);
++                    else if (is_standalone_bin(core) && access(core, F_OK) == 0)
++                        request_standalone_launch(core, rom_path);
++                    else
++                        request_game_launch(core, rom_path);
++                } else {
++                    dbg("no core mapping for this folder or extension");
++                }
++            }
++        }
++    }
++
++    if (input_was_pressed(FROG_BTN_B)) {
++        if (viewing_search) {
++            /* back to the keyboard to refine the query */
++            viewing_search = false;
++            search_kbd_active = true;
++        } else if (viewing_recents || viewing_favourites) {
++            viewing_recents = false;
++            viewing_favourites = false;
++            scan_directory(ROMS_PATH);
++            strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
 +            selected_index=min(home_selected_index,entry_count>0?entry_count-1:0);
 +        } else if (is_utility_browser()) {
 +            utility_browser_go_back();
-         } else if (strcmp(current_path, ROMS_PATH) != 0) {
-             char *slash = strrchr(current_path, '/');
--            if (slash) { *slash = '\0'; scan_directory(current_path); }
++        } else if (strcmp(current_path, ROMS_PATH) != 0) {
++            char *slash = strrchr(current_path, '/');
 +            if (slash) {
 +                *slash = '\0'; scan_directory(current_path);
 +                if(strcmp(current_path,ROMS_PATH)==0)
 +                    selected_index=min(home_selected_index,entry_count>0?entry_count-1:0);
 +            }
-         }
-     }
-
--    if (input_was_pressed(FROG_BTN_UP) && selected_index > 0) {
--        selected_index--;
--        if (selected_index < scroll_offset) scroll_offset = selected_index;
++        }
++    }
++
 +    bool launcher = is_launcher_view();
 +    bool cards = is_game_card_view();
 +    int nav_count = viewing_favourites ? favorites_get_count() :
@@ -4241,11 +4663,7 @@ index a72c4e6..478577e 100644
 +    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_L1)) {
 +        selected_index = selected_index >= card_page_size ? selected_index - card_page_size :
 +                         ((nav_count-1)/card_page_size)*card_page_size;
-     }
--    if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
--        selected_index++;
--        if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
--            scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
++    }
 +    if (cards && nav_count>0 && input_was_pressed(FROG_BTN_R1)) {
 +        selected_index = selected_index + card_page_size < nav_count ?
 +                         selected_index + card_page_size : 0;
@@ -4261,13 +4679,10 @@ index a72c4e6..478577e 100644
 +                                  (selected_index+4<nav_count ? selected_index+4 : 0))
 +                         : launcher ? (selected_index+3<nav_count ? selected_index+3 : 0)
 +                                    : (selected_index+1)%nav_count;
-     }
-     /* In the game switcher (one game on screen at a time), Left/Right step one
-      * game like Up/Down — no page jumping. */
-     bool switcher = viewing_recents && settings_game_switcher;
--    if (input_was_pressed(FROG_BTN_LEFT)) {
--        if (switcher) {
--            if (selected_index > 0) selected_index--;
++    }
++    /* In the game switcher (one game on screen at a time), Left/Right step one
++     * game like Up/Down — no page jumping. */
++    bool switcher = viewing_recents && settings_game_switcher;
 +    if (nav_count>0 && input_was_pressed(FROG_BTN_LEFT)) {
 +        if (cards) {
 +            selected_index=(selected_index-1+nav_count)%nav_count;
@@ -4275,15 +4690,10 @@ index a72c4e6..478577e 100644
 +            selected_index=(selected_index-1+nav_count)%nav_count;
 +        } else if (switcher) {
 +            selected_index=(selected_index-1+nav_count)%nav_count;
-         } else {
--            selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : 0;
--            if (selected_index < scroll_offset) scroll_offset = selected_index;
++        } else {
 +            selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : nav_count-1;
-         }
-     }
--    if (input_was_pressed(FROG_BTN_RIGHT)) {
--        if (switcher) {
--            if (selected_index < entry_count-1) selected_index++;
++        }
++    }
 +    if (nav_count>0 && input_was_pressed(FROG_BTN_RIGHT)) {
 +        if (cards) {
 +            selected_index=(selected_index+1)%nav_count;
@@ -4291,20 +4701,17 @@ index a72c4e6..478577e 100644
 +            selected_index=(selected_index+1)%nav_count;
 +        } else if (switcher) {
 +            selected_index=(selected_index+1)%nav_count;
-         } else {
--            selected_index = (selected_index + VISIBLE_ENTRIES < entry_count) ? selected_index + VISIBLE_ENTRIES : entry_count - 1;
--            if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
--                scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
++        } else {
 +            selected_index = (selected_index + VISIBLE_ENTRIES < nav_count) ? selected_index + VISIBLE_ENTRIES : 0;
-         }
-     }
++        }
++    }
 +    if(selected_index<scroll_offset) scroll_offset=selected_index;
 +    if(selected_index>=scroll_offset+VISIBLE_ENTRIES)
 +        scroll_offset=selected_index-VISIBLE_ENTRIES+1;
-
- input_done:;
- }
-
++
++input_done:;
++}
++
 +static void ui_sound_trigger(int pitch) {
 +    ui_sound_frames = 2205; /* 50 ms at 44.1 kHz */
 +    ui_sound_phase = (unsigned)(pitch < 1 ? 900 : pitch);
@@ -4356,77 +4763,113 @@ index a72c4e6..478577e 100644
 +    else for (int i = 0; i < 735; i++) audio_cb(samples[i * 2], samples[i * 2 + 1]);
 +}
 +
- /* ---- libretro API ---- */
-
- unsigned retro_api_version(void) { return RETRO_API_VERSION; }
-
- void retro_get_system_info(struct retro_system_info *info) {
-     memset(info, 0, sizeof(*info));
--    info->library_name     = "TreeFrogUI";
--    info->library_version  = "1.0-sf3000";
++/* ---- libretro API ---- */
++
++unsigned retro_api_version(void) { return RETRO_API_VERSION; }
++
++void retro_get_system_info(struct retro_system_info *info) {
++    memset(info, 0, sizeof(*info));
 +    info->library_name     = "SwitchFrogUI";
 +    info->library_version  = "1.2.1-r36sx";
-     info->valid_extensions = "";
-     info->need_fullpath    = false;
-     info->block_extract    = false;
-@@ -1526,13 +4292,15 @@ void retro_set_environment(retro_environment_t cb) {
- }
-
- void retro_set_video_refresh(retro_video_refresh_t cb)          { video_cb      = cb; }
--void retro_set_audio_sample(retro_audio_sample_t cb)            { (void)cb; }
--void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb){ (void)cb; }
++    info->valid_extensions = "";
++    info->need_fullpath    = false;
++    info->block_extract    = false;
++}
++
++void retro_get_system_av_info(struct retro_system_av_info *info) {
++    memset(info, 0, sizeof(*info));
++    info->geometry.base_width   = SCREEN_WIDTH;
++    info->geometry.base_height  = SCREEN_HEIGHT;
++    info->geometry.max_width    = SCREEN_WIDTH;
++    info->geometry.max_height   = SCREEN_HEIGHT;
++    info->geometry.aspect_ratio = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
++    info->timing.fps            = 60.0;
++    info->timing.sample_rate    = 44100.0;
++}
++
++void retro_set_environment(retro_environment_t cb) {
++    environ_cb = cb;
++    bool no_game = true;
++    cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
++    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
++    cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt);
++}
++
++void retro_set_video_refresh(retro_video_refresh_t cb)          { video_cb      = cb; }
 +void retro_set_audio_sample(retro_audio_sample_t cb)            { audio_cb = cb; }
 +void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb){ audio_batch_cb = cb; }
- void retro_set_input_poll(retro_input_poll_t cb)                { input_poll_cb = cb; }
- void retro_set_input_state(retro_input_state_t cb)              { input_state_cb = cb; }
-
-
- void retro_init(void) {
++void retro_set_input_poll(retro_input_poll_t cb)                { input_poll_cb = cb; }
++void retro_set_input_state(retro_input_state_t cb)              { input_state_cb = cb; }
++
++
++void retro_init(void) {
 +    int returning_home = access(HOME_RETURN_FLAG, F_OK) == 0;
 +    if (returning_home) unlink(HOME_RETURN_FLAG);
-     dbg("retro_init start");
-     /* Runtime panel geometry from picoarch (device-detected). Must run before
-      * font_init / any layout use. Falls back to render.c defaults if env unset. */
-@@ -1547,6 +4315,7 @@ void retro_init(void) {
-         dbg("geometry set");
-     }
-     input_init();
++    dbg("retro_init start");
++    /* Runtime panel geometry from picoarch (device-detected). Must run before
++     * font_init / any layout use. Falls back to render.c defaults if env unset. */
++    {
++        const char *ew = getenv("TF_PANEL_W");
++        const char *eh = getenv("TF_PANEL_H");
++        const char *es = getenv("TF_UI_SCALE");
++        int w = ew ? atoi(ew) : 0;
++        int h = eh ? atoi(eh) : 0;
++        int s = es ? atoi(es) : 0;
++        render_set_geometry(w, h, s);
++        dbg("geometry set");
++    }
++    input_init();
 +    power_button_init();
-     input_load_remap(KEYMAP_FILE);
-     font_init();
-     dbg("font_init done");
-@@ -1555,6 +4324,9 @@ void retro_init(void) {
-     theme_init();
-     dbg("theme_init done");
-     settings_load_file();
++    input_load_remap(KEYMAP_FILE);
++    font_init();
++    dbg("font_init done");
++    font_scan();
++    dbg("font_scan done");
++    theme_init();
++    dbg("theme_init done");
++    settings_load_file();
 +    screen_blanked = false;
 +    screen_idle_frames = 0;
 +    screen_blanked_frames = 0;
-     fb1_set_visible(1);   /* restart cubevol for OSD overlay — also resets backlight */
-     settings_apply();     /* apply AFTER cubevol restart so our brightness wins */
-     dbg("settings loaded");
-@@ -1567,6 +4339,9 @@ void retro_init(void) {
-     dbg("core overrides loaded");
-
-     framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
++    fb1_set_visible(1);   /* restart cubevol for OSD overlay — also resets backlight */
++    settings_apply();     /* apply AFTER cubevol restart so our brightness wins */
++    dbg("settings loaded");
++    recent_games_init();
++    dbg("recent_games_init done");
++    favorites_init();
++    dbg("favorites_init done");
++    core_override_load();
++    build_core_choices();
++    dbg("core overrides loaded");
++
++    framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
 +    displayfix_framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
 +    file_overlay_background = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
 +    ui_rendered_once = 0;
-     dbg("calloc done");
-     render_init(framebuffer);
-     dbg("render_init done");
-@@ -1584,15 +4359,34 @@ void retro_init(void) {
-     }
-     scan_directory(current_path);
-     dbg("scan_directory done");
--    if (settings_load_recents && recent_games_get_count() > 0)
++    dbg("calloc done");
++    render_init(framebuffer);
++    dbg("render_init done");
++    /* Resolve the roms root before the first scan (see g_roms_path). */
++    {
++        DIR *d = opendir(g_roms_path);
++        if (d) closedir(d);
++        else {
++            DIR *alt = opendir(SDCARD_BASE "/ROMS");
++            if (alt) { closedir(alt); strcpy(g_roms_path, SDCARD_BASE "/ROMS"); }
++            else mkdir(g_roms_path, 0777);
++        }
++        strncpy(current_path, g_roms_path, MAX_PATH_LEN - 1);
++        current_path[MAX_PATH_LEN - 1] = '\0';
++    }
++    scan_directory(current_path);
++    dbg("scan_directory done");
 +    if (!returning_home && settings_load_recents && recent_games_get_count() > 0)
-         enter_recents_view();   /* "Start in Recents" setting */
-     shutdown_requested = false;
-     dbg("retro_init complete");
- }
-
- void retro_deinit(void) {
++        enter_recents_view();   /* "Start in Recents" setting */
++    shutdown_requested = false;
++    dbg("retro_init complete");
++}
++
++void retro_deinit(void) {
 +    if (screen_blanked) cube_set_backlight(settings_brightness);
 +    screen_blanked = false;
 +    if (editor_dirty && editor_file_path[0]) editor_save();
@@ -4439,179 +4882,96 @@ index a72c4e6..478577e 100644
 +    photo_viewer_close();
 +    for(int i=0;i<SWITCHER_CACHE_COUNT;i++) switcher_cache_entry_free(&switcher_cache[i]);
 +    switcher_cache_next=0;
-     free(framebuffer); framebuffer = NULL;
++    free(framebuffer); framebuffer = NULL;
 +    free(displayfix_framebuffer); displayfix_framebuffer = NULL;
 +    free(file_overlay_background); file_overlay_background = NULL;
-     free(entries);     entries = NULL;
++    free(entries);     entries = NULL;
 +    free(category_entries); category_entries = NULL; category_entry_count = 0;
 +    free(editor_text); editor_text = NULL;
 +    free(editor_clipboard); editor_clipboard = NULL; editor_clipboard_length = 0;
 +    editor_history_clear_stack(editor_undo, &editor_undo_count);
 +    editor_history_clear_stack(editor_redo, &editor_redo_count);
-     entry_count = entry_capacity = 0;
- }
-
-@@ -1601,108 +4395,8 @@ bool retro_load_game(const struct retro_game_info *info) {
-     return true;  /* supports no-game */
- }
-
--void retro_unload_game(void) {}
--
--static void render_settings_menu(void) {
--    extern const Theme themes[];
--    if (banner_is_loaded())
--        banner_render(framebuffer);
--    else
--        render_clear_screen(framebuffer);
--    render_header(framebuffer, "SETTINGS");
--
--    char line[128];
--    int y0 = START_Y;
--    /* Theme row */
--    snprintf(line, sizeof(line), "Theme: < %s >", themes[settings_theme_idx].name);
--    if (settings_menu_idx == 0) {
--        render_text_pillbox(framebuffer, PADDING, y0, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y0, line, COLOR_TEXT);
--    }
--    /* Font row */
--    snprintf(line, sizeof(line), "Font: < %s >",
--             font_count > 0 ? font_disp[settings_font_idx] : "(none)");
--    int y1 = y0 + ITEM_HEIGHT;
--    if (settings_menu_idx == 1) {
--        render_text_pillbox(framebuffer, PADDING, y1, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y1, line, COLOR_TEXT);
--    }
--    /* Brightness row */
--    snprintf(line, sizeof(line), "Brightness: < %d%% >", settings_brightness);
--    int y2 = y1 + ITEM_HEIGHT;
--    if (settings_menu_idx == 2) {
--        render_text_pillbox(framebuffer, PADDING, y2, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y2, line, COLOR_TEXT);
--    }
--    /* Auto-resume row */
--    snprintf(line, sizeof(line), "Auto-resume: < %s >", onoff_names[settings_auto_resume]);
--    int y3 = y2 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_AUTORESUME) {
--        render_text_pillbox(framebuffer, PADDING, y3, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y3, line, COLOR_TEXT);
--    }
--    /* Animations row */
--    snprintf(line, sizeof(line), "Animations: < %s >", onoff_names[settings_anim]);
--    int y4 = y3 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_ANIM) {
--        render_text_pillbox(framebuffer, PADDING, y4, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y4, line, COLOR_TEXT);
--    }
--    /* Hide empty folders row */
--    snprintf(line, sizeof(line), "Hide Empty Folders: < %s >", onoff_names[settings_hide_empty]);
--    int y5 = y4 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
--        render_text_pillbox(framebuffer, PADDING, y5, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y5, line, COLOR_TEXT);
--    }
--    /* Game switcher row */
--    snprintf(line, sizeof(line), "Game Switcher: < %s >", onoff_names[settings_game_switcher]);
--    int y6 = y5 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
--        render_text_pillbox(framebuffer, PADDING, y6, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y6, line, COLOR_TEXT);
--    }
--    /* Load to recents row */
--    snprintf(line, sizeof(line), "Start in Recents: < %s >", onoff_names[settings_load_recents]);
--    int y7 = y6 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
--        render_text_pillbox(framebuffer, PADDING, y7, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y7, line, COLOR_TEXT);
--    }
--    /* Button Mapping row */
--    int y8 = y7 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_REMAP) {
--        render_text_pillbox(framebuffer, PADDING, y8, "Button Mapping", COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y8, "Button Mapping", COLOR_TEXT);
--    }
--    /* Volume row (global output gain for all emulators) */
--    snprintf(line, sizeof(line), "Volume: < %d%% >", settings_volume);
--    int y9 = y8 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_VOLUME) {
--        render_text_pillbox(framebuffer, PADDING, y9, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y9, line, COLOR_TEXT);
--    }
--    /* Disable Sleep row (applies after restart — zhijack live-patches cubevol) */
--    snprintf(line, sizeof(line), "Disable Sleep (restart): < %s >", onoff_names[settings_disable_sleep]);
--    int y10 = y9 + ITEM_HEIGHT;
--    if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
--        render_text_pillbox(framebuffer, PADDING, y10, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--    } else {
--        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y10, line, COLOR_TEXT);
--    }
--    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
--}
--
++    entry_count = entry_capacity = 0;
++}
++
++bool retro_load_game(const struct retro_game_info *info) {
++    (void)info;
++    return true;  /* supports no-game */
++}
++
 +void retro_unload_game(void) {}
 +
- static void render_remap_wizard(void) {
-     if (banner_is_loaded())
-         banner_render(framebuffer);
-@@ -1716,14 +4410,11 @@ static void render_remap_wizard(void) {
-     font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, line, COLOR_TEXT);
-
-     y += ITEM_HEIGHT;
--    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, "[B] = skip / keep default", COLOR_TEXT);
++static void render_remap_wizard(void) {
++    if (banner_is_loaded())
++        banner_render(framebuffer);
++    else
++        render_clear_screen(framebuffer);
++    render_header(framebuffer, "BUTTON MAPPING");
++
++    char line[128];
++    int y = START_Y;
++    snprintf(line, sizeof(line), "Press  %s  (%d / %d)", input_btn_name((FrogButton)remap_step), remap_step + 1, FROG_BTN_COUNT);
++    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, line, COLOR_TEXT);
++
++    y += ITEM_HEIGHT;
 +    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, "[B] = back to Settings", COLOR_TEXT);
- }
-
- static void render_core_picker(void) {
--    if (banner_is_loaded())
--        banner_render(framebuffer);
--    else
--        render_clear_screen(framebuffer);
++}
++
++static void render_core_picker(void) {
 +    render_clear_screen(framebuffer);
-     render_header(framebuffer, "SELECT CORE");
-
-     int y = START_Y;
-@@ -1731,18 +4422,19 @@ static void render_core_picker(void) {
-     font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, core_picker_title, COLOR_TEXT);
-     y += ITEM_HEIGHT;
-
--    int rows = VISIBLE_ENTRIES - 1;   /* one row used by the subtitle */
--    if (rows < 1) rows = 1;
--    int visible = min(core_choice_count - core_picker_scroll, rows);
++    render_header(framebuffer, "SELECT EMULATOR");
++
++    int y = START_Y;
++    /* subtitle: which game/folder we're overriding */
++    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, core_picker_title, COLOR_TEXT);
++    y += ITEM_HEIGHT;
++
 +    int rows = 6;
 +    int first=core_picker_idx-rows/2;
 +    if(first<0) first=0;
 +    if(first>core_choice_count-rows) first=core_choice_count-rows;
 +    if(first<0) first=0;
 +    int visible = min(core_choice_count - first, rows);
-     for (int i = 0; i < visible; i++) {
--        int idx = core_picker_scroll + i;
++    for (int i = 0; i < visible; i++) {
 +        int idx = first + i;
-         const char *line = core_choices[idx].name;
--        int ry = y + i * ITEM_HEIGHT;
--        if (idx == core_picker_idx)
--            render_text_pillbox(framebuffer, PADDING, ry, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
--        else
--            font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, ry, line, COLOR_TEXT);
++        const char *line = core_choices[idx].name;
 +        int ry = y + i * UI_S(34);
 +        render_modern_row(line,idx==0?"AUTO":"CORE",ry,idx==core_picker_idx);
-     }
++    }
 +    render_scroll_indicator(core_choice_count,first,visible,y,visible*UI_S(34)-UI_S(6));
-     render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
- }
-
-@@ -1774,7 +4466,1474 @@ static void render_search_kbd(void) {
-     render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
- }
-
++    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING,
++                          SCREEN_HEIGHT - UI_S(18),
++                          "A USE EMULATOR     B BACK", COLOR_LEGEND, 78);
++}
++
++static void render_search_kbd(void) {
++    render_clear_screen(framebuffer);
++    render_header(framebuffer, "SEARCH");
++
++    int y = START_Y;
++    char q[96];
++    snprintf(q, sizeof(q), "> %s_", search_query);
++    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, q, COLOR_TEXT);
++    y += ITEM_HEIGHT + UI_S(8);
++
++    int cw = UI_S(26), ch = ITEM_HEIGHT;
++    for (int r = 0; r < KBD_NROWS; r++) {
++        int rl = kbd_row_len(r);
++        int ry = y + r * ch;
++        for (int c = 0; c < rl; c++) {
++            char lbl[8];
++            int cx;
++            if (r == KBD_SPECIAL_ROW) { snprintf(lbl, sizeof(lbl), "%s", KBD_SPECIAL[c]); cx = PADDING + c * (cw * 3); }
++            else { lbl[0] = KBD_ROWS[r][c]; lbl[1] = '\0'; cx = PADDING + c * cw; }
++            if (r == search_kbd_r && c == search_kbd_c)
++                render_text_pillbox(framebuffer, cx, ry, lbl, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
++            else
++                font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, cx, ry, lbl, COLOR_TEXT);
++        }
++    }
++    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
++}
++
 +static uint16_t ui_mix565(uint16_t a, uint16_t b, int amount) {
 +    int ar=(a>>11)&31, ag=(a>>5)&63, ab=a&31;
 +    int br=(b>>11)&31, bg=(b>>5)&63, bb=b&31;
@@ -5309,9 +5669,22 @@ index a72c4e6..478577e 100644
 +            uint16_t *p=&framebuffer[py*SCREEN_WIDTH+px];
 +            *p=ui_mix565(*p,color,amount);
 +        }
-+    }
+     }
 +}
-+
+ 
+-    if (input_was_pressed(FROG_BTN_B)) {
+-        if (viewing_search) {
+-            /* back to the keyboard to refine the query */
+-            viewing_search = false;
+-            search_kbd_active = true;
+-        } else if (viewing_recents || viewing_favourites) {
+-            viewing_recents = false;
+-            viewing_favourites = false;
+-            scan_directory(ROMS_PATH);
+-            strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1);
+-        } else if (strcmp(current_path, ROMS_PATH) != 0) {
+-            char *slash = strrchr(current_path, '/');
+-            if (slash) { *slash = '\0'; scan_directory(current_path); }
 +static void launcher_draw_card_glow(int x,int y,int w,int h,uint16_t color) {
 +    /* RGB565 has no alpha channel: blend into the already-rendered background
 +     * to simulate transparency. Brighten dark artwork averages so the halo can
@@ -5354,7 +5727,7 @@ index a72c4e6..478577e 100644
 +        for(int i=0;i<3;i++) {
 +            render_fill_rect(framebuffer,cx-UI_S(25),cy-UI_S(12)+i*UI_S(10),UI_S(18),UI_S(2),c);
 +            render_fill_rect(framebuffer,cx+UI_S(7),cy-UI_S(12)+i*UI_S(10),UI_S(18),UI_S(2),c);
-+        }
+         }
 +    } else if (!strcmp(name, FILES_ENTRY_NAME)) {
 +        render_rounded_rect(framebuffer, cx - UI_S(30), cy - UI_S(16), UI_S(60), UI_S(40), UI_S(5), c);
 +        render_fill_rect(framebuffer, cx - UI_S(25), cy - UI_S(23), UI_S(26), UI_S(12), c);
@@ -5402,16 +5775,23 @@ index a72c4e6..478577e 100644
 +        render_fill_rect(framebuffer, cx - UI_S(17), cy - UI_S(9), UI_S(6), UI_S(18), launcher_tile_color(name, 0));
 +        render_rounded_rect(framebuffer, cx + UI_S(10), cy - UI_S(9), UI_S(9), UI_S(9), UI_S(4), launcher_tile_color(name, 0));
 +        render_rounded_rect(framebuffer, cx + UI_S(21), cy + UI_S(2), UI_S(9), UI_S(9), UI_S(4), launcher_tile_color(name, 0));
-+    }
+     }
 +}
-+
+ 
+-    if (input_was_pressed(FROG_BTN_UP) && selected_index > 0) {
+-        selected_index--;
+-        if (selected_index < scroll_offset) scroll_offset = selected_index;
 +static void launcher_draw_platform_badge(const char *name, int x, int y, int w, int h) {
 +    char label[96];
 +    int n = 0;
 +    while (name[n] && n < (int)sizeof(label) - 1) {
 +        label[n] = (char)toupper((unsigned char)name[n]);
 +        n++;
-+    }
+     }
+-    if (input_was_pressed(FROG_BTN_DOWN) && selected_index < entry_count-1) {
+-        selected_index++;
+-        if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
+-            scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
 +    label[n] = '\0';
 +    int bh = UI_S(23);
 +    int by = y + h - bh - UI_S(5);
@@ -5433,7 +5813,17 @@ index a72c4e6..478577e 100644
 +        glow=(selected_art && launcher_art[4].average_valid)
 +             ? launcher_art[4].average_color
 +             : launcher_tile_color(entries[selected_index].name,selected_index);
-+    }
+     }
+-    /* In the game switcher (one game on screen at a time), Left/Right step one
+-     * game like Up/Down — no page jumping. */
+-    bool switcher = viewing_recents && settings_game_switcher;
+-    if (input_was_pressed(FROG_BTN_LEFT)) {
+-        if (switcher) {
+-            if (selected_index > 0) selected_index--;
+-        } else {
+-            selected_index = (selected_index >= VISIBLE_ENTRIES) ? selected_index - VISIBLE_ENTRIES : 0;
+-            if (selected_index < scroll_offset) scroll_offset = selected_index;
+-        }
 +    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, UI_S(14),
 +                   "SwitchFrogUI", COLOR_TEXT);
 +    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -5450,7 +5840,14 @@ index a72c4e6..478577e 100644
 +        int selected_slot=selected_index-first;
 +        int sx=xpad+selected_slot*(cw+gap);
 +        launcher_draw_card_glow(sx,cy,cw,ch,glow);
-+    }
+     }
+-    if (input_was_pressed(FROG_BTN_RIGHT)) {
+-        if (switcher) {
+-            if (selected_index < entry_count-1) selected_index++;
+-        } else {
+-            selected_index = (selected_index + VISIBLE_ENTRIES < entry_count) ? selected_index + VISIBLE_ENTRIES : entry_count - 1;
+-            if (selected_index >= scroll_offset + VISIBLE_ENTRIES)
+-                scroll_offset = selected_index - VISIBLE_ENTRIES + 1;
 +    for (int slot = 0; slot < visible; slot++) {
 +        int idx=first+slot;
 +        if (idx >= entry_count) break;
@@ -5475,12 +5872,13 @@ index a72c4e6..478577e 100644
 +            else
 +                switcher_blit565_cover(framebuffer,art->data,art->alpha,art->width,art->height,
 +                                       x+UI_S(5),y+UI_S(5),w-UI_S(10),h-UI_S(10));
-+        }
+         }
 +        else launcher_draw_icon(entries[idx].name, x, y - UI_S(5), w, h);
 +        if(entries[idx].is_dir)
 +            launcher_draw_platform_badge(platform_display_name(entries[idx].name),x,y,w,h);
-+    }
-+
+     }
+ 
+-input_done:;
 +    if (selected_index >= 0 && selected_index < entry_count) {
 +        const char *name = entries[selected_index].is_dir
 +                         ? platform_display_name(entries[selected_index].name)
@@ -5510,12 +5908,22 @@ index a72c4e6..478577e 100644
 +    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT,
 +                   SCREEN_WIDTH - UI_S(125), SCREEN_HEIGHT - UI_S(25),
 +                   "X  SEARCH", COLOR_TEXT);
-+}
-+
+ }
+ 
+-/* ---- libretro API ---- */
+-
+-unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 +static bool game_has_save(const char *game_path);
 +typedef struct { char path[MAX_PATH_LEN]; Thumbnail thumb; int has_save; } RomCardArt;
 +static RomCardArt rom_card_art[8];
-+
+ 
+-void retro_get_system_info(struct retro_system_info *info) {
+-    memset(info, 0, sizeof(*info));
+-    info->library_name     = "TreeFrogUI";
+-    info->library_version  = "1.0-sf3000";
+-    info->valid_extensions = "";
+-    info->need_fullpath    = false;
+-    info->block_extract    = false;
 +static const char *card_full_path(int index, char *out, size_t n) {
 +    if(viewing_favourites) {
 +        const FavoriteGame *f=favorites_get_list();
@@ -5529,8 +5937,17 @@ index a72c4e6..478577e 100644
 +        snprintf(out,n,"%s/%s",current_path,entries[index].name);
 +    }
 +    return out;
-+}
-+
+ }
+ 
+-void retro_get_system_av_info(struct retro_system_av_info *info) {
+-    memset(info, 0, sizeof(*info));
+-    info->geometry.base_width   = SCREEN_WIDTH;
+-    info->geometry.base_height  = SCREEN_HEIGHT;
+-    info->geometry.max_width    = SCREEN_WIDTH;
+-    info->geometry.max_height   = SCREEN_HEIGHT;
+-    info->geometry.aspect_ratio = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
+-    info->timing.fps            = 60.0;
+-    info->timing.sample_rate    = 44100.0;
 +static Thumbnail *rom_card_get_art(int slot, const char *game_path) {
 +    RomCardArt *a=&rom_card_art[slot];
 +    if(!strcmp(a->path,game_path)) return a->thumb.data?&a->thumb:NULL;
@@ -5544,14 +5961,25 @@ index a72c4e6..478577e 100644
 +        if(thumbnail_owned_load(art,&a->thumb)) return &a->thumb;
 +    }
 +    return NULL;
-+}
-+
+ }
+ 
+-void retro_set_environment(retro_environment_t cb) {
+-    environ_cb = cb;
+-    bool no_game = true;
+-    cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
+-    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
+-    cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt);
 +static void game_display_name(const char *path, char *out, size_t n) {
 +    const char *b=strrchr(path,'/'); b=b?b+1:path;
 +    strncpy(out,b,n-1); out[n-1]='\0';
 +    char *dot=strrchr(out,'.'); if(dot) *dot='\0';
-+}
-+
+ }
+ 
+-void retro_set_video_refresh(retro_video_refresh_t cb)          { video_cb      = cb; }
+-void retro_set_audio_sample(retro_audio_sample_t cb)            { (void)cb; }
+-void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb){ (void)cb; }
+-void retro_set_input_poll(retro_input_poll_t cb)                { input_poll_cb = cb; }
+-void retro_set_input_state(retro_input_state_t cb)              { input_state_cb = cb; }
 +/* Optional per-folder metadata generated by Curate-EnglishNintendoRoms.ps1:
 + * filename<TAB>category<TAB>short description. Read only when Details opens
 + * and cache the last game, keeping large libraries out of resident memory. */
@@ -5602,14 +6030,27 @@ index a72c4e6..478577e 100644
 +    description[description_n - 1] = '\0';
 +    return 1;
 +}
-+
+ 
 +static bool path_is_favorite(const char *path) {
 +    const FavoriteGame *f=favorites_get_list();
 +    for(int i=0;i<favorites_get_count();i++)
 +        if(!strcmp(f[i].full_path,path)) return true;
 +    return false;
 +}
-+
+ 
+-void retro_init(void) {
+-    dbg("retro_init start");
+-    /* Runtime panel geometry from picoarch (device-detected). Must run before
+-     * font_init / any layout use. Falls back to render.c defaults if env unset. */
+-    {
+-        const char *ew = getenv("TF_PANEL_W");
+-        const char *eh = getenv("TF_PANEL_H");
+-        const char *es = getenv("TF_UI_SCALE");
+-        int w = ew ? atoi(ew) : 0;
+-        int h = eh ? atoi(eh) : 0;
+-        int s = es ? atoi(es) : 0;
+-        render_set_geometry(w, h, s);
+-        dbg("geometry set");
 +static bool game_has_save(const char *game_path) {
 +    char base[256], tag[64], parent[MAX_PATH_LEN], p[MAX_PATH_LEN*2];
 +    game_display_name(game_path,base,sizeof(base));
@@ -5621,10 +6062,41 @@ index a72c4e6..478577e 100644
 +    for(int i=0;ext[i];i++) {
 +        snprintf(p,sizeof(p),SDCARD_BASE "/picoarch/%s/%s.%s",tag,base,ext[i]);
 +        if(access(p,F_OK)==0) return true;
-+    }
+     }
+-    input_init();
+-    input_load_remap(KEYMAP_FILE);
+-    font_init();
+-    dbg("font_init done");
+-    font_scan();
+-    dbg("font_scan done");
+-    theme_init();
+-    dbg("theme_init done");
+-    settings_load_file();
+-    fb1_set_visible(1);   /* restart cubevol for OSD overlay — also resets backlight */
+-    settings_apply();     /* apply AFTER cubevol restart so our brightness wins */
+-    dbg("settings loaded");
+-    recent_games_init();
+-    dbg("recent_games_init done");
+-    favorites_init();
+-    dbg("favorites_init done");
+-    core_override_load();
+-    build_core_choices();
+-    dbg("core overrides loaded");
 +    return false;
 +}
-+
+ 
+-    framebuffer = calloc(SCREEN_WIDTH * SCREEN_HEIGHT, sizeof(uint16_t));
+-    dbg("calloc done");
+-    render_init(framebuffer);
+-    dbg("render_init done");
+-    /* Resolve the roms root before the first scan (see g_roms_path). */
+-    {
+-        DIR *d = opendir(g_roms_path);
+-        if (d) closedir(d);
+-        else {
+-            DIR *alt = opendir(SDCARD_BASE "/ROMS");
+-            if (alt) { closedir(alt); strcpy(g_roms_path, SDCARD_BASE "/ROMS"); }
+-            else mkdir(g_roms_path, 0777);
 +/* Save states do not carry a portable creation-time field. Track the game's
 + * accumulated playtime against a cheap content fingerprint instead. When a
 + * slot changes after returning from a game, its new playtime is captured the
@@ -5646,12 +6118,24 @@ index a72c4e6..478577e 100644
 +        if(fseek(f,tail,SEEK_SET)==0) {
 +            got=fread(buf,1,sizeof(buf),f);
 +            for(size_t i=0;i<got;i++) { h^=buf[i]; h*=16777619u; }
-+        }
-+    }
+         }
+-        strncpy(current_path, g_roms_path, MAX_PATH_LEN - 1);
+-        current_path[MAX_PATH_LEN - 1] = '\0';
+     }
+-    scan_directory(current_path);
+-    dbg("scan_directory done");
+-    if (settings_load_recents && recent_games_get_count() > 0)
+-        enter_recents_view();   /* "Start in Recents" setting */
+-    shutdown_requested = false;
+-    dbg("retro_init complete");
 +    fclose(f); if(size_out) *size_out=size;
 +    return h ? h : 1u;
-+}
-+
+ }
+ 
+-void retro_deinit(void) {
+-    free(framebuffer); framebuffer = NULL;
+-    free(entries);     entries = NULL;
+-    entry_count = entry_capacity = 0;
 +static long save_state_playtime(const char *state_path, const char *game_path) {
 +    long size=0, found=-1;
 +    uint32_t sig=state_file_fingerprint(state_path,&size);
@@ -5677,16 +6161,61 @@ index a72c4e6..478577e 100644
 +        fflush(f); fsync(fileno(f)); fclose(f);
 +    }
 +    return current;
-+}
-+
+ }
+ 
+-bool retro_load_game(const struct retro_game_info *info) {
+-    (void)info;
+-    return true;  /* supports no-game */
 +static void format_played_duration(long sec, char *out, size_t n) {
 +    if(sec>=3600) snprintf(out,n,"%ldH %ldM PLAYED",sec/3600,(sec%3600)/60);
 +    else if(sec>=60) snprintf(out,n,"%ldM PLAYED",sec/60);
 +    else snprintf(out,n,"%ldS PLAYED",sec);
-+}
-+
+ }
+ 
+-void retro_unload_game(void) {}
+-
+-static void render_settings_menu(void) {
+-    extern const Theme themes[];
+-    if (banner_is_loaded())
+-        banner_render(framebuffer);
+-    else
+-        render_clear_screen(framebuffer);
+-    render_header(framebuffer, "SETTINGS");
 +typedef struct { char label[24]; char path[MAX_PATH_LEN*2]; char played[32]; } GameSaveState;
-+
+ 
+-    char line[128];
+-    int y0 = START_Y;
+-    /* Theme row */
+-    snprintf(line, sizeof(line), "Theme: < %s >", themes[settings_theme_idx].name);
+-    if (settings_menu_idx == 0) {
+-        render_text_pillbox(framebuffer, PADDING, y0, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y0, line, COLOR_TEXT);
+-    }
+-    /* Font row */
+-    snprintf(line, sizeof(line), "Font: < %s >",
+-             font_count > 0 ? font_disp[settings_font_idx] : "(none)");
+-    int y1 = y0 + ITEM_HEIGHT;
+-    if (settings_menu_idx == 1) {
+-        render_text_pillbox(framebuffer, PADDING, y1, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y1, line, COLOR_TEXT);
+-    }
+-    /* Brightness row */
+-    snprintf(line, sizeof(line), "Brightness: < %d%% >", settings_brightness);
+-    int y2 = y1 + ITEM_HEIGHT;
+-    if (settings_menu_idx == 2) {
+-        render_text_pillbox(framebuffer, PADDING, y2, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y2, line, COLOR_TEXT);
+-    }
+-    /* Auto-resume row */
+-    snprintf(line, sizeof(line), "Auto-resume: < %s >", onoff_names[settings_auto_resume]);
+-    int y3 = y2 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_AUTORESUME) {
+-        render_text_pillbox(framebuffer, PADDING, y3, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y3, line, COLOR_TEXT);
 +static int collect_game_save_states(const char *game_path, GameSaveState *states, int cap) {
 +    char base[256], parent[MAX_PATH_LEN], tag[64]; int count=0;
 +    game_display_name(game_path,base,sizeof(base));
@@ -5707,7 +6236,14 @@ index a72c4e6..478577e 100644
 +        format_played_duration(save_state_playtime(path,game_path),
 +                               states[count].played,sizeof(states[count].played));
 +        count++;
-+    }
+     }
+-    /* Animations row */
+-    snprintf(line, sizeof(line), "Animations: < %s >", onoff_names[settings_anim]);
+-    int y4 = y3 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_ANIM) {
+-        render_text_pillbox(framebuffer, PADDING, y4, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y4, line, COLOR_TEXT);
 +    return count;
 +}
 +
@@ -5733,7 +6269,14 @@ index a72c4e6..478577e 100644
 +        font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,x,y+line_no*UI_S(17),line,color,percent);
 +        p+=len; while(*p==' ') p++;
 +        line_no++;
-+    }
+     }
+-    /* Hide empty folders row */
+-    snprintf(line, sizeof(line), "Hide Empty Folders: < %s >", onoff_names[settings_hide_empty]);
+-    int y5 = y4 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_HIDEEMPTY) {
+-        render_text_pillbox(framebuffer, PADDING, y5, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y5, line, COLOR_TEXT);
 +}
 +
 +static const char *const file_action_labels[FILE_ACTION_COUNT] = {
@@ -5783,7 +6326,14 @@ index a72c4e6..478577e 100644
 +                              x + pad, ry + UI_S(7), file_action_labels[action],
 +                              !enabled ? COLOR_DISABLED : action == file_action_menu_index ?
 +                              COLOR_SELECT_TEXT : COLOR_TEXT, 72);
-+    }
+     }
+-    /* Game switcher row */
+-    snprintf(line, sizeof(line), "Game Switcher: < %s >", onoff_names[settings_game_switcher]);
+-    int y6 = y5 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_SWITCHER) {
+-        render_text_pillbox(framebuffer, PADDING, y6, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y6, line, COLOR_TEXT);
 +}
 +
 +static void render_file_confirmation(void) {
@@ -5824,7 +6374,14 @@ index a72c4e6..478577e 100644
 +                render_text_pillbox(framebuffer, x, ry, label, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
 +            else font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, x, ry, label, COLOR_TEXT);
 +        }
-+    }
+     }
+-    /* Load to recents row */
+-    snprintf(line, sizeof(line), "Start in Recents: < %s >", onoff_names[settings_load_recents]);
+-    int y7 = y6 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_LOADRECENTS) {
+-        render_text_pillbox(framebuffer, PADDING, y7, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y7, line, COLOR_TEXT);
 +    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING,
 +                          SCREEN_HEIGHT - UI_S(18), "TYPE OR USE KEYPAD   START DONE   B CANCEL", COLOR_LEGEND, 70);
 +}
@@ -5861,7 +6418,13 @@ index a72c4e6..478577e 100644
 +        font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT,
 +                              x + (key_w - label_w) / 2, y + UI_S(12),
 +                              labels[key], fg, 82);
-+    }
+     }
+-    /* Button Mapping row */
+-    int y8 = y7 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_REMAP) {
+-        render_text_pillbox(framebuffer, PADDING, y8, "Button Mapping", COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y8, "Button Mapping", COLOR_TEXT);
 +    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING,
 +                          SCREEN_HEIGHT - UI_S(18),
 +                          "TYPE NUMBER + ENTER   A SELECT   B CANCEL",
@@ -5895,7 +6458,14 @@ index a72c4e6..478577e 100644
 +        snprintf(category_line, sizeof(category_line), "CATEGORY  %s", category);
 +        font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,tx,
 +                              art_y+UI_S(82),category_line,COLOR_LEGEND,70);
-+    }
+     }
+-    /* Volume row (global output gain for all emulators) */
+-    snprintf(line, sizeof(line), "Volume: < %d%% >", settings_volume);
+-    int y9 = y8 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_VOLUME) {
+-        render_text_pillbox(framebuffer, PADDING, y9, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y9, line, COLOR_TEXT);
 +    font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,tx,art_y+UI_S(106),"SAVE STATES",COLOR_TEXT,82);
 +    GameSaveState states[6]; int sc=collect_game_save_states(game_details_path,states,6);
 +    if(sc==0) font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,tx,art_y+UI_S(130),"NONE FOUND",COLOR_DISABLED,75);
@@ -5904,18 +6474,40 @@ index a72c4e6..478577e 100644
 +        font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,tx,sy,states[i].label,COLOR_TEXT,72);
 +        int sw=font_measure_text_scaled(states[i].played,62);
 +        font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,tx+tw-sw,sy+UI_S(1),states[i].played,COLOR_LEGEND,62);
-+    }
+     }
+-    /* Disable Sleep row (applies after restart — zhijack live-patches cubevol) */
+-    snprintf(line, sizeof(line), "Disable Sleep (restart): < %s >", onoff_names[settings_disable_sleep]);
+-    int y10 = y9 + ITEM_HEIGHT;
+-    if (settings_menu_idx == SETTINGS_ROW_NOSLEEP) {
+-        render_text_pillbox(framebuffer, PADDING, y10, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-    } else {
+-        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y10, line, COLOR_TEXT);
 +    if (have_metadata) {
 +        int about_y = art_y + art_h + UI_S(10);
 +        font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,art_x,
 +                              about_y,"ABOUT",COLOR_TEXT,76);
 +        draw_wrapped_scaled(description,art_x,about_y+UI_S(19),
 +                            art_w,4,62,COLOR_LEGEND);
-+    }
+     }
+-    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
 +    font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,SCREEN_HEIGHT-UI_S(18),
-+                          "A PLAY     B BACK",COLOR_LEGEND,85);
-+}
-+
++                          "A PLAY     X EMULATOR     B BACK",COLOR_LEGEND,82);
+ }
+ 
+-static void render_remap_wizard(void) {
+-    if (banner_is_loaded())
+-        banner_render(framebuffer);
+-    else
+-        render_clear_screen(framebuffer);
+-    render_header(framebuffer, "BUTTON MAPPING");
+-
+-    char line[128];
+-    int y = START_Y;
+-    snprintf(line, sizeof(line), "Press  %s  (%d / %d)", input_btn_name((FrogButton)remap_step), remap_step + 1, FROG_BTN_COUNT);
+-    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, line, COLOR_TEXT);
+-
+-    y += ITEM_HEIGHT;
+-    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, "[B] = skip / keep default", COLOR_TEXT);
 +static void render_category_tabs(void) {
 +    if (game_category_count <= 1) return;
 +    int y = START_Y - UI_S(2), gap = UI_S(5);
@@ -5939,8 +6531,11 @@ index a72c4e6..478577e 100644
 +                              x + (widths[slot] - textw) / 2, y + UI_S(6), label, fg, scale);
 +        x += widths[slot] + gap;
 +    }
-+}
-+
+ }
+ 
+-static void render_core_picker(void) {
+-    if (banner_is_loaded())
+-        banner_render(framebuffer);
 +static void render_compact_game_list(void) {
 +    const int visible = game_category_count > 1 ? 10 : 12;
 +    int count = viewing_favourites ? favorites_get_count() : entry_count;
@@ -5951,11 +6546,29 @@ index a72c4e6..478577e 100644
 +    char header[112];
 +    if (viewing_search)
 +        snprintf(header, sizeof(header), "SEARCH: %s (%d)", search_query, count);
-+    else
+     else
+-        render_clear_screen(framebuffer);
+-    render_header(framebuffer, "SELECT CORE");
+-
+-    int y = START_Y;
+-    /* subtitle: which game/folder we're overriding */
+-    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, core_picker_title, COLOR_TEXT);
+-    y += ITEM_HEIGHT;
 +        snprintf(header, sizeof(header), "%s  -  LIST", viewing_favourites ? "FAVOURITES" : get_basename(current_path));
 +    render_header(framebuffer, header);
 +    render_category_tabs();
-+
+ 
+-    int rows = VISIBLE_ENTRIES - 1;   /* one row used by the subtitle */
+-    if (rows < 1) rows = 1;
+-    int visible = min(core_choice_count - core_picker_scroll, rows);
+-    for (int i = 0; i < visible; i++) {
+-        int idx = core_picker_scroll + i;
+-        const char *line = core_choices[idx].name;
+-        int ry = y + i * ITEM_HEIGHT;
+-        if (idx == core_picker_idx)
+-            render_text_pillbox(framebuffer, PADDING, ry, line, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-        else
+-            font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, ry, line, COLOR_TEXT);
 +    const int row_h = UI_S(27), top = START_Y - UI_S(2) +
 +                                        (game_category_count > 1 ? UI_S(24) : 0);
 +    for (int slot = 0; slot < visible; slot++) {
@@ -5986,17 +6599,19 @@ index a72c4e6..478577e 100644
 +        if (path_is_favorite(full))
 +            draw_star_icon(SCREEN_WIDTH - PADDING - UI_S(13), y + row_h / 2,
 +                           UI_S(7), 0xFFE0);
-+    }
+     }
+-    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
 +    char footer[128];
 +    int pages = count > 0 ? (count + visible - 1) / visible : 1;
 +    int page = count > 0 ? first / visible + 1 : 1;
 +    snprintf(footer, sizeof(footer), game_category_count > 1 ?
-+             "A DETAILS  B BACK  START ART  L/R PAGE  L2/R2 TAB  %d/%d" :
-+             "A DETAILS  B BACK  START ART  L/R PAGE  L2 JUMP   %d/%d", page, pages);
++             "A DETAILS  SEL EMULATOR  START ART  L/R PAGE  L2/R2 TAB  %d/%d" :
++             "A DETAILS  SEL EMULATOR  START ART  L/R PAGE  L2 JUMP   %d/%d", page, pages);
 +    font_draw_text_scaled(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING,
 +                          SCREEN_HEIGHT - UI_S(18), footer, COLOR_LEGEND, 64);
-+}
-+
+ }
+ 
+-static void render_search_kbd(void) {
 +static void render_rom_cards(void) {
 +    const int cols=4, rows=2, visible=cols*rows;
 +    int count=viewing_favourites?favorites_get_count():entry_count;
@@ -6007,7 +6622,8 @@ index a72c4e6..478577e 100644
 +    int cw=(SCREEN_WIDTH-xpad*2-gap*(cols-1))/cols;
 +    int ch=UI_S(game_category_count > 1 ? 96 : 108);
 +    int top=START_Y + (game_category_count > 1 ? UI_S(24) : 0);
-+    render_clear_screen(framebuffer);
+     render_clear_screen(framebuffer);
+-    render_header(framebuffer, "SEARCH");
 +    char search_header[96];
 +    if(viewing_search) snprintf(search_header,sizeof(search_header),"SEARCH: %s (%d)",search_query,count);
 +    render_header(framebuffer,viewing_favourites?"FAVOURITES":viewing_search?search_header:get_basename(current_path));
@@ -6042,12 +6658,17 @@ index a72c4e6..478577e 100644
 +        }
 +    }
 +    const char *legend=game_category_count > 1 ?
-+        "A DETAILS  B BACK  X FIND  Y STAR  L2/R2 CATEGORY  L/R PAGE" : viewing_search ?
-+        "A DETAILS  B EDIT SEARCH  START LIST  L/R PAGE  L2 JUMP" :
-+        "A DETAILS  B BACK  X FIND  Y STAR  START LIST  L/R PAGE  L2 JUMP";
++        "A DETAILS  SEL EMULATOR  X FIND  Y STAR  L2/R2 TAB  L/R PAGE" : viewing_search ?
++        "A DETAILS  SEL EMULATOR  B EDIT SEARCH  START LIST  L/R PAGE" :
++        "A DETAILS  SEL EMULATOR  X FIND  Y STAR  START LIST  L/R PAGE";
 +    font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,SCREEN_HEIGHT-UI_S(18),legend,COLOR_LEGEND,68);
 +}
-+
+ 
+-    int y = START_Y;
+-    char q[96];
+-    snprintf(q, sizeof(q), "> %s_", search_query);
+-    font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y, q, COLOR_TEXT);
+-    y += ITEM_HEIGHT + UI_S(8);
 +/* Affected R36SX panels scan the first 110 columns one row too high. Pre-roll
 + * only that band down by one row (with wrap) so the panel fault cancels it.
 + * The rest of the 640x480 image is copied bit-for-bit: no crop, squeeze, or
@@ -6065,7 +6686,21 @@ index a72c4e6..478577e 100644
 +        externally_fixed || SCREEN_WIDTH != 640 || SCREEN_HEIGHT != 480)
 +        return framebuffer;
 +    if (!refresh) return displayfix_framebuffer;
-+
+ 
+-    int cw = UI_S(26), ch = ITEM_HEIGHT;
+-    for (int r = 0; r < KBD_NROWS; r++) {
+-        int rl = kbd_row_len(r);
+-        int ry = y + r * ch;
+-        for (int c = 0; c < rl; c++) {
+-            char lbl[8];
+-            int cx;
+-            if (r == KBD_SPECIAL_ROW) { snprintf(lbl, sizeof(lbl), "%s", KBD_SPECIAL[c]); cx = PADDING + c * (cw * 3); }
+-            else { lbl[0] = KBD_ROWS[r][c]; lbl[1] = '\0'; cx = PADDING + c * cw; }
+-            if (r == search_kbd_r && c == search_kbd_c)
+-                render_text_pillbox(framebuffer, cx, ry, lbl, COLOR_SELECT_BG, COLOR_SELECT_TEXT, 7);
+-            else
+-                font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, cx, ry, lbl, COLOR_TEXT);
+-        }
 +    for (int y = 0; y < SCREEN_HEIGHT; y++) {
 +        uint16_t *dst = displayfix_framebuffer + (size_t)y * SCREEN_WIDTH;
 +        const uint16_t *src = framebuffer + (size_t)y * SCREEN_WIDTH;
@@ -6074,16 +6709,17 @@ index a72c4e6..478577e 100644
 +               (size_t)band_w * sizeof(uint16_t));
 +        memcpy(dst + band_w, src + band_w,
 +               (size_t)(SCREEN_WIDTH - band_w) * sizeof(uint16_t));
-+    }
+     }
+-    render_legend(framebuffer, LEGEND_X_NONE, 0, 0);
 +    return displayfix_framebuffer;
-+}
-+
+ }
+ 
  void retro_run(void) {
 +    screen_woke_this_frame = false;
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1787,12 +5946,137 @@ void retro_run(void) {
+@@ -1787,12 +6070,137 @@ void retro_run(void) {
          RB(RETRO_DEVICE_ID_JOYPAD_A, 13);    RB(RETRO_DEVICE_ID_JOYPAD_B, 14);
          RB(RETRO_DEVICE_ID_JOYPAD_X, 12);    RB(RETRO_DEVICE_ID_JOYPAD_Y, 15);
          RB(RETRO_DEVICE_ID_JOYPAD_L, 10);    RB(RETRO_DEVICE_ID_JOYPAD_R, 11);
@@ -6216,12 +6852,12 @@ index a72c4e6..478577e 100644
 +               (input_was_pressed(FROG_BTN_A) || input_was_pressed(FROG_BTN_B))) {
 +        ui_sound_play(input_was_pressed(FROG_BTN_A) ? 1 : 2);
 +    }
-
+ 
 +    if (redraw) {
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +6086,12 @@ void retro_run(void) {
+@@ -1802,7 +6210,12 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
@@ -6235,7 +6871,7 @@ index a72c4e6..478577e 100644
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +6107,8 @@ void retro_run(void) {
+@@ -1818,7 +6231,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -6245,10 +6881,10 @@ index a72c4e6..478577e 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +6117,57 @@ void retro_run(void) {
+@@ -1827,20 +6241,57 @@ void retro_run(void) {
          }
      }
-
+ 
 -    if (search_kbd_active) {
 +    if (file_name_prompt_active) {
 +        render_file_name_prompt();
@@ -6306,7 +6942,7 @@ index a72c4e6..478577e 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +6179,70 @@ void retro_run(void) {
+@@ -1852,22 +6303,70 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -6384,7 +7020,7 @@ index a72c4e6..478577e 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +6271,24 @@ void retro_run(void) {
+@@ -1896,19 +6395,24 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -6409,13 +7045,13 @@ index a72c4e6..478577e 100644
 -        int show_search = (!viewing_recents && !viewing_favourites && !viewing_search);
 +        int show_search = (!viewing_files && !viewing_videos && !viewing_ebooks && !viewing_editor && !viewing_jsdev &&
 +                           !viewing_recents && !viewing_favourites && !viewing_search);
-
+ 
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1925,14 +6305,60 @@ void retro_run(void) {
+@@ -1925,14 +6429,60 @@ void retro_run(void) {
              }
          }
-
+ 
 -        render_legend(framebuffer, legend_mode, show_select, show_search);
 +        if(viewing_files)
 +            font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
@@ -6434,7 +7070,7 @@ index a72c4e6..478577e 100644
 +    else ui_notice_text[0]='\0';
 +    ui_rendered_once = 1;
      }
-
+ 
      if (video_cb)
 -        video_cb(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH * sizeof(uint16_t));
 +        video_cb(present_framebuffer(redraw), SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -6446,7 +7082,7 @@ index a72c4e6..478577e 100644
 +        cube_set_backlight_off();
 +    ui_audio_render();
  }
-
+ 
 -void retro_reset(void) { scan_directory(ROMS_PATH); strncpy(current_path, ROMS_PATH, MAX_PATH_LEN-1); }
 +void retro_reset(void) {
 +    if (screen_blanked) cube_set_backlight(settings_brightness);
@@ -6473,7 +7109,7 @@ index a72c4e6..478577e 100644
 +    scan_directory(current_path);
 +    ui_rendered_once = 0;
 +}
-
+ 
  unsigned retro_get_region(void)                                    { return RETRO_REGION_NTSC; }
  size_t   retro_serialize_size(void)                                { return 0; }
 diff --git a/input.c b/input.c
@@ -7444,7 +8080,7 @@ index 5c60324..1fee79d 100644
                  snprintf(recent_games[recent_count].display_name, sizeof(recent_games[recent_count].display_name),
 @@ -70,11 +86,15 @@ void recent_games_save(void) {
  }
-
+ 
  void recent_games_add(const char *core_name, const char *game_name, const char *full_path) {
 -    // Check if game already exists
 +    /* A ROM path is the game's identity. The frontend/core is launch metadata
@@ -7491,7 +8127,7 @@ index 5c60324..1fee79d 100644
                  "%s (%s)", game_name, core_name);
      }
 @@ -115,4 +148,4 @@ const RecentGame* recent_games_get_list(void) {
-
+ 
  int recent_games_get_count(void) {
      return recent_count;
 -}
@@ -7502,7 +8138,7 @@ index 4494ce7..2949801 100644
 --- a/render.c
 +++ b/render.c
 @@ -32,10 +32,20 @@ void render_init(uint16_t *framebuffer) {
-
+ 
  void render_clear_screen(uint16_t *framebuffer) {
      if (!framebuffer) return;
 -    
@@ -7525,11 +8161,11 @@ index 4494ce7..2949801 100644
 +        for (int x=0;x<SCREEN_WIDTH;x++) row[x]=color;
      }
  }
-
+ 
 @@ -184,7 +194,7 @@ void render_legend(uint16_t *framebuffer, int x_button_mode, int show_select, in
      }
  }
-
+ 
 -/* Draw one row at an explicit pixel y (used by the animated list). */
 +/* Draw one row at an explicit pixel y (used by modern list layouts). */
  void render_menu_row(uint16_t *framebuffer, const char *name, int is_dir,
@@ -7538,7 +8174,7 @@ index 4494ce7..2949801 100644
 @@ -320,6 +330,95 @@ int load_thumbnail(const char *base_path, Thumbnail *thumb) {
      return load_raw_rgb565(p, thumb);
  }
-
+ 
 +static uint16_t blend565_coverage(uint16_t background, uint16_t foreground, int coverage) {
 +    int inverse=16-coverage;
 +    int br=(background>>11)&31, bg=(background>>5)&63, bb=background&31;
@@ -7661,19 +8297,19 @@ index 0e98bc2..a417d0a 100644
 --- a/render.h
 +++ b/render.h
 @@ -18,6 +18,9 @@ extern int g_ui_scale;   /* integer scale, 100 = 1x of 480x320 baseline */
-
+ 
  #define SCREEN_WIDTH  g_screen_w
  #define SCREEN_HEIGHT g_screen_h
 +#ifdef UI_SCALE
 +#undef UI_SCALE
 +#endif
  #define UI_SCALE      g_ui_scale
-
+ 
  /* Set the runtime geometry. Call once in retro_init before font/layout use. */
 @@ -68,6 +71,10 @@ void render_fill_rect(uint16_t *framebuffer, int x, int y, int width, int height
  // Draw a rounded rectangle (pill shape)
  void render_rounded_rect(uint16_t *framebuffer, int x, int y, int width, int height, int radius, uint16_t color);
-
+ 
 +/* Four-by-four coverage antialiasing on rounded corners. Intended for large,
 + * static Home cards where clean silhouettes matter more than redraw cost. */
 +void render_rounded_rect_aa(uint16_t *framebuffer, int x, int y, int width, int height, int radius, uint16_t color);
@@ -7689,11 +8325,11 @@ index 0e98bc2..a417d0a 100644
 +// Draw a row at an explicit pixel y (modern list layout)
  void render_menu_row(uint16_t *framebuffer, const char *name, int is_dir,
                       int is_selected, int is_favorited, int y);
-
+ 
 @@ -101,6 +108,11 @@ typedef struct {
  // Load thumbnail from PNG file
  int load_thumbnail(const char *png_path, Thumbnail *thumb);
-
+ 
 +/* Resolve the artwork layouts found on stock/community cards. This searches
 + * beside the ROM and at its platform root in .res, images, Imgs, media, and
 + * boxart directories. */
@@ -7701,11 +8337,11 @@ index 0e98bc2..a417d0a 100644
 +
  // Load raw RGB565 file (fallback) - converts to ARGB8888
  int load_raw_rgb565(const char *path, Thumbnail *thumb);
-
+ 
 @@ -113,4 +125,4 @@ void render_thumbnail(uint16_t *framebuffer, const Thumbnail *thumb);
  // Get thumbnail path for a given game file
  void get_thumbnail_path(const char *game_path, char *thumb_path, size_t thumb_path_size);
-
+ 
 -#endif // RENDER_H
 \ No newline at end of file
 +#endif // RENDER_H
@@ -7943,26 +8579,26 @@ index f625756..a310437 100644
 +        .legend_bg=RGB565(30,18,68), .disabled=RGB565(137,116,159)
      }
  };
-
+ 
 @@ -369,10 +593,14 @@ const int theme_count = sizeof(themes) / sizeof(themes[0]);
-
+ 
  static int current_theme_index = 0;
  static const Theme* current_theme = &themes[0];
 +static int background_override_enabled = 0;
 +static uint16_t background_override_color = 0;
-
+ 
  void theme_init(void) {
      current_theme_index = 0;
      current_theme = &themes[0];
 +    background_override_enabled = 0;
 +    background_override_color = 0;
  }
-
+ 
  int theme_load_from_settings(const char* theme_name) {
 @@ -398,6 +626,15 @@ void theme_apply(int theme_index) {
      }
  }
-
+ 
 +void theme_set_background_override(int enabled, uint16_t color) {
 +    background_override_enabled = enabled ? 1 : 0;
 +    background_override_color = color;
@@ -7977,7 +8613,7 @@ index f625756..a310437 100644
  }
 @@ -414,7 +651,27 @@ const char* theme_get_name(int index) {
  }
-
+ 
  // Color accessors
 -uint16_t theme_bg(void) { return current_theme->bg; }
 +uint16_t theme_bg(void) { return background_override_enabled ? background_override_color : current_theme->bg; }
@@ -8028,7 +8664,7 @@ index 909f74b..d01edbe 100644
  const Theme* theme_get_current(void);
  int theme_get_current_index(void);
  const char* theme_get_name(int index);
-
+ 
  uint16_t theme_bg(void);
 +uint16_t theme_bg2(void);
 +int theme_has_gradient(void);

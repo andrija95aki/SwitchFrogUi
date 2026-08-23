@@ -65,15 +65,17 @@ else
     printf 'volume: %s\n' "$ROCKBOX_DB" > "$ROCKBOX_CONFIG"
 fi
 
-cd "$HOME" || exit 1
+# Launch from and explicitly pass the physical card root so Music never opens
+# the H.OS/Linux filesystem root when Rockbox restores its browser state.
+cd /mnt/sdcard || exit 1
 if [ -f /mnt/sdcard/log.txt ]; then
     echo "=== rockbox.sh: HOME=$HOME file=$1 ===" > /mnt/sdcard/rockbox.log
-    if [ -n "$1" ] && [ "$1" != "/mnt/sdcard" ]; then
+    if [ -n "$1" ]; then
         exec /mnt/sdcard/cubegm/rockbox "$1" >> /mnt/sdcard/rockbox.log 2>&1
     fi
-    exec /mnt/sdcard/cubegm/rockbox >> /mnt/sdcard/rockbox.log 2>&1
+    exec /mnt/sdcard/cubegm/rockbox /mnt/sdcard >> /mnt/sdcard/rockbox.log 2>&1
 fi
-if [ -n "$1" ] && [ "$1" != "/mnt/sdcard" ]; then
+if [ -n "$1" ]; then
     exec /mnt/sdcard/cubegm/rockbox "$1"
 fi
-exec /mnt/sdcard/cubegm/rockbox
+exec /mnt/sdcard/cubegm/rockbox /mnt/sdcard

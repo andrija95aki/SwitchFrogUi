@@ -196,8 +196,9 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   hardware player, an internal Photo viewer, and direct Text Editor dispatch
   for common text, Markdown, log, config, source-code, subtitle, and playlist
   extensions. Photos support PNG, JPEG, BMP, GIF, TGA, PSD, PNM/PPM/PGM, and
-  PIC, preserve transparent artwork against a checkerboard, fit the panel, and
-  rotate left/right with L1/R1; B returns to the exact source folder.
+  PIC, preserve transparent artwork against a checkerboard, wrap through the
+  current folder with Left/Right, rotate with L1/R1, zoom to 12×, and pan with
+  the D-pad while zoomed; B returns to the exact source folder.
 - Permanent Ebooks Home card opens a clean browser at `/mnt/sdcard` and
   shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
   TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and
@@ -208,6 +209,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   beside the files.
 - Rockbox opens at the card root, uses intuitive A-confirm/B-back mapping,
   follows the OS master volume, and inherits the display correction.
+- Rockbox defaults to the OneBit VFD Winamp-style skin; its Shortcuts menu
+  includes the bundled FFT spectrum visualizer.
+- Game Details exposes an explicit Emulator action that persists a per-game
+  core override; the same selector is available from game grids with Select.
+- PCSX4ALL's in-game menu exposes save-state slots 1–10 instead of hardcoding
+  every save/load action to slot 1.
 - Dedicated Videos browser that navigates real folders without retriggering its
   Home action.
 - The hardware player blanks FrogUI's retained framebuffer before playback so

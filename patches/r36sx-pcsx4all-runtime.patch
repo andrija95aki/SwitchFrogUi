@@ -80,7 +80,7 @@ index a189b7b..4a3ae2f 100644
      g_active = 0;
  }
 diff --git a/src/port/sf3000/port.c b/src/port/sf3000/port.c
-index b2fbcf3..81637ed 100644
+index b2fbcf3..72d3e82 100644
 --- a/src/port/sf3000/port.c
 +++ b/src/port/sf3000/port.c
 @@ -2,8 +2,7 @@
@@ -105,7 +105,7 @@ index b2fbcf3..81637ed 100644
  
  #include "SDL.h"
  #include "port.h"
-@@ -89,7 +90,21 @@ static int last_h_blend = -1;
+@@ -89,7 +90,24 @@ static int last_h_blend = -1;
  unsigned short *SCREEN        = NULL;
  int             SCREEN_WIDTH  = 320;
  int             SCREEN_HEIGHT = 240;
@@ -125,10 +125,13 @@ index b2fbcf3..81637ed 100644
 +    "Overscan 110%", "16:9 Letterbox", "Stretch"
 +};
 +int             scale_mode    = SCALE_4_3_FILL;
++/* User-facing slots are 1..10. Keep slot 1 mapped to the historical .1.sav
++ * filename so existing states remain visible after adding the selector. */
++static int      sf_state_slot = 1;
  int             hires_fix     = 0;   /* 0=transparent (raw frame -> HW scaler, full speed, natural default); 1=SW-decimate tall (>256) frames + exact 4:3 so disp_frame can present hi-res without wedging (fixes Colin/Worms freeze/black, costs per-frame CPU) */
  int             scale_filter  = 1;   /* 0=nearest (SW fb0 — broken on this HW), 1=bilinear (HW HCGE) */
  int             use_hwdisp    = 0;   /* 0=software path, 1=HW via driver.so */
-@@ -198,83 +213,116 @@ static int display_init(void) {
+@@ -198,83 +216,116 @@ static int display_init(void) {
      }
      use_hwdisp = 1;
      fb1_blank(1);   /* hide battery/volume OSD during gameplay */
@@ -310,7 +313,7 @@ index b2fbcf3..81637ed 100644
  }
  
  /* Tallest game frame disp_frame presents without wedging/blacking. All these
-@@ -315,22 +363,13 @@ static void display_blit(const void *src, int w, int h, int pitch) {
+@@ -315,22 +366,13 @@ static void display_blit(const void *src, int w, int h, int pitch) {
       * activated HCGE in this process, because per-frame dis_assert() can't
       * override HCGE display routing on this hardware. */
      if (use_hwdisp) {
@@ -337,7 +340,7 @@ index b2fbcf3..81637ed 100644
          }
          return;
      }
-@@ -507,6 +546,92 @@ static void shutdown_display(void) {
+@@ -507,6 +549,92 @@ static void shutdown_display(void) {
  static volatile uint32_t *cv_keys = NULL;
  static uint16_t pad1 = 0xFFFF; /* all released */
  
@@ -430,7 +433,7 @@ index b2fbcf3..81637ed 100644
  /* ---- Remappable controls --------------------------------------------------
   * Each PSX face/shoulder button is driven by a physical CV bit, reassignable in
   * the in-game menu (Controls) and saved to pcsx4all.cfg. Dpad/Select/Start stay
-@@ -540,6 +665,8 @@ static void input_init(void) {
+@@ -540,6 +668,8 @@ static void input_init(void) {
      void *p = shmat(id, NULL, 0);
      if (p == (void*)-1) { fprintf(stderr, "SF3000: shmat failed\n"); return; }
      cv_keys = (volatile uint32_t*)p;
@@ -439,7 +442,7 @@ index b2fbcf3..81637ed 100644
  }
  
  static inline int btn(uint32_t state, int bit) { return (state >> bit) & 1; }
-@@ -619,7 +746,7 @@ static void sf_menu_draw(const char *title, const char *const *items, int n,
+@@ -619,7 +749,7 @@ static void sf_menu_draw(const char *title, const char *const *items, int n,
   * Saved with the rest of the config on "Exit to FrogUI". */
  static void sf3000_controls_menu(void) {
      int sel = 0;
@@ -448,7 +451,7 @@ index b2fbcf3..81637ed 100644
      while (1) {
          char rows[PB_COUNT][64]; const char *items[PB_COUNT];
          for (int i = 0; i < PB_COUNT; i++) {
-@@ -629,8 +756,7 @@ static void sf3000_controls_menu(void) {
+@@ -629,8 +759,7 @@ static void sf3000_controls_menu(void) {
          }
          sf_menu_draw("CONTROLS (remap)", items, PB_COUNT, sel, "A=rebind  B=back");
          usleep(16000);
@@ -458,7 +461,7 @@ index b2fbcf3..81637ed 100644
          int up = btn(k, CV_UP)   && !btn(prev, CV_UP);
          int dn = btn(k, CV_DOWN) && !btn(prev, CV_DOWN);
          int a  = btn(k, CV_A)    && !btn(prev, CV_A);
-@@ -650,29 +776,255 @@ static void sf3000_controls_menu(void) {
+@@ -650,29 +779,259 @@ static void sf3000_controls_menu(void) {
                  port_printf(2, 0, "=== CONTROLS (remap) ==="); port_printf(2, 30, msg);
                  video_flip();
              }
@@ -535,7 +538,7 @@ index b2fbcf3..81637ed 100644
 +                gpu_unai_config_ext.blending = 1;
 +                gpu_unai_config_ext.dithering = 1;
 +                break;
-+        }
+         }
 +        sf3000_apply_gpu_config();
 +    }
 +}
@@ -698,7 +701,7 @@ index b2fbcf3..81637ed 100644
 +            Config.ShowFps = !Config.ShowFps;
 +        } else if (sel == 7) {
 +            sf3000_apply_performance_profile(0);
-         }
++        }
 +#ifdef GPU_UNAI
 +        sf3000_apply_gpu_config();
 +#endif
@@ -712,6 +715,10 @@ index b2fbcf3..81637ed 100644
      fb1_blank(0);   /* show battery while in pause menu */
  
      while (1) {
++        char slot_label[48], save_label[48], load_label[48];
++        snprintf(slot_label, sizeof(slot_label), "State Slot: %d", sf_state_slot);
++        snprintf(save_label, sizeof(save_label), "Save State (slot %d)", sf_state_slot);
++        snprintf(load_label, sizeof(load_label), "Load State (slot %d)", sf_state_slot);
          char scale_label[48];
 -        snprintf(scale_label,  sizeof(scale_label),  "Scale:  %s",
 -                 scale_mode == 1 ? "Fullscreen" : "Aspect-Correct");
@@ -722,7 +729,17 @@ index b2fbcf3..81637ed 100644
          char gamma_label[48];
          if (gamma_percent <= 100)
              snprintf(gamma_label, sizeof(gamma_label), "Gamma:  Off");
-@@ -701,11 +1053,12 @@ static void sf3000_menu(void) {
+@@ -694,27 +1053,29 @@ static void sf3000_menu(void) {
+                  config_have_game() ? " *" : "");
+         const char *items[] = {
+             "Resume",
+-            "Save State (slot 1)",
+-            "Load State (slot 1)",
++            slot_label,
++            save_label,
++            load_label,
+             scale_label,
+             gamma_label,
              pixskip_label,
              ilace_label,
              hires_label,
@@ -733,14 +750,16 @@ index b2fbcf3..81637ed 100644
 -            "Save Config: Global",   /* 10 */
 -            gamecfg_label,           /* 11 */
 -            "Exit to FrogUI",        /* 12 */
-+            "Save Config: Global",   /* 11 */
-+            gamecfg_label,           /* 12 */
-+            "Exit to FrogUI",        /* 13 */
++            "Save Config: Global",   /* 12 */
++            gamecfg_label,           /* 13 */
++            "Exit to FrogUI",        /* 14 */
              NULL
          };
          int n = 0; while (items[n]) n++;
-@@ -713,8 +1066,7 @@ static void sf3000_menu(void) {
-         sf_menu_draw("PCSX4ALL MENU", items, n, sel, "UP/DOWN  A=select  B=back");
+ 
+-        sf_menu_draw("PCSX4ALL MENU", items, n, sel, "UP/DOWN  A=select  B=back");
++        sf_menu_draw("PCSX4ALL MENU", items, n, sel,
++                     "UP/DOWN  A=select  LEFT/RIGHT=change  B=back");
  
          usleep(16000);
 -        if (!cv_keys) continue;
@@ -749,62 +768,88 @@ index b2fbcf3..81637ed 100644
  
          int up  = btn(k, CV_UP)    && !btn(prev, CV_UP);
          int dn  = btn(k, CV_DOWN)  && !btn(prev, CV_DOWN);
-@@ -730,21 +1082,23 @@ static void sf3000_menu(void) {
-         /* LEFT/RIGHT adjusts scale (sel 3) and gamma (sel 4) */
+@@ -727,86 +1088,106 @@ static void sf3000_menu(void) {
+         if (up && sel > 0)   sel--;
+         if (dn && sel < n-1) sel++;
+         if (b) { fb1_blank(1); return; }
+-        /* LEFT/RIGHT adjusts scale (sel 3) and gamma (sel 4) */
++        /* LEFT/RIGHT adjusts the selected value without entering a submenu. */
          if (lt || rt) {
-             if (sel == 3) {
+-            if (sel == 3) {
 -                scale_mode = (scale_mode + 1) % 2;
-+                scale_mode = (scale_mode + (rt ? 1 : SCALE_MODE_COUNT - 1)) % SCALE_MODE_COUNT;
-                 last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
+-                last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
 -                if (scale_mode == 1) {
 -                    hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
 -                } else {
 -                    hwdisp_set_target_aspect(16, 9); hwdisp_set_filter(1);
 -                }
-+                hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
++            if (sel == 1) {
++                sf_state_slot += rt ? 1 : -1;
++                if (sf_state_slot < 1) sf_state_slot = 10;
++                if (sf_state_slot > 10) sf_state_slot = 1;
              } else if (sel == 4) {
++                scale_mode = (scale_mode + (rt ? 1 : SCALE_MODE_COUNT - 1)) % SCALE_MODE_COUNT;
++                last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
++                hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
++            } else if (sel == 5) {
                  gamma_percent += rt ? 10 : -10;
                  if (gamma_percent < 100) gamma_percent = 100;
                  if (gamma_percent > 250) gamma_percent = 250;
-             } else if (sel == 5) {
-                 gpu_unai_config_ext.pixel_skip = !gpu_unai_config_ext.pixel_skip;
-+#ifdef GPU_UNAI
-+                sf3000_apply_gpu_config();
-+#endif
+-            } else if (sel == 5) {
+-                gpu_unai_config_ext.pixel_skip = !gpu_unai_config_ext.pixel_skip;
              } else if (sel == 6) {
-                 gpu_unai_config_ext.ilace_force = !gpu_unai_config_ext.ilace_force;
+-                gpu_unai_config_ext.ilace_force = !gpu_unai_config_ext.ilace_force;
++                gpu_unai_config_ext.pixel_skip = !gpu_unai_config_ext.pixel_skip;
 +#ifdef GPU_UNAI
 +                sf3000_apply_gpu_config();
 +#endif
              } else if (sel == 7) {
++                gpu_unai_config_ext.ilace_force = !gpu_unai_config_ext.ilace_force;
++#ifdef GPU_UNAI
++                sf3000_apply_gpu_config();
++#endif
++            } else if (sel == 8) {
                  hires_fix = !hires_fix;
              }
-@@ -755,58 +1109,69 @@ static void sf3000_menu(void) {
-                 case 1: state_save(1); usleep(300000); fb1_blank(1); return;
-                 case 2: state_load(1); usleep(300000); fb1_blank(1); return;
-                 case 3:
+         }
+         if (a) {
+             switch (sel) {
+                 case 0: fb1_blank(1); return;
+-                case 1: state_save(1); usleep(300000); fb1_blank(1); return;
+-                case 2: state_load(1); usleep(300000); fb1_blank(1); return;
+-                case 3:
 -                    scale_mode = (scale_mode + 1) % 2;
++                case 1:
++                    sf_state_slot = sf_state_slot == 10 ? 1 : sf_state_slot + 1;
++                    break;
++                case 2: state_save(sf_state_slot); usleep(300000); fb1_blank(1); return;
++                case 3: state_load(sf_state_slot); usleep(300000); fb1_blank(1); return;
++                case 4:
 +                    scale_mode = (scale_mode + 1) % SCALE_MODE_COUNT;
                      last_fb_y_off = -1; last_fb_y_len = -1; last_h_blend = -1;
 -                    hwdisp_set_target_aspect(scale_mode == 1 ? 0 : 16, scale_mode == 1 ? 0 : 9);
 +                    hwdisp_set_target_aspect(0, 0); hwdisp_set_filter(0);
                      break;
-                 case 4: /* gamma: A toggles off/default */
+-                case 4: /* gamma: A toggles off/default */
++                case 5: /* gamma: A toggles off/default */
                      gamma_percent = (gamma_percent > 100) ? 100 : 130;
                      break;
-                 case 5: /* pixel skip: A toggles */
+-                case 5: /* pixel skip: A toggles */
++                case 6: /* pixel skip: A toggles */
                      gpu_unai_config_ext.pixel_skip = !gpu_unai_config_ext.pixel_skip;
 +#ifdef GPU_UNAI
 +                    sf3000_apply_gpu_config();
 +#endif
                      break;
-                 case 6: /* interlace: A toggles */
+-                case 6: /* interlace: A toggles */
++                case 7: /* interlace: A toggles */
                      gpu_unai_config_ext.ilace_force = !gpu_unai_config_ext.ilace_force;
 +#ifdef GPU_UNAI
 +                    sf3000_apply_gpu_config();
 +#endif
                      break;
-                 case 7: /* hi-res fix: A toggles */
+-                case 7: /* hi-res fix: A toggles */
++                case 8: /* hi-res fix: A toggles */
                      hires_fix = !hires_fix;
                      break;
 -                case 8: {
@@ -814,13 +859,13 @@ index b2fbcf3..81637ed 100644
 -                    sdl_poll_reset();
 -                    GameMenu();
 -                    prev = cv_keys ? *cv_keys : 0;
-+                case 8: {  /* Performance / FPS */
++                case 9: {  /* Performance / FPS */
 +                    while (btn(input_raw(), CV_A)) usleep(10000);
 +                    sf3000_performance_menu();
 +                    prev = input_raw();
 +                    break;
 +                }
-+                case 9: {
++                case 10: {
 +                    while (btn(input_raw(), CV_A)) usleep(10000);
 +#ifdef GPU_UNAI
 +                    sf3000_gpu_menu();
@@ -831,7 +876,7 @@ index b2fbcf3..81637ed 100644
                  }
 -                case 9: {  /* Controls (remap) */
 -                    while (cv_keys && btn(*cv_keys, CV_A)) usleep(10000);
-+                case 10: {  /* Controls (remap) */
++                case 11: {  /* Controls (remap) */
 +                    while (btn(input_raw(), CV_A)) usleep(10000);
                      sf3000_controls_menu();
 -                    prev = cv_keys ? *cv_keys : 0;   /* NOT auto-saved: use Save Config */
@@ -839,7 +884,7 @@ index b2fbcf3..81637ed 100644
                      break;
                  }
 -                case 10: {  /* Save Config (global) */
-+                case 11: {  /* Save Config (global) */
++                case 12: {  /* Save Config (global) */
                      void config_save(void); config_save();
                      sf_menu_toast("Saved global config");
 -                    prev = cv_keys ? *cv_keys : 0;
@@ -847,7 +892,7 @@ index b2fbcf3..81637ed 100644
                      break;
                  }
 -                case 11: {  /* Save Config (this game) */
-+                case 12: {  /* Save Config (this game) */
++                case 13: {  /* Save Config (this game) */
                      void config_save_game(void); config_save_game();
                      sf_menu_toast("Saved game config");
 -                    prev = cv_keys ? *cv_keys : 0;
@@ -855,7 +900,7 @@ index b2fbcf3..81637ed 100644
                      break;
                  }
 -                case 12: exit(0);   /* Exit: no autosave */
-+                case 13: exit(0);   /* Exit: no autosave */
++                case 14: exit(0);   /* Exit: no autosave */
              }
          }
      }
@@ -867,7 +912,7 @@ index b2fbcf3..81637ed 100644
  
  /* SDL_PollEvent — translates cubevol buttons into SDL key events for frontend.c menu */
  int SDL_PollEvent(SDL_Event *e) {
-@@ -828,8 +1193,8 @@ int SDL_PollEvent(SDL_Event *e) {
+@@ -828,8 +1209,8 @@ int SDL_PollEvent(SDL_Event *e) {
      if (!e) return 0;
  
      /* Refill queue from current cv_keys state */
@@ -878,7 +923,7 @@ index b2fbcf3..81637ed 100644
          uint32_t changed = k ^ prev;
          sdl_prev = k;
          for (int i = 0; i < NMAP && qtail < 32; i++) {
-@@ -850,19 +1215,28 @@ int SDL_PollEvent(SDL_Event *e) {
+@@ -850,19 +1231,28 @@ int SDL_PollEvent(SDL_Event *e) {
  }
  
  void pad_update(void) {
@@ -914,7 +959,7 @@ index b2fbcf3..81637ed 100644
              usleep(10000);
          sf3000_menu();
      }
-@@ -927,6 +1301,11 @@ static uint16_t sf_col_text = 0xFFFF, sf_col_sel = 0x2FE6, sf_col_seltext = 0x00
+@@ -927,6 +1317,11 @@ static uint16_t sf_col_text = 0xFFFF, sf_col_sel = 0x2FE6, sf_col_seltext = 0x00
   * path points them at a panel-sized buffer and presents it 1:1. */
  static uint16_t *sf_tgt = NULL; static int sf_tw = 0, sf_th = 0;
  static uint16_t *sf_menu_fb = NULL; static int sf_pw = 0, sf_ph = 0;
@@ -926,7 +971,7 @@ index b2fbcf3..81637ed 100644
  static void sf_read_panel(void) {
      if (sf_pw) return;
      sf_pw = 640; sf_ph = 480;                 /* R36SX default */
-@@ -1106,9 +1485,18 @@ void sf3000_menu_present(void) {
+@@ -1106,9 +1501,18 @@ void sf3000_menu_present(void) {
      extern void hwdisp_set_target_aspect(int, int);
      extern void hwdisp_set_filter(int);
      if (!sf_menu_fb) return;
@@ -946,7 +991,7 @@ index b2fbcf3..81637ed 100644
      sf_tgt = SCREEN; sf_tw = SCREEN_WIDTH; sf_th = SCREEN_HEIGHT;  /* restore */
  }
  int  sf3000_panel_w(void) { sf_read_panel(); return sf_pw; }
-@@ -1203,7 +1591,10 @@ static void config_read(const char *path) {
+@@ -1203,7 +1607,10 @@ static void config_read(const char *path) {
          linenum++;
          int v; sscanf(arg, "%d", &v);
  
@@ -958,7 +1003,7 @@ index b2fbcf3..81637ed 100644
          else if (!strncmp(line,"PsxBind",7)) { int idx = atoi(line+7); if (idx >= 0 && idx < PB_COUNT) pb_bind[idx] = v; }
          else if (!strcmp(line,"Xa"))              Config.Xa = v;
          else if (!strcmp(line,"Mdec"))            Config.Mdec = v;
-@@ -1243,7 +1634,8 @@ static void config_read(const char *path) {
+@@ -1243,7 +1650,8 @@ static void config_read(const char *path) {
          else if (!strcmp(line,"SpuUseReverb"))        spu_config.iUseReverb = v;
          else if (!strcmp(line,"SpuVolume"))           spu_config.iVolume = v;
  #endif
@@ -968,7 +1013,7 @@ index b2fbcf3..81637ed 100644
          else if (!strcmp(line,"HiResFix"))    hires_fix    = v ? 1 : 0;
          else if (!strcmp(line,"ScaleFilter")) scale_filter = v;
          else if (!strcmp(line,"Gamma"))       gamma_percent = (v < 100 ? 100 : (v > 250 ? 250 : v));
-@@ -1440,18 +1832,32 @@ static int bios_present(const char *dir, const char *name) {
+@@ -1440,18 +1848,32 @@ static int bios_present(const char *dir, const char *name) {
      closedir(d);
      return hit;
  }
@@ -1005,7 +1050,7 @@ index b2fbcf3..81637ed 100644
      plog("main: start");
      if (argc < 2) { plog("main: no ROM arg, exit"); return 1; }
      plog(argv[1]);
-@@ -1474,9 +1880,11 @@ int main(int argc, char *argv[]) {
+@@ -1474,9 +1896,11 @@ int main(int argc, char *argv[]) {
       * cfg pointing at an empty path. */
  
  #ifdef GPU_UNAI
@@ -1020,7 +1065,7 @@ index b2fbcf3..81637ed 100644
      gpu_unai_config_ext.dithering    = 0;
      gpu_unai_config_ext.clip_368     = 0;
      /* SF3000: keep GPU output full-quality by default — NO line skipping
-@@ -1518,7 +1926,17 @@ int main(int argc, char *argv[]) {
+@@ -1518,7 +1942,17 @@ int main(int argc, char *argv[]) {
       * file in place "just works", no menu dance, even if a stale pcsx4all.cfg
       * (loaded above) still points HLE on or at an empty path. If none is found we
       * leave config_load()'s values and psxMemInit() HLE-falls-back. */
@@ -1039,7 +1084,7 @@ index b2fbcf3..81637ed 100644
  
      /* ROM from command line arg 1 */
      if (argc >= 2) {
-@@ -1546,8 +1964,8 @@ int main(int argc, char *argv[]) {
+@@ -1546,8 +1980,8 @@ int main(int argc, char *argv[]) {
      /* This port hand-rolls plugin init and never calls LoadPlugins(), so do the
       * memcard load here (creates the .mcr files if absent). Without this the
       * cards are never inserted → games can't save. */
