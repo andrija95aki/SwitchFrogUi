@@ -39,7 +39,7 @@ and upstream TreeFrogUI start from very different feature sets.
 | **Media and documents** | Rockbox Music with card-root browsing, a Winamp-style VFD skin and FFT visualizer; hardware-decoded Videos; SRT/WebVTT subtitles and timing offsets; an internal Photo viewer with folder navigation, rotate, 12× zoom and pan; Ebooks; public-domain samples; whole-card Files with automatic handlers plus a dimmed popup, multi-select, and confirmed recursive copy/cut/paste/delete, rename, and folder creation. |
 | **Computer tools** | Real BusyBox terminal; keyboard-driven Text Editor; JSDev JavaScript game runtime with graphics, sound, input, animation, timers, logging and persistent data. |
 | **R36SX hardware** | Display-glitch correction; persistent FN+L1+R1 rotation; reliable short-power blanking; timeout stays dark until input; black-resume repair; gradual volume curve. |
-| **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |
+| **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; automatic on-screen keyboard for text fields when USB keyboard is absent, with a Select toggle; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |
 | **Personalisation** | 62 themes; multi-colour gradients; theme gallery; backgrounds; 12 bundled fonts plus custom fonts; font sizing; ten icon packs; configurable UI sounds. |
 | **Distribution** | Reproducible source branch; copy-and-boot card overlay; rollback binaries; checksums; content audit; hardware screenshots; build/install documentation. |
 

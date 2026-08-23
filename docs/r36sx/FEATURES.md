@@ -83,6 +83,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   Q/E=L1/R1, 1/3=L2/R2, Backspace=Select, and Right Shift=Start. Every one of
   the fourteen gamepad controls can be rebound in Settings and changes are
   reloaded without modifying the stock `joy_key` shared-memory writer.
+- Text entry automatically opens a controller-operated virtual keyboard when
+  no USB keyboard is detected. It covers game search, page entry, file and
+  folder naming, Text Editor prompts and editing, and Terminal commands.
+  Select shows or hides it at any time; L1 switches letters/symbols, R1 changes
+  case, A types, Y deletes, and Start confirms or enters a new line. USB
+  keyboard hot-plug is detected while the prompt remains open.
 - Terminal Home card runs the card's real BusyBox `ash` shell in a persistent
   child process with a clean text-only, mixed-case Space Mono framebuffer view
   enlarged to 115% for the 640x480 panel.
