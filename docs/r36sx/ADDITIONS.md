@@ -19,6 +19,8 @@ ROMs, console BIOS files, personal saves, or play history.
 - Switch-style horizontal Home screen designed for the 640x480 R36SX display.
 - Three large, direct-launch cards for the most recently played games.
 - Dedicated Recent and Favourites collections.
+- Distinct yellow Favourites and purple Recent Home cards, with stale artwork
+  cleared inside the Recent collection.
 - Automatic platform cards for every detected platform containing at least one ROM.
 - Platform artwork contained inside cards instead of being stretched or cropped.
 - Box-art game grids with square, antialiased cards.
@@ -64,8 +66,9 @@ ROMs, console BIOS files, personal saves, or play history.
 - Automatic same-basename SRT and WebVTT subtitle loading.
 - Subtitle enable/disable and persistent timing adjustment in exact 100 ms steps.
 - Whole-card Files browser rooted at `/mnt/sdcard`.
-- Confirmed Copy, Cut, Paste, Rename, Delete, New Folder, and Clear Clipboard
-  actions, including recursive directory operations and a visible clipboard label.
+- Dimmed context-menu-style popup for Copy, Cut, Paste, Rename, Delete, New
+  Folder, and Clear Clipboard, including Y/Select multi-selection, recursive
+  directory batches, confirmations, and a visible clipboard label.
 - Automatic dispatch of audio files to Rockbox and video files to the video player.
 - Direct internal photo viewing for PNG, JPEG, BMP, GIF, TGA, PSD, PNM-family,
   and PIC files, with panel-fit rendering, transparency, L1/R1 rotation, and B-back.

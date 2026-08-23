@@ -4,20 +4,20 @@ index 1f9b7f0..3f37a44 100644
 +++ b/HCGE_NEAREST_TODO.md
 @@ -1,8 +1,8 @@
  # TODO: HW nearest scaling (SF3000 / SF3500 / R36SX)
- 
+
 -Status: **parked**. Shipping uses SW nearest + HW bilinear (driver.so). This
 -documents the attempt to get HW *nearest* scaling and why it stalled, so it can
 -be resumed without re-deriving everything.
 +Status: **GMA implementation added, awaiting on-device verification**. The
 +established SW-nearest/HW-bilinear paths remain as fallbacks. This documents the
 +attempts and the current test point so work can resume without re-deriving them.
- 
+
  Experimental code lives on branch **`hcge-direct`** (`hcge_direct.c`,
  `plat_sdl.c` gate, build-script entry). `main` is clean SW shipping.
 @@ -61,6 +61,65 @@ by the **`FBIO_SET_GMA_SCALE_INFO`** ioctl on `/dev/fb0` (handler at ~line 2161)
- 
+
  Refs: `bnister/PDK_GoBian` → `alifb/ali_fb.c` (GOBIAN_OSDSCALE block + FBIO_SET_GMA_SCALE_INFO @~2161), `ali_gma_m36f_lld.c` (gma_m36f_set_scale_param, GMA_SCALE_DUPLICATE), `ali_gma_filtgen.c` (the tap-filter coeff gen).
- 
+
 +### 2026-07-31 implementation
 +
 +The missing public ABI was recovered from
@@ -78,7 +78,7 @@ index 1f9b7f0..3f37a44 100644
 +verification is still required.
 +
  ---
- 
+
  ## The goal
 diff --git a/Makefile b/Makefile
 index 599031e..b31fdd4 100644
@@ -86,12 +86,12 @@ index 599031e..b31fdd4 100644
 +++ b/Makefile
 @@ -15,6 +15,7 @@ CFLAGS     += -fdata-sections -ffunction-sections -DPICO_HOME_DIR='"/.picoarch/"
  CFLAGS     += -I./ -I./libretro-common/include/ $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
- 
+
  LDFLAGS    = -lc -ldl -lgcc -lm -lSDL -lpng12 -lz -Wl,--gc-sections -flto
 +LDFLAGS    += $(EXTRA_LDFLAGS)
- 
+
  PATCH = git apply
- 
+
 @@ -73,10 +74,10 @@ else ifeq ($(platform), miyoomini)
  	PATCH=patch
  else ifeq ($(platform), sf3000)
@@ -136,16 +136,16 @@ index 5367b21..b58751a 100644
 @@ -79,7 +80,7 @@ static int       g_pad_cap  = 0;
  static int       g_pad_w    = 0;
  static int       g_pad_h    = 0;
- 
+
 -/* Nearest-upscale buffer (always 1280x720) */
 +/* Software-nearest fallback buffer (always 1280x720) */
  static uint16_t *g_near_buf = NULL;
- 
+
  static int g_aspect_num = 0;
 @@ -87,6 +88,170 @@ static int g_aspect_den = 0;
  static int g_filter_nearest = 0;   /* SW-scale path (true nearest OR sharp) */
  static int g_filter_sharp   = 0;   /* sharp variant: integer prescale + HW residual */
- 
+
 +/*
 + * ALi framebuffer GMA scaler ABI.
 + *
@@ -325,7 +325,7 @@ index 5367b21..b58751a 100644
 @@ -237,11 +404,19 @@ void hwdisp_set_target_aspect(int num, int den) {
      g_aspect_den = den;
  }
- 
+
 -/* filter: scale_filter enum — 0 nearest, 1 bilinear, 2 sharp (integer prescale
 - * + HW residual). Nearest and Sharp both use the SW path; Sharp additionally
 - * sets g_filter_sharp so present_direct prescales instead of full-stretching. */
@@ -370,7 +370,7 @@ index 6e72d66..7f37246 100644
 @@ -23,10 +23,15 @@ int  hwdisp_active(void);
   * 4:3 source ends up letter/pillar-boxed correctly. */
  void hwdisp_set_target_aspect(int num, int den);
- 
+
 -/* Filter mode (default 0 = HW bilinear via driver scale).
 - * 1 = SW nearest upscale to driver native (1280x720) before send — driver
 - *     does no further scaling, pixels stay sharp. Adds CPU cost. */
@@ -384,11 +384,11 @@ index 6e72d66..7f37246 100644
 +/* True while the ALi GMA output scaler accepted duplicate/nearest mode.
 + * Useful for on-device diagnostics; false also covers unsupported firmware. */
 +int hwdisp_gma_nearest_active(void);
- 
+
  /* Present an RGB565 frame to the panel via HW.
   * src: RGB565 pixel buffer (16bpp)
 diff --git a/main.c b/main.c
-index 0366317..3301bce 100644
+index 0366317..d32aa1e 100644
 --- a/main.c
 +++ b/main.c
 @@ -9,6 +9,7 @@
@@ -397,10 +397,53 @@ index 0366317..3301bce 100644
  #include <sys/resource.h>
 +#include <sys/stat.h>
  #include <time.h>
- 
+
  #define FROGUI_CORE "/mnt/sdcard/cubegm/cores/frogui_libretro.so"
+@@ -770,7 +771,14 @@ static void adjust_audio(void) {
+
+ 	if (current_core.retro_audio_buffer_status) {
+ 		float occupancy = 1.0 - plat_sound_capacity();
++#ifdef PLATFORM_SF3000
++		/* The async hardware ring normally sits around 40-60% after its short
++		 * prefill. Only signal a probable underrun below one queued output frame;
++		 * the old 50% rule made gpSP's automatic frameskip fire continuously. */
++		current_core.retro_audio_buffer_status(true, (int)(occupancy * 100), occupancy < 0.20);
++#else
+ 		current_core.retro_audio_buffer_status(true, (int)(occupancy * 100), occupancy < 0.50);
++#endif
+ 	}
+ }
+
+diff --git a/overrides/gpsp.h b/overrides/gpsp.h
+index 3fbb3ef..90419a9 100644
+--- a/overrides/gpsp.h
++++ b/overrides/gpsp.h
+@@ -21,7 +21,7 @@ static const struct core_override_option gpsp_core_option_overrides[] = {
+ 	{
+ 		.key = "gpsp_frameskip",
+ 		.info = "Skip frames to avoid audio crackling. Improves performance at the expense of visual smoothness.",
+-		.default_value = "disabled",
++		.default_value = "auto_threshold",
+ 		.options = {
+ 			[2] = {"auto_threshold", "Threshold"},
+ 			[3] = {"fixed_interval", "Fixed"},
+@@ -31,12 +31,13 @@ static const struct core_override_option gpsp_core_option_overrides[] = {
+ 		.key = "gpsp_frameskip_threshold",
+ 		.desc = "FS Threshold (%)",
+ 		.info = "When 'Frameskip' is set to 'Threshold', sets how low the audio buffer can get before frames will be skipped.",
++		.default_value = "30"
+ 	},
+ 	{
+ 		.key = "gpsp_frameskip_interval",
+ 		.desc = "FS Interval",
+ 		.info = "The maximum number of frames that can be skipped before a new frame is rendered.",
+-		.default_value = "3"
++		.default_value = "1"
+ 	},
+ 	{
+ 		.key = "gpsp_color_correction",
 diff --git a/plat_sdl.c b/plat_sdl.c
-index 9978411..25606f0 100644
+index 9978411..da8470e 100644
 --- a/plat_sdl.c
 +++ b/plat_sdl.c
 @@ -4,6 +4,7 @@
@@ -421,9 +464,9 @@ index 9978411..25606f0 100644
  #include <sys/ipc.h>
  #include <sys/shm.h>
  #include "hwdisp.h"
- 
+
  int sf3000_use_hwdisp = 0;
- 
+
 +/* Runtime device detection is implemented below the framebuffer code, but the
 + * init path needs these declarations first. Keep the single implementation in
 + * this shared SDL platform unit. */
@@ -440,7 +483,7 @@ index 9978411..25606f0 100644
 @@ -69,6 +82,84 @@ static pthread_t sf3000_input_thread;
  extern struct sf3000_btn sf3000_keymap[];
  extern const int sf3000_keymap_count;
- 
+
 +/* USB keyboard -> the same 16-bit raw gamepad mask produced by cubevol.  The
 + * mapping file is written by FrogUI and reloaded live, so it applies to the UI,
 + * every libretro core, and PicoArch hotkeys without touching joy_key shm. */
@@ -548,7 +591,73 @@ index 9978411..25606f0 100644
      fprintf(stderr, "SF3000 input: joy_key shm OK, initial keys=0x%08X\n", *sf3000_keys_ptr);
      pthread_create(&sf3000_input_thread, NULL, sf3000_input_thread_fn, NULL);
  }
-@@ -2139,8 +2240,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -1016,9 +1117,10 @@ static void sf3000_load_snd_gain(void) {
+  * sound_driver_playframe() DAC write. The emu thread only enqueues into this
+  * SPSC ring and never blocks, so audio over/underrun can never freeze the
+  * emulator. Video stays the sole frame pacer. */
+-#define SF3000_ARING_FRAMES 4096          /* power of two, ~93ms @ 44100Hz */
++#define SF3000_ARING_FRAMES 4096          /* power of two, ~85ms at 48kHz */
+ #define SF3000_ARING_MASK   (SF3000_ARING_FRAMES - 1)
+-#define SF3000_ACHUNK       735           /* 44100/60, one video frame's audio */
++#define SF3000_ACHUNK       (SAMPLE_RATE / 60) /* 800 at the driver's 48kHz */
++#define SF3000_APREFILL     (SF3000_ACHUNK * 3)
+
+ static struct audio_frame sf3000_aring[SF3000_ARING_FRAMES];
+ static unsigned           sf3000_aring_w = 0;   /* producer: emu thread   */
+@@ -1026,6 +1128,7 @@ static unsigned           sf3000_aring_r = 0;   /* consumer: audio thread */
+ static pthread_mutex_t    sf3000_aring_mtx = PTHREAD_MUTEX_INITIALIZER;
+ static pthread_t          sf3000_audio_thread;
+ static volatile int       sf3000_audio_running = 0;
++static int                sf3000_audio_primed = 0;
+ static uint32_t           sf3000_rs_phase = 0;  /* linear-resample phase, 16.16 */
+ static struct audio_frame sf3000_rs_prev;       /* previous input frame */
+
+@@ -1068,12 +1171,21 @@ static void *sf3000_audio_thread_fn(void *unused)
+
+ 		pthread_mutex_lock(&sf3000_aring_mtx);
+ 		unsigned avail = sf3000_aring_w - sf3000_aring_r;  /* free-running */
+-		if (avail >= SF3000_ACHUNK) {
++		/* Keep three output frames queued before starting/restarting the DAC.
++		 * The old 735-frame chunk was sized for 44.1kHz even though the driver
++		 * runs at 48kHz, so the consumer drained ~8.8% too quickly and produced
++		 * periodic GBA crackle. A short prefill absorbs scheduler jitter without
++		 * asking gpSP to skip continuously. */
++		if (!sf3000_audio_primed && avail >= SF3000_APREFILL)
++			sf3000_audio_primed = 1;
++		if (sf3000_audio_primed && avail >= SF3000_ACHUNK) {
+ 			for (int i = 0; i < SF3000_ACHUNK; i++) {
+ 				chunk[i] = sf3000_aring[sf3000_aring_r & SF3000_ARING_MASK];
+ 				sf3000_aring_r++;
+ 			}
+ 			have_chunk = 1;
++		} else if (sf3000_audio_primed && avail < SF3000_ACHUNK) {
++			sf3000_audio_primed = 0;
+ 		}
+ 		pthread_mutex_unlock(&sf3000_aring_mtx);
+
+@@ -1159,6 +1271,7 @@ static int plat_sound_init(void)
+ 	/* Start the non-blocking audio consumer thread (it init's the DAC itself). */
+ 	sf3000_load_snd_gain();   /* re-read cubegm/sndgain.txt each game launch */
+ 	sf3000_aring_w = sf3000_aring_r = 0;
++	sf3000_audio_primed = 0;
+ 	sf3000_rs_phase = 0;
+ 	sf3000_rs_prev.left = sf3000_rs_prev.right = 0;
+ 	sf3000_audio_init_rc = 0;
+@@ -1204,7 +1317,12 @@ static int plat_sound_init(void)
+ float plat_sound_capacity(void)
+ {
+ #ifdef PLATFORM_SF3000
+-	return 1.0;
++	unsigned used;
++	pthread_mutex_lock(&sf3000_aring_mtx);
++	used = sf3000_aring_w - sf3000_aring_r;
++	pthread_mutex_unlock(&sf3000_aring_mtx);
++	if (used > SF3000_ARING_FRAMES) used = SF3000_ARING_FRAMES;
++	return 1.0f - (float)used / (float)SF3000_ARING_FRAMES;
+ #else
+ 	int buffered = 0;
+ 	if (audio.buf_len == 0)
+@@ -2139,8 +2257,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
          if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
              return;
      }
@@ -561,7 +670,7 @@ index 9978411..25606f0 100644
      /* SF3500: always present via the real driver's disp_frame (decrypted driver
       * handles panel-size frames cleanly — proven by rkgame's own FrogUI render).
       * The SW transpose path is SF3000-geometry-tuned → squish + page-flip churn
-@@ -2152,7 +2255,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2152,7 +2272,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      sf3000_detect_device();
      if (!sf3000_use_hwdisp && !sf3000_force_sw() &&
          (sf3000_is_r36sx() || sf3000_is_sf3500() ||
@@ -573,7 +682,7 @@ index 9978411..25606f0 100644
          if (hwdisp_init() == 0) {
              sf3000_use_hwdisp = 1;
              fprintf(stderr, "sf3000_fb_blit: HW path active\n");
-@@ -2226,17 +2332,16 @@ if (sf3000_use_hwdisp) {
+@@ -2226,17 +2349,16 @@ if (sf3000_use_hwdisp) {
          }
          int aspect = (src == screen->pixels) || (scale_size != SCALE_SIZE_FULL);
          hwdisp_set_target_aspect(aspect ? PANEL_ASPECT_NUM : 0, aspect ? PANEL_ASPECT_DEN : 0);
@@ -598,5 +707,5 @@ index 9978411..25606f0 100644
 +        else if (sf3000_is_r36sx())        fmode = SCALE_FILTER_NEAREST;
 +        else                               fmode = SCALE_FILTER_BILINEAR;
          hwdisp_set_filter(fmode);
- 
+
          /* FPS / overlay text: render into a copy of src (RGB565), since src

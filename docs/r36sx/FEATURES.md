@@ -8,6 +8,8 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - Console-style horizontal Home screen with three direct-launch last-played
   games, Recent, Favourites, non-empty platform cards, Music, Videos, Ebooks,
   Files, Terminal, Text Editor, JSDev, and Settings.
+- Favourites uses a warm yellow identity card and Recent uses vivid purple;
+  opening Recent clears the Home artwork instead of retaining a stale banner.
 - Non-empty platforms are discovered correctly on the H.OS FAT32 `stat()` ABI.
 - Platform collections use box-art grids with metadata-driven category tabs:
   `ALL` is first, followed by the available categories for that platform.
@@ -133,10 +135,13 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 
 ## Emulator fixes
 
-- Choppy-audio GBA titles can use a conservative gpSP profile with a seven-frame
-  audio buffer and threshold frameskip capped at one consecutive frame. The
-  included `scripts/Tune-GbaAudio.ps1` applies it to selected per-game configs
-  while retaining gpSP DRC and leaving `.sav`/save-state files untouched.
+- GBA output now drains in 800-frame chunks matching the device's real 48 kHz
+  audio clock (the previous 735-frame/44.1 kHz timing caused periodic
+  underruns). A three-frame prefill absorbs scheduler jitter, PicoArch reports
+  real ring-buffer occupancy to gpSP, and adaptive frameskip starts only below
+  30% with a one-frame interval. `scripts/Tune-GbaAudio.ps1` applies the stable
+  profile to existing per-game configs while retaining gpSP DRC and leaving
+  `.sav`/save-state files untouched.
 - Start+Select opens the in-game menu without the stock parent menu forcing a
   return to Home.
 - PS1 video scaling now changes the actual presented geometry on the R36SX
@@ -180,11 +185,13 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 
 ## Music, files, and video
 
-- Files now has a controller-friendly X action palette for Copy, Cut, Paste,
-  Rename, Delete, New Folder, and Clear Clipboard. Every operation requires an
-  explicit A/Yes confirmation; B always cancels. Directory copy and deletion
-  recurse through all contents, name collisions receive a `- Copy` suffix, and
-  a compact COPY/CUT label keeps the clipboard filename visible while browsing.
+- Files now has a controller-friendly X popup for Copy, Cut, Paste, Rename,
+  Delete, New Folder, and Clear Clipboard. It is drawn over a dimmed view of the
+  current directory like a desktop context menu. Y marks/unmarks items and
+  Select marks/clears the current directory, so copy, cut, and delete can act
+  on multiple files and complete directory trees. Every mutation requires an
+  explicit A/Yes confirmation; B always cancels. Name collisions receive a
+  `- Copy` suffix, and a compact COPY/CUT label shows the active batch.
 - Whole-card file browser with audio dispatch to Rockbox, video dispatch to the
   hardware player, an internal Photo viewer, and direct Text Editor dispatch
   for common text, Markdown, log, config, source-code, subtitle, and playlist

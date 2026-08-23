@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string[]]$CardRoots,
-    [string[]]$GamePatterns = @('*Dexter*', '*Salda*', '*Zelda*')
+    [string[]]$GamePatterns = @('*')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +22,7 @@ foreach ($root in $CardRoots) {
         $text = Get-Content -LiteralPath $config.FullName -Raw
         $text = $text -replace '(?m)^audio_buffer_size\s*=.*$', 'audio_buffer_size = 7'
         $text = $text -replace '(?m)^gpsp_frameskip\s*=.*$', 'gpsp_frameskip = auto_threshold'
-        $text = $text -replace '(?m)^gpsp_frameskip_threshold\s*=.*$', 'gpsp_frameskip_threshold = 40'
+        $text = $text -replace '(?m)^gpsp_frameskip_threshold\s*=.*$', 'gpsp_frameskip_threshold = 30'
         $text = $text -replace '(?m)^gpsp_frameskip_interval\s*=.*$', 'gpsp_frameskip_interval = 1'
         Set-Content -LiteralPath $config.FullName -Value $text -NoNewline
         Write-Host "Tuned $($config.FullName)"
