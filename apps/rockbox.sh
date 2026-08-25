@@ -1,6 +1,7 @@
 #!/bin/sh
 # TreeFrogUI launch wrapper for Rockbox. Rockbox data stays in roms/rockbox,
-# while its file browser starts at the SD root and selected audio paths pass in.
+# while its file browser starts at the SD root. This simulator build accepts
+# only simulator options; content paths must never be passed as positional args.
 export HOME=/mnt/sdcard/roms/rockbox
 export SDL_VIDEODRIVER=dummy
 export SDL_AUDIODRIVER=dummy
@@ -65,17 +66,24 @@ else
     printf 'volume: %s\n' "$ROCKBOX_DB" > "$ROCKBOX_CONFIG"
 fi
 
-# Launch from and explicitly pass the physical card root so Music never opens
-# the H.OS/Linux filesystem root when Rockbox restores its browser state.
+# With --root /mnt/sdcard, Rockbox's internal "/" is the physical card root.
+# Older wrappers wrote /mnt/sdcard here and then passed it positionally; this
+# simulator interpreted that as an invalid option and printed usage before
+# exiting. Normalise both the config and command line to the supported form.
+if grep -q '^start directory:' "$ROCKBOX_CONFIG"; then
+    sed 's|^start directory:.*|start directory: /|' "$ROCKBOX_CONFIG" > "$ROCKBOX_CONFIG.tmp"
+else
+    cp "$ROCKBOX_CONFIG" "$ROCKBOX_CONFIG.tmp" &&
+        printf 'start directory: /\n' >> "$ROCKBOX_CONFIG.tmp"
+fi
+[ -f "$ROCKBOX_CONFIG.tmp" ] && mv "$ROCKBOX_CONFIG.tmp" "$ROCKBOX_CONFIG"
+
+# Launch with Rockbox simulator's documented root option. A file selected in
+# FrogUI still opens Music safely at the card root; playback is then selected
+# inside Rockbox because this build has no command-line content-file option.
 cd /mnt/sdcard || exit 1
 if [ -f /mnt/sdcard/log.txt ]; then
-    echo "=== rockbox.sh: HOME=$HOME file=$1 ===" > /mnt/sdcard/rockbox.log
-    if [ -n "$1" ]; then
-        exec /mnt/sdcard/cubegm/rockbox "$1" >> /mnt/sdcard/rockbox.log 2>&1
-    fi
-    exec /mnt/sdcard/cubegm/rockbox /mnt/sdcard >> /mnt/sdcard/rockbox.log 2>&1
+    echo "=== rockbox.sh: HOME=$HOME requested=$1 root=/mnt/sdcard ===" > /mnt/sdcard/rockbox.log
+    exec /mnt/sdcard/cubegm/rockbox --root /mnt/sdcard >> /mnt/sdcard/rockbox.log 2>&1
 fi
-if [ -n "$1" ]; then
-    exec /mnt/sdcard/cubegm/rockbox "$1"
-fi
-exec /mnt/sdcard/cubegm/rockbox /mnt/sdcard
+exec /mnt/sdcard/cubegm/rockbox --root /mnt/sdcard
