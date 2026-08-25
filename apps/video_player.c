@@ -132,6 +132,7 @@ static int64_t subtitle_start_ms;
 static int64_t subtitle_end_ms;
 static int subtitle_offset_ms;
 static bool screen_rotation_180;
+static bool osd_scanout_enabled;
 
 typedef struct {
     int64_t start_ms, end_ms;
@@ -206,6 +207,15 @@ static void overlay_clear(void) {
     if (osd.back) memset(osd.back, 0, osd.frame_size);
 }
 
+static void overlay_set_scanout(bool visible) {
+    if (osd.fd < 0 || osd_scanout_enabled == visible) return;
+    int request = visible ? FB_BLANK_UNBLANK : FB_BLANK_NORMAL;
+    int result = ioctl(osd.fd, FBIOBLANK, request);
+    if (result == 0) osd_scanout_enabled = visible;
+    fprintf(stderr, "video_player: OSD scanout %s result=%d errno=%d\n",
+            visible ? "on" : "off", result, result < 0 ? errno : 0);
+}
+
 static void overlay_present(void) {
     if (!osd.pixels || !osd.back) return;
     if (!screen_rotation_180) {
@@ -223,12 +233,14 @@ static void overlay_present(void) {
 static void overlay_close(void) {
     if (osd.pixels) {
         memset(osd.pixels, 0, osd.frame_size);
+        overlay_set_scanout(false);
         munmap(osd.pixels, osd.size);
     }
     free(osd.back);
     if (osd.fd >= 0) close(osd.fd);
     osd.fd = -1; osd.pixels = NULL; osd.back = NULL;
     osd.size = 0; osd.frame_size = 0;
+    osd_scanout_enabled = false;
 }
 
 static void overlay_open(void) {
@@ -253,6 +265,10 @@ static void overlay_open(void) {
     if (!osd.back) { overlay_close(); return; }
     memset(osd.pixels, 0, osd.frame_size);
     overlay_clear();
+    /* A transparent OSD still consumes a full 640x480x32 scanout layer on this
+     * SoC. Keep it physically blanked until controls or a subtitle are visible. */
+    osd_scanout_enabled = true; /* force the first transition ioctl */
+    overlay_set_scanout(false);
 }
 
 static void fill_rect(int x, int y, int w, int h, uint32_t color) {
@@ -547,12 +563,13 @@ static void apply_display_mode(void *player, int mode, int vw, int vh) {
             rect.src_rect.w, rect.src_rect.h, rect.src_rect.x, rect.src_rect.y);
 }
 
-static void render_overlay(void *player, bool paused, int menu_index,
+static bool render_overlay(void *player, bool paused, int menu_index,
                            int scale_mode, bool subtitle_available,
                            bool subtitles_enabled, int offset_ms,
                            int64_t controls_until) {
-    if (!osd.pixels || !osd.back) return;
+    if (!osd.pixels || !osd.back) return false;
     overlay_clear();
+    bool content_visible = false;
     int text_scale = osd.width >= 900 ? 2 : 1;
     int64_t render_time = clock_ms();
     bool controls_visible = render_time < controls_until;
@@ -581,6 +598,7 @@ static void render_overlay(void *player, bool paused, int menu_index,
         int y = osd.height - box_h - (controls_visible ? 52 * text_scale : 18 * text_scale);
         fill_rect(12 * text_scale, y, osd.width - 24 * text_scale, box_h, 0xB0000000u);
         draw_text(20 * text_scale, y + 6 * text_scale, text_scale, wrapped, 0xFFFFFFFFu);
+        content_visible = true;
     }
     pthread_mutex_unlock(&subtitle_lock);
     if (paused) {
@@ -624,11 +642,13 @@ static void render_overlay(void *player, bool paused, int menu_index,
                   "UP/DOWN MOVE  LEFT/RIGHT CHANGE  A OK  B RESUME",
                   0xFFB9C7D8u);
         overlay_present();
-        return;
+        overlay_set_scanout(true);
+        return true;
     }
     if (!controls_visible) {
         overlay_present();
-        return;
+        overlay_set_scanout(content_visible);
+        return content_visible;
     }
     int panel_h = 52 * text_scale, y = osd.height - panel_h;
     fill_rect(0, y, osd.width, panel_h, 0xD0101520u);
@@ -641,6 +661,8 @@ static void render_overlay(void *player, bool paused, int menu_index,
     draw_text(10 * text_scale, y + 31 * text_scale, text_scale,
               "A/START MENU   LEFT/RIGHT SEEK   B EXIT", 0xFFEAF0F7u);
     overlay_present();
+    overlay_set_scanout(true);
+    return true;
 }
 
 int switchfrog_video_main(int argc, char **argv) {
@@ -692,7 +714,9 @@ int switchfrog_video_main(int argc, char **argv) {
     subtitle_offset_ms = subtitle_offset_load(argv[1]);
     if (external_count > 0 && local_subtitles_load(external_subs[0]) > 0)
         subtitle_available = subtitles_enabled = true;
-    int64_t controls_until = clock_ms() + 8000, last_overlay = 0;
+    /* Start with the OSD hardware plane disabled. Controls remain available in
+     * the pause menu and appear after seek/input, without taxing normal video. */
+    int64_t controls_until = 0, last_overlay = 0;
     bool overlay_visible = false;
     hcplayer_play(player);
     fprintf(stderr, "video_player: playing %s (%d sidecar subtitles)\n", argv[1], external_count);
@@ -784,16 +808,16 @@ int switchfrog_video_main(int argc, char **argv) {
         int overlay_interval = paused ? 100 :
                                (now < controls_until ? 250 : 200);
         if (overlay_needed && now - last_overlay >= overlay_interval) {
-            render_overlay(player, paused, menu_index, scale_mode,
-                           subtitle_available, subtitles_enabled, subtitle_offset_ms,
-                           controls_until);
+            overlay_visible = render_overlay(player, paused, menu_index, scale_mode,
+                                             subtitle_available, subtitles_enabled,
+                                             subtitle_offset_ms, controls_until);
             last_overlay = now;
-            overlay_visible = true;
         } else if (!overlay_needed && overlay_visible) {
             /* Clear the controls once, then leave fb1 completely idle. The old
              * 10 Hz full-screen memcpy competed with 1080p decoder DMA. */
             overlay_clear();
             overlay_present();
+            overlay_set_scanout(false);
             overlay_visible = false;
         }
         usleep(16000);
