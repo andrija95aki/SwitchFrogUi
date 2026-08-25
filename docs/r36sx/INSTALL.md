@@ -18,6 +18,11 @@ is a CC0/public-domain performance for testing Rockbox.
 5. Merge folders and allow the SwitchFrogUI files to overwrite matching paths.
 6. Safely eject the card and boot the R36SX.
 
+Do not remove the release's root-level `MD/dummy.md` or `MD/filelist.csv` while
+cleaning ROMs. They are tiny stock-launcher autorun bootstrap files, not games;
+without them the SwitchFrogUI hijack never starts and boot stops at a black
+screen before diagnostic logging begins.
+
 Do not copy a `roms` or `bios` folder from an untrusted download. Add only ROMs
 and BIOS files that you are legally entitled to use.
 
