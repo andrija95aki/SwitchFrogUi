@@ -241,11 +241,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
-- Large-file playback enables the vendor decoder's 0.5-to-5-second buffering
-  window and earlier late-frame recovery. Once controls disappear and no
-  subtitles are active, the player stops polling and copying the 32-bit overlay
-  framebuffer; decoder diagnostics stay in RAM until playback ends instead of
-  competing with movie reads on the SD card.
+- Local-file playback follows the stock SF2000/H.OS audio-master profile with
+  cast/network buffering and aggressive quick-drop mode disabled. Once controls
+  disappear and no subtitles are active, the player stops polling and copying
+  the 32-bit overlay framebuffer; visible playback controls refresh only four
+  times per second, and decoder diagnostics stay in RAM until playback ends
+  instead of competing with movie reads on the SD card.
 - Hardware-decoded video playback computes layout against the R36SX panel's
   real 640x480 shape, then maps it to the stock projector decoder's normalized
   1920x1080 rectangle ABI. This prevents playback being trapped in a tiny

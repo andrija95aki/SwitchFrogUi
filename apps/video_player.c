@@ -658,21 +658,19 @@ int switchfrog_video_main(int argc, char **argv) {
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
     screen_rotation_load();
     args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
-    args.quick_mode = true;
-    args.qm_drop_thresh = 2; /* keep audio real-time if a high-rate frame is late */
-    /* The stock player API ships with buffering disabled unless requested.
-     * Five seconds is the vendor project's own stable profile and absorbs
-     * FAT32/SD-card read stalls without reserving an excessive packet queue. */
-    args.buffering_enable = true;
-    args.buffering_start = 500;
-    args.buffering_end = 5000;
+    /* Match the stock SF2000/H.OS local-media path: audio-master sync with
+     * quick/drop mode and cast/network buffering both disabled. Enabling those
+     * streaming options made local files repeatedly stop/start both decoder
+     * components, producing visibly jumpy playback even at 426x240. */
+    args.quick_mode = false;
+    args.buffering_enable = false;
     args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
     args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
     args.callback = NULL; args.ext_subtitle_stream_num = 0;
     args.ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder (buffer=500..5000ms quick-drop=2)\n");
+    fprintf(stderr, "video_player: creating decoder (stock local-file pacing)\n");
     void *player = hcplayer_create(&args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
@@ -782,7 +780,8 @@ int switchfrog_video_main(int argc, char **argv) {
         int64_t now = clock_ms();
         bool overlay_needed = paused || now < controls_until ||
                               (subtitle_available && subtitles_enabled);
-        int overlay_interval = (paused || now < controls_until) ? 100 : 200;
+        int overlay_interval = paused ? 100 :
+                               (now < controls_until ? 250 : 200);
         if (overlay_needed && now - last_overlay >= overlay_interval) {
             render_overlay(player, paused, menu_index, scale_mode,
                            subtitle_available, subtitles_enabled, subtitle_offset_ms,
