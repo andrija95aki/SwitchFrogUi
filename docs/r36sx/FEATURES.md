@@ -241,12 +241,14 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
-- Local-file playback follows the stock SF2000/H.OS audio-master profile with
-  cast/network buffering and aggressive quick-drop mode disabled. Once controls
+- Local-file playback uses audio-master synchronization with network/cast
+  buffering disabled. The Linux H.OS decoder requires quick mode to present its
+  first frame, but its late-frame threshold is relaxed from two frames to twelve
+  so normal 23.98/24 fps motion is not aggressively discarded. Once controls
   disappear and no subtitles are active, the player stops polling and copying
-  the 32-bit overlay framebuffer; visible playback controls refresh only four
-  times per second, and decoder diagnostics stay in RAM until playback ends
-  instead of competing with movie reads on the SD card.
+  the 32-bit overlay framebuffer; visible controls refresh only four times per
+  second, and diagnostics stay in RAM until playback ends instead of competing
+  with movie reads on the SD card.
 - Hardware-decoded video playback computes layout against the R36SX panel's
   real 640x480 shape, then maps it to the stock projector decoder's normalized
   1920x1080 rectangle ABI. This prevents playback being trapped in a tiny

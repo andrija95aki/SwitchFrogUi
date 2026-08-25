@@ -658,11 +658,12 @@ int switchfrog_video_main(int argc, char **argv) {
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
     screen_rotation_load();
     args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
-    /* Match the stock SF2000/H.OS local-media path: audio-master sync with
-     * quick/drop mode and cast/network buffering both disabled. Enabling those
-     * streaming options made local files repeatedly stop/start both decoder
-     * components, producing visibly jumpy playback even at 426x240. */
-    args.quick_mode = false;
+    /* This H.OS Linux decoder stalls before its first presented frame unless
+     * quick mode is enabled, unlike the RTOS reference app. Keep it enabled but
+     * tolerate twelve late frames before dropping, rather than the aggressive
+     * two-frame profile that made normal 24 fps motion visibly jumpy. */
+    args.quick_mode = true;
+    args.qm_drop_thresh = 12;
     args.buffering_enable = false;
     args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
     args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
@@ -670,7 +671,7 @@ int switchfrog_video_main(int argc, char **argv) {
      * decoder thread. Sidecars are parsed and rendered locally below. */
     args.callback = NULL; args.ext_subtitle_stream_num = 0;
     args.ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder (stock local-file pacing)\n");
+    fprintf(stderr, "video_player: creating decoder (local quick=1 drop=12 buffer=0)\n");
     void *player = hcplayer_create(&args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
