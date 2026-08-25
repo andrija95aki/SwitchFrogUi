@@ -651,14 +651,21 @@ int switchfrog_video_main(int argc, char **argv) {
     hcplayer_init(LOG_WARNING);
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
     screen_rotation_load();
-    args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
+    args.uri = argv[1]; args.msg_id = msgid;
+    /* Most card movies use 23.976 fps H.264 with B-frame composition
+     * timestamps.  Audio-master mode makes this H.OS build repeatedly correct
+     * the video clock, which presents as otherwise-regular motion jumping while
+     * audio stays clean.  Let video advance the STC and have audio follow it,
+     * as HiChip's own SF2000 hardware-video path does.  Quick mode remains
+     * enabled because the tested Linux loader needs it to present frame one. */
+    args.sync_type = HCPLAYER_VIDEO_MASTER;
     args.quick_mode = true; args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
     args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
     args.callback = NULL; args.ext_subtitle_stream_num = 0;
     args.ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder\n");
+    fprintf(stderr, "video_player: creating decoder (video-master, quick=1)\n");
     void *player = hcplayer_create(&args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
