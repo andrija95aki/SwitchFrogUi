@@ -241,12 +241,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
-- Local-file playback keeps the validated pre-tuning H.OS quick-mode timing and
-  original controls/subtitle overlay schedule. Video is the presentation-clock
-  master, matching HiChip's simple SF2000 hardware-video path; this prevents
-  the clean audio clock from repeatedly correcting 23.976 fps H.264 movies with
-  B-frame composition timestamps. Experimental packet buffering, custom
-  late-frame thresholds, RAM-only logging, and OSD blanking remain disabled.
+- Local-file playback uses audio-master synchronization, the only tested H.OS
+  mode that preserves movie speed. Quick mode remains enabled for reliable
+  first-frame startup, but late-frame dropping is reserved for a five-second
+  emergency backlog instead of ordinary 23.976 fps timestamp correction. The
+  transparent 32-bit OSD plane is physically idle during normal playback and
+  enabled only for controls, the pause menu, or an active subtitle cue.
 - Hardware-decoded video playback computes layout against the R36SX panel's
   real 640x480 shape, then maps it to the stock projector decoder's normalized
   1920x1080 rectangle ABI. This prevents playback being trapped in a tiny
