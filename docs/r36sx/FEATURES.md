@@ -59,6 +59,10 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   Text Editor, and JSDev selector now shares one SD-root-bounded Back routine,
   so B consistently returns to the parent folder and then the originating Home
   card even when a path contains a trailing slash or cannot be reopened.
+- Finishing a video or closing playback returns to the same Videos/Files
+  directory with the launching filename still highlighted. The handoff is
+  persisted by path and filename, so it also survives FrogUI's required
+  standalone-process restart.
 - Long settings, core, theme, information, diagnostics, help, and file lists
   include a compact position indicator. Saved settings, themes, button maps,
   core overrides, and favourite changes show a short confirmation.
@@ -112,6 +116,13 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - The redundant Mini Linux shortcut page was removed; it only duplicated the
   existing Terminal, Files, and System Information entries and did not provide
   a second distribution or desktop stack.
+- Video browsing recognizes FLV plus a broad set of common and legacy
+  containers and elementary streams: MP4/M4V, MKV, AVI/DivX/Xvid, MOV/QuickTime,
+  MPEG, transport streams, VOB, WebM, F4V, 3GP/3G2, WMV/ASF, Ogg video,
+  RealMedia, MXF, NUT, DV, AMV, Motion JPEG, HLS playlists, H.264/H.265/VC-1,
+  AV1, and Y4M. Actual decoding remains limited to codecs implemented by the
+  card's stock H.OS hardware `libffplayer`; an unsupported stream exits cleanly
+  back to its selected file and records the reason in `video_player.log`.
 
 ## R36SX hardware fixes
 
