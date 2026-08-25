@@ -216,6 +216,10 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   PIC, preserve transparent artwork against a checkerboard, wrap through the
   current folder with Left/Right, rotate with L1/R1, zoom to 12×, and pan with
   the D-pad while zoomed; B returns to the exact source folder.
+- Entering a folder records its highlighted row and scroll offset. Pressing B
+  restores the folder itself at the same position in its parent instead of
+  resetting the browser to the first row; the behavior is shared by Files,
+  Videos, Ebooks, Text Editor, and JSDev selectors.
 - Permanent Ebooks Home card opens a clean browser at `/mnt/sdcard` and
   shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
   TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and
@@ -237,6 +241,11 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 - The hardware player blanks FrogUI's retained framebuffer before playback so
   the decoder's main video plane is visible, then draws controls through a
   single-copy off-screen overlay to prevent progress-bar flicker.
+- Large-file playback enables the vendor decoder's 0.5-to-5-second buffering
+  window and earlier late-frame recovery. Once controls disappear and no
+  subtitles are active, the player stops polling and copying the 32-bit overlay
+  framebuffer; decoder diagnostics stay in RAM until playback ends instead of
+  competing with movie reads on the SD card.
 - Hardware-decoded video playback computes layout against the R36SX panel's
   real 640x480 shape, then maps it to the stock projector decoder's normalized
   1920x1080 rectangle ABI. This prevents playback being trapped in a tiny

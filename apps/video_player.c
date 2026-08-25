@@ -554,7 +554,13 @@ static void render_overlay(void *player, bool paused, int menu_index,
     if (!osd.pixels || !osd.back) return;
     overlay_clear();
     int text_scale = osd.width >= 900 ? 2 : 1;
-    int64_t pos = hcplayer_get_position(player), dur = hcplayer_get_duration(player);
+    int64_t render_time = clock_ms();
+    bool controls_visible = render_time < controls_until;
+    int64_t pos = hcplayer_get_position(player);
+    /* Duration is static but the vendor call crosses into the decoder. Avoid
+     * polling it while only subtitles are visible on bandwidth-heavy video. */
+    int64_t dur = (paused || controls_visible) ?
+                  hcplayer_get_duration(player) : 0;
     local_subtitles_update(pos, offset_ms, subtitles_enabled);
     pthread_mutex_lock(&subtitle_lock);
     if (!paused && subtitle_visible && subtitles_enabled &&
@@ -572,7 +578,7 @@ static void render_overlay(void *player, bool paused, int menu_index,
         wrapped[j] = '\0';
         int lines = 1; for (int i = 0; wrapped[i]; i++) if (wrapped[i] == '\n') lines++;
         int box_h = lines * 10 * text_scale + 12 * text_scale;
-        int y = osd.height - box_h - (clock_ms() < controls_until ? 52 * text_scale : 18 * text_scale);
+        int y = osd.height - box_h - (controls_visible ? 52 * text_scale : 18 * text_scale);
         fill_rect(12 * text_scale, y, osd.width - 24 * text_scale, box_h, 0xB0000000u);
         draw_text(20 * text_scale, y + 6 * text_scale, text_scale, wrapped, 0xFFFFFFFFu);
     }
@@ -620,7 +626,7 @@ static void render_overlay(void *player, bool paused, int menu_index,
         overlay_present();
         return;
     }
-    if (clock_ms() >= controls_until) {
+    if (!controls_visible) {
         overlay_present();
         return;
     }
@@ -652,13 +658,21 @@ int switchfrog_video_main(int argc, char **argv) {
     HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
     screen_rotation_load();
     args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
-    args.quick_mode = true; args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
+    args.quick_mode = true;
+    args.qm_drop_thresh = 2; /* keep audio real-time if a high-rate frame is late */
+    /* The stock player API ships with buffering disabled unless requested.
+     * Five seconds is the vendor project's own stable profile and absorbs
+     * FAT32/SD-card read stalls without reserving an excessive packet queue. */
+    args.buffering_enable = true;
+    args.buffering_start = 500;
+    args.buffering_end = 5000;
+    args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
     args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
     args.callback = NULL; args.ext_subtitle_stream_num = 0;
     args.ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder\n");
+    fprintf(stderr, "video_player: creating decoder (buffer=500..5000ms quick-drop=2)\n");
     void *player = hcplayer_create(&args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
@@ -680,6 +694,7 @@ int switchfrog_video_main(int argc, char **argv) {
     if (external_count > 0 && local_subtitles_load(external_subs[0]) > 0)
         subtitle_available = subtitles_enabled = true;
     int64_t controls_until = clock_ms() + 8000, last_overlay = 0;
+    bool overlay_visible = false;
     hcplayer_play(player);
     fprintf(stderr, "video_player: playing %s (%d sidecar subtitles)\n", argv[1], external_count);
 
@@ -765,11 +780,21 @@ int switchfrog_video_main(int argc, char **argv) {
             hcplayer_seek(player, target);
         }
         int64_t now = clock_ms();
-        if (now - last_overlay >= 100) {
+        bool overlay_needed = paused || now < controls_until ||
+                              (subtitle_available && subtitles_enabled);
+        int overlay_interval = (paused || now < controls_until) ? 100 : 200;
+        if (overlay_needed && now - last_overlay >= overlay_interval) {
             render_overlay(player, paused, menu_index, scale_mode,
                            subtitle_available, subtitles_enabled, subtitle_offset_ms,
                            controls_until);
             last_overlay = now;
+            overlay_visible = true;
+        } else if (!overlay_needed && overlay_visible) {
+            /* Clear the controls once, then leave fb1 completely idle. The old
+             * 10 Hz full-screen memcpy competed with 1080p decoder DMA. */
+            overlay_clear();
+            overlay_present();
+            overlay_visible = false;
         }
         usleep(16000);
     }
