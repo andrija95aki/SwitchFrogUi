@@ -5,6 +5,13 @@ TreeFrogUI work while retaining SwitchFrogUI's Home layout and R36SX behavior.
 
 ### 2026-08-28 device hotfix
 
+- Added a first-class `gbc` platform route so Game Boy and Game Boy Color can
+  appear as separate Home cards while both continue to use Gambatte.
+- Added repeatable English-only GB/GBC/GBA/SNES import, payload de-duplication,
+  metadata generation, artwork matching and libretro cheat staging tools.
+- Added PS1 media auditing guidance used to reject unsupported package files
+  without discarding structurally valid PBP, BIN, IMG or ISO games.
+
 - Restored the proven H.OS 1.2 public player-init profile after device logs
   isolated a crash inside `hcplayer_create()` to the newer guessed ABI block.
 - Fixed valid top-down BMP screenshots (`640x-480`) being rejected by the

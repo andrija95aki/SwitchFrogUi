@@ -22,10 +22,14 @@ ROMs, console BIOS files, personal saves, or play history.
 - Distinct yellow Favourites and purple Recent Home cards, with stale artwork
   cleared inside the Recent collection.
 - Automatic platform cards for every detected platform containing at least one ROM.
+- Separate Game Boy and Game Boy Color cards, both backed by the compatible
+  Gambatte core, when their corresponding folders contain games.
 - Platform artwork contained inside cards instead of being stretched or cropped.
 - Box-art game grids with square, antialiased cards.
 - Condensed text-list mode for large libraries.
 - Metadata-driven category tabs with `ALL` first and L2/R2 tab switching.
+- Maintainer scripts for official-database-verified English ROM imports,
+  payload-level duplicate removal, box-art matching, and per-game cheat staging.
 - L1/R1 fast page navigation and wrap-around navigation in cards, grids, and lists.
 - Select+Start direct page-number entry for category collections (L2 in utility
   lists), using either
