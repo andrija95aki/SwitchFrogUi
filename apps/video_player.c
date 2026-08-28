@@ -44,7 +44,6 @@ extern unsigned char fontdata8x8[64 * 16];
 #define ROTATION_FILE "/mnt/sdcard/frogui/screen_rotation.cfg"
 #define ROTATION_TMP  "/mnt/sdcard/frogui/screen_rotation.tmp"
 #define DEVICE_FILE   "/tmp/tfdevice.env"
-#define PLAYER_INIT_STORAGE_SIZE 256
 #define PLAYER_STARTUP_TIMEOUT_MS 10000
 
 /* H.OS's Linux 4.4 dynamic loader crashes before application code when the
@@ -737,36 +736,28 @@ int switchfrog_video_main(int argc, char **argv) {
         unload_ffplayer();
         return 4;
     }
-    /* H.OS 1.2's stock player passes a 248-byte block although the public SDK
-     * header describes only its older prefix.  A plain stack HCPlayerInitArgs
-     * leaves the firmware-appended fields undefined.  Retain typed access to
-     * the known prefix while guaranteeing that the whole vendor ABI block is
-     * aligned and zero-initialized. */
-    union {
-        long double alignment;
-        unsigned char raw[PLAYER_INIT_STORAGE_SIZE];
-    } args_storage;
-    memset(&args_storage, 0, sizeof(args_storage));
-    HCPlayerInitArgs *args = (HCPlayerInitArgs *)args_storage.raw;
+    /* This exact public-SDK structure/profile is the stable ABI on H.OS 1.2.
+     * Supplying a guessed larger private structure, I2SO directly, or leaving
+     * quick mode disabled makes this firmware die inside hcplayer_create(). */
+    HCPlayerInitArgs args;
+    memset(&args, 0, sizeof(args));
     screen_rotation_load();
-    args->uri = argv[1];
-    args->msg_id = msgid;
-    args->sync_type = HCPLAYER_AUDIO_MASTER;
-    /* Match the stock hcprojector ownership model.  quick_mode and audsink
-     * stay zero; the audio-master path owns the decoder and I2SO directly. */
-    args->bg_disable = true;
-    args->snd_devs = AUDDEV_I2SO;
-    args->rotate_enable = screen_rotation_180 || panel_rotation;
-    args->rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 :
-                        panel_rotation ? (rotate_type_e)(panel_rotation / 90) :
-                        ROTATE_TYPE_0;
+    args.uri = argv[1];
+    args.msg_id = msgid;
+    args.sync_type = HCPLAYER_AUDIO_MASTER;
+    args.quick_mode = true;
+    args.snd_devs = AUDDEV_DEFAULT;
+    args.rotate_enable = true;
+    args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 :
+                       panel_rotation ? (rotate_type_e)(panel_rotation / 90) :
+                       ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
-    args->callback = NULL; args->ext_subtitle_stream_num = 0;
-    args->ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder (stock-compatible audio-master, quick=0, i2so, init=%d)\n",
-            PLAYER_INIT_STORAGE_SIZE);
-    void *player = hcplayer_create(args);
+    args.callback = NULL; args.ext_subtitle_stream_num = 0;
+    args.ext_sub_uris = NULL;
+    fprintf(stderr, "video_player: creating decoder (H.OS 1.2 stable profile, quick=1, default-audio, init=%u)\n",
+            (unsigned)sizeof(args));
+    void *player = hcplayer_create(&args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
         hcplayer_deinit(); msgctl(msgid, IPC_RMID, NULL);

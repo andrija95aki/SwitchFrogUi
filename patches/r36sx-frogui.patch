@@ -633,7 +633,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..b164bc6 100644
+index a72c4e6..14b2f42 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -2243,7 +2243,7 @@ index a72c4e6..b164bc6 100644
  /* ---------------- OnionOS-style game switcher (recents as box-art carousel) ----
   * Art = box art (.res/<name>.rgb565); if missing, the newest save-state
   * screenshot picoarch wrote (.st<N>.bmp). Toggled by settings_game_switcher. */
-@@ -815,58 +1946,247 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
+@@ -815,58 +1946,251 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
      }
  }
  
@@ -2354,8 +2354,12 @@ index a72c4e6..b164bc6 100644
 -    render_fill_rect(framebuffer, 0, byb, SCREEN_WIDTH, barh, 0x2104);
 +static int photo_viewer_open(const char *path) {
 +    int w = 0, h = 0, channels = 0;
-+    if (!path || !stbi_info(path, &w, &h, &channels) || w <= 0 || h <= 0 ||
-+        (size_t)w * (size_t)h > 16000000u) {
++    /* BMP permits a negative height to mark top-down row order. stb_image's
++     * info probe preserves that sign, while stbi_load() correctly normalizes
++     * and decodes it. The R36SX screenshot writer emits exactly this valid
++     * 640x-480 form, so validate its magnitude instead of rejecting it. */
++    if (!path || !stbi_info(path, &w, &h, &channels) || w <= 0 || h == 0 ||
++        (size_t)w * (size_t)(h < 0 ? -(int64_t)h : h) > 16000000u) {
 +        ui_notice("Image is unsupported or too large");
 +        return 0;
 +    }
@@ -2537,7 +2541,7 @@ index a72c4e6..b164bc6 100644
      font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, byb + UI_S(8),
                     g->game_name, COLOR_TEXT);
      char info[96];
-@@ -895,10 +2215,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
+@@ -895,10 +2219,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
      int ph   = bot - top;
      if (pw < UI_S(60) || ph < UI_S(60)) return;          /* too narrow to bother */
  
@@ -2549,7 +2553,7 @@ index a72c4e6..b164bc6 100644
  
      int nameh = UI_S(22);
      int aw = pw, ah = ph - nameh;
-@@ -936,6 +2254,7 @@ static void enter_recents_view(void) {
+@@ -936,6 +2258,7 @@ static void enter_recents_view(void) {
          strncpy(entries[entry_count].name, rg[i].game_name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -2557,7 +2561,7 @@ index a72c4e6..b164bc6 100644
          entry_count++;
      }
      viewing_recents = true;
-@@ -982,18 +2301,31 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
+@@ -982,18 +2305,31 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
      recent_games_add(core_path, game_name, rom_path);
@@ -2595,7 +2599,7 @@ index a72c4e6..b164bc6 100644
      const char *rom_base = strrchr(rom_path, '/');
      rom_base = rom_base ? rom_base + 1 : rom_path;
      char game_name[256];
-@@ -1001,11 +2333,62 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
+@@ -1001,11 +2337,62 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
      game_name[sizeof(game_name) - 1] = '\0';
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
@@ -2663,7 +2667,7 @@ index a72c4e6..b164bc6 100644
  }
  
  static bool is_ps1_folder(const char *folder) {
-@@ -1015,20 +2398,31 @@ static bool is_ps1_folder(const char *folder) {
+@@ -1015,20 +2402,31 @@ static bool is_ps1_folder(const char *folder) {
             strcasecmp(folder, "PS")  == 0;
  }
  
@@ -2704,7 +2708,7 @@ index a72c4e6..b164bc6 100644
  }
  
  /* ----------------------------- Search (X button) ----------------------------- */
-@@ -1038,14 +2432,87 @@ static const char *KBD_ROWS[4] = {
+@@ -1038,14 +2436,83 @@ static const char *KBD_ROWS[4] = {
      "1234567890",
      "QWERTYUIOP",
      "ASDFGHJKL",
@@ -2740,8 +2744,10 @@ index a72c4e6..b164bc6 100644
 +
 +static void virtual_keyboard_prepare(void) {
 +    io_keyboard_test_poll();
-+    virtual_keyboard_visible = !io_keyboard_connected();
-+    virtual_keyboard_manual = false;
++    /* Keep text fields unobstructed on entry. Select is the explicit toggle
++     * whether or not a physical keyboard is currently connected. */
++    virtual_keyboard_visible = false;
++    virtual_keyboard_manual = true;
 +    virtual_keyboard_symbols = false;
 +    virtual_keyboard_upper = false;
 +    virtual_keyboard_r = 1;
@@ -2749,13 +2755,7 @@ index a72c4e6..b164bc6 100644
 +}
 +
 +static void virtual_keyboard_sync(void) {
-+    if (!virtual_keyboard_manual) {
-+        bool should_show = !io_keyboard_connected();
-+        if (virtual_keyboard_visible != should_show) {
-+            virtual_keyboard_visible = should_show;
-+            ui_rendered_once = 0;
-+        }
-+    }
++    io_keyboard_test_poll();
 +}
 +
 +static void virtual_keyboard_toggle(void) {
@@ -3834,8 +3834,8 @@ index a72c4e6..b164bc6 100644
 +                if (!strcmp(file_clipboard_items[i].path, file_action_source)) {
 +                    snprintf(file_clipboard_items[i].path, sizeof(file_clipboard_items[i].path), "%s", target);
 +                    snprintf(file_clipboard_items[i].name, sizeof(file_clipboard_items[i].name), "%s", file_name_text);
-+                }
-+            }
+                 }
+             }
 +            file_selected_count = 0;
 +            ok = 1; file_refresh_select(file_name_text); ui_notice("Rename complete");
 +        }
@@ -3851,20 +3851,20 @@ index a72c4e6..b164bc6 100644
 +                    memmove(&file_clipboard_items[c], &file_clipboard_items[c + 1],
 +                            (size_t)(file_clipboard_count - c - 1) * sizeof(file_clipboard_items[0]));
 +                    file_clipboard_count--;
-                 }
-             }
-         }
++                }
++            }
++        }
 +        file_clipboard_active = file_clipboard_count > 0;
 +        if (file_clipboard_active) {
 +            snprintf(file_clipboard_path, sizeof(file_clipboard_path), "%s", file_clipboard_items[0].path);
 +            snprintf(file_clipboard_name, sizeof(file_clipboard_name), "%s", file_clipboard_items[0].name);
 +            file_clipboard_is_dir = file_clipboard_items[0].is_dir;
-+        }
+         }
 +        file_selected_count = 0;
 +        if (deleted) { file_refresh_select(NULL); ui_notice(ok ? "Deleted" : "Some items could not be deleted"); }
 +        else ui_notice("Delete failed");
 +        break;
-+    }
+     }
 +    case FILE_ACTION_NEW_FOLDER:
 +        if (snprintf(target, sizeof(target), "%s/%s", current_path, file_name_text) < (int)sizeof(target) &&
 +            access(target, F_OK) != 0 && mkdir(target, 0777) == 0) {
@@ -3877,7 +3877,7 @@ index a72c4e6..b164bc6 100644
 +        ok = 1; ui_notice("Clipboard cleared");
 +        break;
 +    default: break;
-     }
++    }
 +    if (!ok && file_pending_action != FILE_ACTION_PASTE && file_pending_action != FILE_ACTION_DELETE)
 +        ui_notice("File action failed");
 +    file_confirm_active = false; file_pending_action = FILE_ACTION_CANCEL;

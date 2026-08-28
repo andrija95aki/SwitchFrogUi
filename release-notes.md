@@ -3,8 +3,17 @@
 This source update ports the eight compatible groups selected from newer
 TreeFrogUI work while retaining SwitchFrogUI's Home layout and R36SX behavior.
 
+### 2026-08-28 device hotfix
+
+- Restored the proven H.OS 1.2 public player-init profile after device logs
+  isolated a crash inside `hcplayer_create()` to the newer guessed ABI block.
+- Fixed valid top-down BMP screenshots (`640x-480`) being rejected by the
+  Photo viewer before `stb_image` could normalize and decode them.
+- Virtual keyboards now remain hidden when a text prompt opens and are shown
+  or hidden explicitly with Select, with or without a USB keyboard attached.
+
 - Rebased the H.OS video startup sequence on the stock-compatible player:
-  vendor layer order, audio-master clocking, panel geometry, typed init storage,
+  vendor layer order, audio-master clocking, panel geometry, stable SDK init,
   startup watchdog, subtitles, pause controls, rotation and exact browser return.
 - Added PicoArch runtime audio recovery. The pause menu flushes stale samples,
   resume starts from fresh core audio, and AUDDEC/I2SO failures are reinitialized
