@@ -201,7 +201,13 @@ if ($pathMigrations.Count -gt 0) {
     foreach ($oldPath in $pathMigrations.Keys) {
         $oldBase = [IO.Path]::GetFileNameWithoutExtension($oldPath)
         $newBase = [IO.Path]::GetFileNameWithoutExtension($pathMigrations[$oldPath])
-        foreach ($file in $auxiliary | Where-Object { $_.Name.StartsWith("$oldBase.", [StringComparison]::OrdinalIgnoreCase) }) {
+        $newPlatform = (($pathMigrations[$oldPath] -replace '^/mnt/sdcard/roms/', '') -split '/')[0]
+        foreach ($file in $auxiliary | Where-Object {
+                $_.Name.StartsWith("$oldBase.", [StringComparison]::OrdinalIgnoreCase) -and
+                ($_.FullName -match "(?i)[\\/]picoarch[\\/]$([regex]::Escape($newPlatform))[\\/]" -or
+                 ($_.FullName -match '(?i)[\\/]cubegm[\\/]saves[\\/]' -and
+                  $_.Name -match '(?i)\.(sav|srm|state[0-9]*|scr\.bmp)$'))
+            }) {
             $suffix = $file.Name.Substring($oldBase.Length)
             $destination = Join-Path $file.DirectoryName ($newBase + $suffix)
             if (-not (Test-Path -LiteralPath $destination)) { Copy-Item -LiteralPath $file.FullName -Destination $destination }

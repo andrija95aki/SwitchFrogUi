@@ -124,7 +124,13 @@ $auxiliary = @(Get-ChildItem -LiteralPath $targetRoot -Recurse -File -ErrorActio
 foreach ($oldPath in $migrations.Keys) {
     $oldBase = [IO.Path]::GetFileNameWithoutExtension($oldPath)
     $newBase = [IO.Path]::GetFileNameWithoutExtension($migrations[$oldPath])
-    foreach ($file in $auxiliary | Where-Object { $_.Name.StartsWith("$oldBase.", [StringComparison]::OrdinalIgnoreCase) }) {
+    $newPlatform = (($migrations[$oldPath] -replace '^/mnt/sdcard/roms/', '') -split '/')[0]
+    foreach ($file in $auxiliary | Where-Object {
+            $_.Name.StartsWith("$oldBase.", [StringComparison]::OrdinalIgnoreCase) -and
+            ($_.FullName -match "(?i)[\\/]picoarch[\\/]$([regex]::Escape($newPlatform))[\\/]" -or
+             ($_.FullName -match '(?i)[\\/]cubegm[\\/]saves[\\/]' -and
+              $_.Name -match '(?i)\.(sav|srm|state[0-9]*|scr\.bmp)$'))
+        }) {
         $suffix = $file.Name.Substring($oldBase.Length)
         $destination = Join-Path $file.DirectoryName ($newBase + $suffix)
         if (-not (Test-Path -LiteralPath $destination)) { Copy-Item -LiteralPath $file.FullName -Destination $destination }
