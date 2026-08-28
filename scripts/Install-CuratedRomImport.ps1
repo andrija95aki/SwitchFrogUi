@@ -193,6 +193,20 @@ if ($pathMigrations.Count -gt 0) {
         foreach ($oldPath in $pathMigrations.Keys) { $text = $text.Replace($oldPath, $pathMigrations[$oldPath]) }
         [IO.File]::WriteAllText($path, $text, [Text.UTF8Encoding]::new($false))
     }
+    # Save RAM, save states, per-game configuration and captures are keyed by
+    # ROM basename. Keep the original and add a canonical-name copy when a ROM
+    # was superseded, so user data remains usable and rollback stays possible.
+    $auxiliary = @(Get-ChildItem -LiteralPath $targetRootPath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]roms[\\/]' })
+    foreach ($oldPath in $pathMigrations.Keys) {
+        $oldBase = [IO.Path]::GetFileNameWithoutExtension($oldPath)
+        $newBase = [IO.Path]::GetFileNameWithoutExtension($pathMigrations[$oldPath])
+        foreach ($file in $auxiliary | Where-Object { $_.Name.StartsWith("$oldBase.", [StringComparison]::OrdinalIgnoreCase) }) {
+            $suffix = $file.Name.Substring($oldBase.Length)
+            $destination = Join-Path $file.DirectoryName ($newBase + $suffix)
+            if (-not (Test-Path -LiteralPath $destination)) { Copy-Item -LiteralPath $file.FullName -Destination $destination }
+        }
+    }
 }
 
 $reportDirectory = Split-Path -Parent $ReportPath
