@@ -32,7 +32,10 @@ try {
         $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $relative"
     }
-    [IO.File]::WriteAllLines((Join-Path $stage 'manifest.sha256'), $lines, [Text.Encoding]::ASCII)
+    # H.OS validates this with BusyBox sha256sum. Force Unix line endings so a
+    # Windows build host cannot append a literal CR to every manifest filename.
+    $manifestText = ($lines -join "`n") + "`n"
+    [IO.File]::WriteAllText((Join-Path $stage 'manifest.sha256'), $manifestText, [Text.Encoding]::ASCII)
 
     $archiveParent = Split-Path -Parent $OutputArchive
     if ($archiveParent) { New-Item -ItemType Directory -Force -Path $archiveParent | Out-Null }
