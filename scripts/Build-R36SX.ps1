@@ -25,6 +25,7 @@ $hcFfmpegInclude = Join-Path $HcrtosRoot 'components\ffmpeg\source'
 $pcsxFont = Join-Path $Pcsx4allRoot 'src\port\sf3000\fonts.c'
 $syscalls = Join-Path $repoRoot 'toolchain\mips_syscalls.S'
 $sampleEbookRoot = Join-Path $appsRoot 'assets\ebooks'
+$switchFrogVersion = '1.3.0'
 
 $required = @(
     $ZigPath,
@@ -40,6 +41,7 @@ $required = @(
     (Join-Path $appsRoot 'jsdev\jsdev_libretro.c'),
     (Join-Path $appsRoot 'jsdev\third_party\duktape\duktape.c'),
     (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js'),
+    (Join-Path $appsRoot 'patch-rockbox-keymap.ps1'),
     (Join-Path $sampleEbookRoot 'World English Bible (WEB).epub'),
     (Join-Path $sampleEbookRoot 'The Koran - J. M. Rodwell.epub'),
     (Join-Path $sampleEbookRoot 'JPS 1917 Tanakh - English.epub'),
@@ -54,7 +56,13 @@ if ($BuildPicoarch) { $required += (Join-Path $picoRoot 'main.c') }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Missing build input: $path" }
 }
-New-Item -ItemType Directory -Force -Path $output | Out-Null
+if (Test-Path -LiteralPath $output) {
+    # This is the script-owned build output only. Clearing it prevents rollback
+    # binaries from an earlier experiment entering checksums or an update pack.
+    Get-ChildItem -LiteralPath $output -Force | Remove-Item -Recurse -Force
+} else {
+    New-Item -ItemType Directory -Force -Path $output | Out-Null
+}
 
 # Reuse the official v1.0.12 MuPDF reader and the two upstream cores missing
 # from the H.OS 1.2 stock payload. Their complete corresponding-source links
@@ -66,6 +74,7 @@ try {
         'release/cubegm/ebook' = (Join-Path $output 'ebook')
         'release/cubegm/cores/o2em_libretro.so' = (Join-Path $output 'o2em_libretro.so')
         'release/cubegm/cores/vecx_libretro.so' = (Join-Path $output 'vecx_libretro.so')
+        'release/cubegm/rockbox' = (Join-Path $output 'rockbox-upstream')
     }
     foreach ($entryName in $runtimeEntries.Keys) {
         $entry = $upstreamZip.GetEntry($entryName)
@@ -73,6 +82,10 @@ try {
         [IO.Compression.ZipFileExtensions]::ExtractToFile($entry,$runtimeEntries[$entryName],$true)
     }
 } finally { $upstreamZip.Dispose() }
+powershell -ExecutionPolicy Bypass -File (Join-Path $appsRoot 'patch-rockbox-keymap.ps1') `
+    -InputPath (Join-Path $output 'rockbox-upstream') -OutputPath (Join-Path $output 'rockbox')
+if ($LASTEXITCODE -ne 0) { throw "Rockbox keymap patch failed with exit code $LASTEXITCODE" }
+Remove-Item -LiteralPath (Join-Path $output 'rockbox-upstream') -Force
 
 function Invoke-Zig {
     param([string[]]$Arguments)
@@ -117,10 +130,19 @@ $frogSources = @(
     'theme.c','favorites.c','banner.c','backlight.c','input.c','core_override.c',
     $syscalls
 )
+$buildCommit = (& git -C $repoRoot rev-parse --short=8 HEAD 2>$null)
+if (-not $buildCommit) { $buildCommit = 'source' }
+$buildDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
+$buildHeader = Join-Path $buildRoot 'switchfrog_build_info.h'
+[IO.File]::WriteAllText($buildHeader, @"
+#define SWITCHFROGUI_VERSION "$switchFrogVersion"
+#define SWITCHFROGUI_BUILD_COMMIT "$buildCommit"
+#define SWITCHFROGUI_BUILD_DATE "$buildDate"
+"@, [Text.Encoding]::ASCII)
 Push-Location $frogRoot
 try {
     Invoke-Zig (@('cc','-target',$target,'-march=mips32r2','-fPIC','-G0','-O3',
-        '-DPLATFORM_SF3000','-DNDEBUG','-D__LIBRETRO__','-I.','-shared',
+        '-DPLATFORM_SF3000','-DNDEBUG','-D__LIBRETRO__','-I.','-include',$buildHeader,'-shared',
         '-Wl,--no-undefined','-s') + $frogSources + @('-lm','-lc','-ldl',
         '-lpthread','-o',(Join-Path $output 'frogui_libretro.so')))
 } finally { Pop-Location }
@@ -173,8 +195,9 @@ $cardCore = Join-Path $cardFiles 'cubegm\cores'
 $cardFonts = Join-Path $cardFiles 'frogui\fonts'
 $cardSounds = Join-Path $cardFiles 'frogui\sounds'
 $cardIconPacks = Join-Path $cardFiles 'frogui\icon-packs'
+$cardThemePacks = Join-Path $cardFiles 'frogui\theme-packs'
 $cardEbookSamples = Join-Path $cardFiles 'Ebooks\SwitchFrogUI Samples'
-New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks,$cardEbookSamples | Out-Null
+New-Item -ItemType Directory -Force -Path $cardCore,$cardFonts,$cardSounds,$cardIconPacks,$cardThemePacks,$cardEbookSamples | Out-Null
 $optionalRomFolders = @('Ebook','JSDev','doom','heretic','hexen','arcade','fbneo','mame2003',
     'lynx','snes9x','vectrex','odyssey2','videopac')
 foreach ($folder in $optionalRomFolders) {
@@ -188,12 +211,15 @@ Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-
 Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch_hi') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'ebook') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'rockbox') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'rockbox.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'o2em_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'vecx_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'jsdev\examples\JSDev API Showcase.js') `
     -Destination (Join-Path $cardFiles 'roms\JSDev')
 Copy-Item -Force -Path (Join-Path $sampleEbookRoot '*') -Destination $cardEbookSamples
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'switchfrog-update.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'
 if (Test-Path -LiteralPath $extraFonts) { Copy-Item -Recurse -Force -Path (Join-Path $extraFonts '*') -Destination $cardFonts }
@@ -201,6 +227,8 @@ $uiSounds = Join-Path $repoRoot 'assets\sounds'
 if (Test-Path -LiteralPath $uiSounds) { Copy-Item -Recurse -Force -Path (Join-Path $uiSounds '*') -Destination $cardSounds }
 $iconPacks = Join-Path $repoRoot 'assets\icon-packs'
 if (Test-Path -LiteralPath $iconPacks) { Copy-Item -Recurse -Force -Path (Join-Path $iconPacks '*') -Destination $cardIconPacks }
+$themePacks = Join-Path $repoRoot 'assets\theme-packs'
+if (Test-Path -LiteralPath $themePacks) { Copy-Item -Recurse -Force -Path (Join-Path $themePacks '*') -Destination $cardThemePacks }
 $keyboardConfig = Join-Path $repoRoot 'assets\config\keyboard_gamepad.cfg'
 if (Test-Path -LiteralPath $keyboardConfig) {
     Copy-Item -Force -LiteralPath $keyboardConfig -Destination (Join-Path $cardFiles 'frogui')
@@ -209,4 +237,7 @@ $gamepadConfig = Join-Path $repoRoot 'assets\config\keymap.txt'
 if (Test-Path -LiteralPath $gamepadConfig) {
     Copy-Item -Force -LiteralPath $gamepadConfig -Destination (Join-Path $cardFiles 'frogui')
 }
+[IO.File]::WriteAllText((Join-Path $cardFiles 'SwitchFrogUI BUILD.txt'),
+    "SwitchFrogUI $switchFrogVersion`r`nCommit: $buildCommit`r`nBuild date: $buildDate`r`n",
+    [Text.Encoding]::ASCII)
 Write-Host "R36SX build complete: $output"

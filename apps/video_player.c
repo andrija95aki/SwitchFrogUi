@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include <ffplayer.h>
+#include <hcuapi/dis.h>
 
 extern unsigned char fontdata8x8[64 * 16];
 
@@ -42,6 +43,9 @@ extern unsigned char fontdata8x8[64 * 16];
 #define SUBTITLE_OFFSET_LIMIT_MS 60000
 #define ROTATION_FILE "/mnt/sdcard/frogui/screen_rotation.cfg"
 #define ROTATION_TMP  "/mnt/sdcard/frogui/screen_rotation.tmp"
+#define DEVICE_FILE   "/tmp/tfdevice.env"
+#define PLAYER_INIT_STORAGE_SIZE 256
+#define PLAYER_STARTUP_TIMEOUT_MS 10000
 
 /* H.OS's Linux 4.4 dynamic loader crashes before application code when the
  * vendor player is a load-time dependency.  Keep this module dependent only
@@ -133,6 +137,9 @@ static int64_t subtitle_end_ms;
 static int subtitle_offset_ms;
 static bool screen_rotation_180;
 static bool osd_scanout_enabled;
+static int panel_width = 640;
+static int panel_height = 480;
+static int panel_rotation;
 
 typedef struct {
     int64_t start_ms, end_ms;
@@ -147,6 +154,49 @@ static int64_t clock_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void read_device_geometry(void) {
+    FILE *file = fopen(DEVICE_FILE, "r");
+    char line[128], key[64], value[64];
+    panel_width = 640;
+    panel_height = 480;
+    panel_rotation = 0;
+    if (!file) return;
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%63[^=]=%63s", key, value) != 2) continue;
+        if (!strcmp(key, "TF_PANEL_W")) panel_width = atoi(value);
+        else if (!strcmp(key, "TF_PANEL_H")) panel_height = atoi(value);
+        else if (!strcmp(key, "TF_ROTATE")) panel_rotation = atoi(value);
+    }
+    fclose(file);
+    if (panel_width < 320 || panel_width > 1920) panel_width = 640;
+    if (panel_height < 240 || panel_height > 1080) panel_height = 480;
+    if (panel_rotation != 90 && panel_rotation != 180 && panel_rotation != 270)
+        panel_rotation = 0;
+}
+
+static void configure_video_layer(void) {
+    int fd = open("/dev/dis", O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "video_player: could not open /dev/dis: %s\n",
+                strerror(errno));
+        return;
+    }
+    /* Exact stock hcprojector order: HUD above decoded video, decoded video
+     * above FrogUI's final fb0 frame.  Merely blanking fb0 is insufficient on
+     * every H.OS build because its layer can retain priority. */
+    struct dis_layer_blend_order order;
+    memset(&order, 0, sizeof(order));
+    order.distype = DIS_TYPE_HD;
+    order.main_layer = 2;
+    order.auxp_layer = 0;
+    order.gmas_layer = 3;
+    order.gmaf_layer = 1;
+    int result = ioctl(fd, DIS_SET_LAYER_ORDER, &order);
+    fprintf(stderr, "video_player: display layer order result=%d errno=%d\n",
+            result, result < 0 ? errno : 0);
+    close(fd);
 }
 
 static void screen_rotation_load(void) {
@@ -183,6 +233,9 @@ static bool terminal_message(long type) {
            type == HCPLAYER_MSG_STATE_TRICK_EOS ||
            type == HCPLAYER_MSG_OPEN_FILE_FAILED ||
            type == HCPLAYER_MSG_UNSUPPORT_FORMAT ||
+           type == HCPLAYER_MSG_UNSUPPORT_ALL_VIDEO ||
+           type == HCPLAYER_MSG_VIDEO_DECODE_ERR ||
+           type == HCPLAYER_MSG_READ_TIMEOUT ||
            type == HCPLAYER_MSG_ERR_UNDEFINED;
 }
 
@@ -521,7 +574,7 @@ static void apply_display_mode(void *player, int mode, int vw, int vh) {
      * geometry against the R36SX's 640x480 panel, then map it to that ABI.
      * Passing 640x480 directly makes the decoder allocate only the upper-right
      * fraction of its hardware plane (roughly the 100px square seen on device). */
-    const int sw = 640, sh = 480;
+    const int sw = panel_width, sh = panel_height;
     const int nw = 1920, nh = 1080;
     int px = 0, py = 0, pw = sw, ph = sh;
     int sx = 0, sy = 0, snw = nw, snh = nh;
@@ -674,25 +727,46 @@ int switchfrog_video_main(int argc, char **argv) {
     char *external_subs[MAX_EXTERNAL_SUBS] = {0};
     int external_count = find_sidecar_subtitles(argv[1], external_subs, MAX_EXTERNAL_SUBS);
     fprintf(stderr, "video_player: sidecars=%d; initializing hcplayer\n", external_count);
-    hcplayer_init(LOG_WARNING);
-    HCPlayerInitArgs args; memset(&args, 0, sizeof(args));
+    read_device_geometry();
+    fprintf(stderr, "video_player: panel=%dx%d profile-rotation=%d\n",
+            panel_width, panel_height, panel_rotation);
+    if (hcplayer_init(LOG_WARNING) != 0) {
+        fprintf(stderr, "video_player: hcplayer_init failed\n");
+        msgctl(msgid, IPC_RMID, NULL);
+        for (int i = 0; i < external_count; i++) free(external_subs[i]);
+        unload_ffplayer();
+        return 4;
+    }
+    /* H.OS 1.2's stock player passes a 248-byte block although the public SDK
+     * header describes only its older prefix.  A plain stack HCPlayerInitArgs
+     * leaves the firmware-appended fields undefined.  Retain typed access to
+     * the known prefix while guaranteeing that the whole vendor ABI block is
+     * aligned and zero-initialized. */
+    union {
+        long double alignment;
+        unsigned char raw[PLAYER_INIT_STORAGE_SIZE];
+    } args_storage;
+    memset(&args_storage, 0, sizeof(args_storage));
+    HCPlayerInitArgs *args = (HCPlayerInitArgs *)args_storage.raw;
     screen_rotation_load();
-    args.uri = argv[1]; args.msg_id = msgid; args.sync_type = HCPLAYER_AUDIO_MASTER;
-    /* Audio master is the only tested mode that preserves the file timebase.
-     * Quick mode is needed to present frame one, but its default three-frame
-     * correction threshold visibly skips reordered 23.976 fps movies. Reserve
-     * dropping for an emergency backlog of roughly five seconds at 24 fps. */
-    args.quick_mode = true;
-    args.qm_drop_thresh = 120;
-    args.buffering_enable = false;
-    args.snd_devs = AUDDEV_DEFAULT; args.rotate_enable = true;
-    args.rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 : ROTATE_TYPE_0;
+    args->uri = argv[1];
+    args->msg_id = msgid;
+    args->sync_type = HCPLAYER_AUDIO_MASTER;
+    /* Match the stock hcprojector ownership model.  quick_mode and audsink
+     * stay zero; the audio-master path owns the decoder and I2SO directly. */
+    args->bg_disable = true;
+    args->snd_devs = AUDDEV_I2SO;
+    args->rotate_enable = screen_rotation_180 || panel_rotation;
+    args->rotate_type = screen_rotation_180 ? ROTATE_TYPE_180 :
+                        panel_rotation ? (rotate_type_e)(panel_rotation / 90) :
+                        ROTATE_TYPE_0;
     /* External subtitle decode in this H.OS libffplayer build crashes its
      * decoder thread. Sidecars are parsed and rendered locally below. */
-    args.callback = NULL; args.ext_subtitle_stream_num = 0;
-    args.ext_sub_uris = NULL;
-    fprintf(stderr, "video_player: creating decoder (audio-master, quick=1 drop=120 buffer=0)\n");
-    void *player = hcplayer_create(&args);
+    args->callback = NULL; args->ext_subtitle_stream_num = 0;
+    args->ext_sub_uris = NULL;
+    fprintf(stderr, "video_player: creating decoder (stock-compatible audio-master, quick=0, i2so, init=%d)\n",
+            PLAYER_INIT_STORAGE_SIZE);
+    void *player = hcplayer_create(args);
     if (!player) {
         fprintf(stderr, "video_player: could not open %s\n", argv[1]);
         hcplayer_deinit(); msgctl(msgid, IPC_RMID, NULL);
@@ -703,6 +777,7 @@ int switchfrog_video_main(int argc, char **argv) {
     fprintf(stderr, "video_player: decoder created; opening overlay\n");
     overlay_open();
     hide_frontend_framebuffer();
+    configure_video_layer();
     volatile uint32_t *keys = attach_keys();
     uint32_t previous = keys ? (*keys & 0x1ffffu) : 0;
     bool paused = false, done = false, ready = false;
@@ -715,6 +790,8 @@ int switchfrog_video_main(int argc, char **argv) {
     /* Normal playback starts with the transparent OSD scanout physically idle.
      * Input reveals controls and subtitle cues enable it only while needed. */
     int64_t controls_until = 0, last_overlay = 0;
+    int64_t playback_started_at = clock_ms();
+    bool first_frame = false;
     bool overlay_visible = false;
     hcplayer_play(player);
     fprintf(stderr, "video_player: playing %s (%d sidecar subtitles)\n", argv[1], external_count);
@@ -734,6 +811,16 @@ int switchfrog_video_main(int argc, char **argv) {
                 fprintf(stderr, "video_player: ready video=%dx%d subtitles=%d\n",
                         video_w, video_h, subtitle_available ? 1 : 0);
             }
+            if (msg.type == HCPLAYER_MSG_FIRST_VIDEO_FRAME_DECODED ||
+                msg.type == HCPLAYER_MSG_FIRST_VIDEO_FRAME_SHOWED)
+                first_frame = true;
+        }
+
+        if (!first_frame && hcplayer_get_position(player) > 250)
+            first_frame = true;
+        if (!first_frame && clock_ms() - playback_started_at > PLAYER_STARTUP_TIMEOUT_MS) {
+            fprintf(stderr, "video_player: startup watchdog: no decoded frame or playback progress\n");
+            done = true;
         }
 
         uint32_t raw = keys ? (*keys & 0x1ffffu) : 0;

@@ -43,6 +43,18 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 
 ## Appearance and settings
 
+- Optional upstream artwork packs can be selected without replacing existing
+  card artwork. `Existing artwork` remains the default; Art Book NextUI and Nao
+  Black are bundled with their upstream attribution files and fall back cleanly
+  when a platform image is absent.
+- Play Activity summarizes total play time and lists the most-played titles from
+  the existing `frogui/playtime.txt` data, without changing favourites or saves.
+- About and Hardware Information expose the SwitchFrogUI version, source commit
+  and build date so an SD card can be matched to its source build.
+- Settings includes a guarded offline updater for a card-root
+  `SwitchFrogUI-update.tar.gz`. It validates archive paths and SHA-256, blocks
+  user-data paths, creates a backup, and atomically replaces only manifest-listed
+  `cubegm/` and `frogui/` runtime files.
 - Sixty-two colour schemes: the original palette, bright R36SX additions, ten
   two-stop gradients, and twelve new four-colour gradients. Gradient rendering
   remains scanline-based and only runs when an event causes a redraw.

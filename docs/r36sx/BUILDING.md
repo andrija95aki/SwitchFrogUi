@@ -45,11 +45,13 @@ and pinned PCSX4ALL sources to build the launcher and emulator. This separation
 is required because Zig/LLD-linked MIPS executables fault before `main()` in the
 tested H.OS 1.2 loader, while Zig-built shared modules work correctly.
 
-Download the official `TreeFrogUI_v1.0.12_c.zip` asset from the
-[TreeFrogUI v1.0.12 release](https://github.com/tzubertowski/treefrog-ui/releases/tag/v1.0.12).
-The build extracts the AGPL MuPDF ebook runtime and the two missing GPL core
-binaries from that archive; their corresponding sources remain linked in the
-project documentation.
+Download the official `TreeFrogUI_v1.0.15_a.zip` asset from the
+[TreeFrogUI v1.0.15 release](https://github.com/tzubertowski/treefrog-ui/releases/tag/v1.0.15).
+The build extracts the AGPL MuPDF ebook runtime, the two missing GPL cores, and
+the colour-corrected Rockbox runtime from that archive. It applies the guarded
+SwitchFrogUI A-confirm/B-back binary mapping to that exact known Rockbox build;
+unknown hashes are rejected. Corresponding sources and licenses remain linked
+in the project documentation.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
@@ -59,7 +61,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
   -DependencyRoot "$env:LOCALAPPDATA\Temp\treefrog-deps" `
   -ZigPath 'C:\tools\zig\zig.exe' `
   -GnuRuntimeRoot 'C:\builds\switchfrogui-r36sx-gnu-runtimes' `
-  -UpstreamReleaseArchive 'C:\downloads\TreeFrogUI_v1.0.12_c.zip'
+  -UpstreamReleaseArchive 'C:\downloads\TreeFrogUI_v1.0.15_a.zip'
 ```
 
 Outputs are written to `.r36sx-build/out`:
@@ -82,6 +84,22 @@ reader, missing Odyssey 2/Vectrex cores, twelve UI fonts, their OFL notices,
 icon packs, and the CC0 sound packs already arranged in their final SD-card
 paths. Merge that directory onto a test card after the base SwitchFrogUI
 overlay is installed.
+
+## Offline update package
+
+Create a ROM-free, checksum-verified update from a staged `card-files` tree:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/New-OfflineUpdate.ps1 `
+  -CardFilesRoot '.r36sx-build/out/card-files' `
+  -OutputArchive '.r36sx-build/out/SwitchFrogUI-update.tar.gz'
+```
+
+Copy `SwitchFrogUI-update.tar.gz` to the card root and choose
+**Settings -> Offline Update**. The device validates every payload checksum,
+rejects path traversal and protected settings/history/favourites files, saves
+replaced files under `SwitchFrogUI Backups/`, then installs with same-directory
+atomic renames. Results are recorded in `SwitchFrogUI Update.log`.
 
 Pass `-BuildPicoarch` to also compile `picoarch` and `picoarch_hi`. The portable
 Zig PicoArch build passes static ABI checks but raised SIGFPE on the tested v2.7

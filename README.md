@@ -40,8 +40,8 @@ and upstream TreeFrogUI start from very different feature sets.
 | **Computer tools** | Real BusyBox terminal; keyboard-driven Text Editor; JSDev JavaScript game runtime with graphics, sound, input, animation, timers, logging and persistent data. |
 | **R36SX hardware** | Display-glitch correction; persistent FN+L1+R1 rotation; reliable short-power blanking; timeout stays dark until input; black-resume repair; gradual volume curve. |
 | **Input and diagnostics** | Editable keyboard-to-gamepad mapping; keyboard tester; automatic on-screen keyboard for text fields when USB keyboard is absent, with a Select toggle; hardware information; live SD/MMC, USB/OTG, input, audio, display and network diagnostics. |
-| **Personalisation** | 62 themes; multi-colour gradients; theme gallery; backgrounds; 12 bundled fonts plus custom fonts; font sizing; ten icon packs; configurable UI sounds. |
-| **Distribution** | Reproducible source branch; copy-and-boot card overlay; rollback binaries; checksums; content audit; hardware screenshots; build/install documentation. |
+| **Personalisation** | 62 themes; multi-colour gradients; theme gallery; backgrounds; 12 bundled fonts plus custom fonts; font sizing; ten icon packs; optional Art Book NextUI and Nao Black artwork packs; configurable UI sounds. |
+| **Distribution** | Reproducible source branch; copy-and-boot card overlay; visible version/commit/build date; guarded SHA-256 offline updater with backups and atomic installs; rollback binaries; checksums; content audit; hardware screenshots; build/install documentation. |
 
 ### Added over the pinned TreeFrogUI/FrogUI base
 
@@ -53,8 +53,8 @@ and upstream TreeFrogUI start from very different feature sets.
 | **Emulator repairs** | PS1 Start+Select, live scaling and true Stretch, transparency defaults, exit stability, duplicate cleanup, menu flicker reduction, per-game performance profiles and extra core routes. |
 | **Keyboard support** | One editable 14-button mapping shared by FrogUI, PicoArch/libretro and PCSX4ALL, plus a live keyboard tester and standard editor/terminal shortcuts. |
 | **Visual system** | Modern settings/sliders; theme gallery; gradients; background control; fonts and sizing; icon/sound packs; contained artwork; animation-free rendering. |
-| **System visibility** | Hardware Information; live I/O diagnostics; shareable reports; Controls & Shortcuts; scrollable About & Contributions. |
-| **Engineering** | H.OS-compatible video bootstrap; clean app handoff; R36SX patches; reproducible cross-build; audited ROM-free releases; rollback workflow; expanded docs. |
+| **System visibility** | Hardware Information; Play Activity totals and most-played games; live I/O diagnostics; shareable reports; Controls & Shortcuts; scrollable About & Contributions. |
+| **Engineering** | Stock-compatible H.OS video bootstrap and startup watchdog; PicoArch runtime audio recovery; hardware-assisted scaling fast paths; clean app handoff; R36SX patches; reproducible cross-build; guarded offline updates; audited ROM-free releases; rollback workflow; expanded docs. |
 
 > [!TIP]
 > **Want the exhaustive line-by-line lists?** Open

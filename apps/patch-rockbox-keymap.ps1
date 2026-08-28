@@ -6,15 +6,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$expectedOriginal = '7C835181967FD1CEF677108EDB6D363EA7F9F6EDB941FA4A76418AA662AC85FD'
-$expectedPatched = 'D7FA465824DA7841331759BEF0AF28B3B9F3F0CF316005251D94B69818F47891'
+$expectedOriginal = @(
+    '7C835181967FD1CEF677108EDB6D363EA7F9F6EDB941FA4A76418AA662AC85FD',
+    # TreeFrogUI v1.0.15: same target plus the corrected BGR framebuffer path.
+    '7633F59CDB041C7FF997593E7F991F934EAD4EB50A10931DABDF3A818D273E1A'
+)
+$expectedPatched = @(
+    'D7FA465824DA7841331759BEF0AF28B3B9F3F0CF316005251D94B69818F47891',
+    '203F66296923FB7C0A7B07DE71E5BE05738B9B5FA7D7F4A3C567A7EBBDE23A15'
+)
 $inputHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $InputPath).Hash
-if ($inputHash -eq $expectedPatched) {
+if ($expectedPatched -contains $inputHash) {
     Copy-Item -LiteralPath $InputPath -Destination $OutputPath -Force
     Write-Host "Rockbox keymap is already patched: $OutputPath"
     exit 0
 }
-if ($inputHash -ne $expectedOriginal) {
+if ($expectedOriginal -notcontains $inputHash) {
     throw "Unsupported Rockbox binary SHA-256: $inputHash"
 }
 

@@ -2,7 +2,7 @@ diff --git a/apps/keymaps/keymap-sdl.c b/apps/keymaps/keymap-sdl.c
 index 7bb0bfa..c74b4cd 100644
 --- a/apps/keymaps/keymap-sdl.c
 +++ b/apps/keymaps/keymap-sdl.c
-@@ -48,11 +48,11 @@ static const struct button_mapping button_context_standard[]  = {
+@@ -48,10 +48,10 @@ static const struct button_mapping button_context_standard[]  = {
      { ACTION_STD_NEXT,        BUTTON_DOWN,               BUTTON_NONE },
      { ACTION_STD_NEXTREPEAT,  BUTTON_DOWN|BUTTON_REPEAT, BUTTON_NONE },
  
@@ -33,3 +33,11 @@ index 7bb0bfa..c74b4cd 100644
  
      LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_STD)
  }; /* button_context_settings_yesno */
+diff --git a/firmware/target/hosted/sdl/lcd-sdl.c b/firmware/target/hosted/sdl/lcd-sdl.c
+--- a/firmware/target/hosted/sdl/lcd-sdl.c
++++ b/firmware/target/hosted/sdl/lcd-sdl.c
+@@ -49,1 +49,3 @@ static void convert_rgb888_to_rgb565(void) {
+-        uint8_t r = src[0], g = src[1], b = src[2];
++        /* Rockbox's hosted 24-bit framebuffer is packed BGR on this target.
++         * Treating it as RGB produces a yellow/cyan cast after cold boot. */
++        uint8_t r = src[2], g = src[1], b = src[0];

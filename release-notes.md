@@ -1,3 +1,36 @@
+## SwitchFrogUI 1.3.0 development update
+
+This source update ports the eight compatible groups selected from newer
+TreeFrogUI work while retaining SwitchFrogUI's Home layout and R36SX behavior.
+
+- Rebased the H.OS video startup sequence on the stock-compatible player:
+  vendor layer order, audio-master clocking, panel geometry, typed init storage,
+  startup watchdog, subtitles, pause controls, rotation and exact browser return.
+- Added PicoArch runtime audio recovery. The pause menu flushes stale samples,
+  resume starts from fresh core audio, and AUDDEC/I2SO failures are reinitialized
+  on the owning audio thread instead of leaving games silent until reboot.
+- Removed full-panel CPU scaling from forced-ratio and integer paths, added
+  hardware-assisted envelopes, preserved portrait/vector aspect ratios, improved
+  long core-option text, and repaired PCE/VICE input edge cases.
+- Expanded Files with type/size metadata, recursive folder-size calculation,
+  and explicit Keep both / Skip / Replace collision choices. Existing confirmed
+  copy, cut, paste, recursive directory and multi-select operations remain.
+- Corrected the Rockbox framebuffer colour conversion in the reproducible patch
+  and let last-played cards use gameplay/save-state captures when available.
+- Added Play Activity totals and two credited optional artwork packs from the
+  newer upstream line: Art Book NextUI and Nao Black.
+- Added visible version, source commit and build date in About, Hardware
+  Information, the libretro core and the staged-card build information file.
+- Added a guarded offline updater. It rejects unsafe archive paths and protected
+  user files, validates SHA-256 before installation, backs up replaced files,
+  uses same-directory atomic replacements, and never packages ROMs or saves.
+
+The video player, FrogUI core and PicoArch sources compile successfully for the
+MIPS32r2/H.OS target. Device testing remains required for hardware decoding,
+vendor audio recovery and direct display scaling.
+
+---
+
 > [!IMPORTANT]
 > v1.0.10_b gives the UI a **fresh look** (bigger bold font, custom wallpaper, a proper battery icon), makes **big ROM folders load fast**, reworks the **Settings menu**, adds an **aspect-ratio picker** and a PS1 **Hi-Res Fix**, keeps **volume control working in games**, and fixes **PS1 hi-res freezing/blacking out**, **positional PS1 buttons**, **automatic PS1 BIOS**, and the **lingering battery icon**.
 > 
