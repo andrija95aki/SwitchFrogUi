@@ -57,6 +57,8 @@ $runtimeFiles = @(
     'cubegm\video_player',
     'cubegm\video_player_impl.so',
     'cubegm\video_player.sh',
+    'cubegm\treevidplay',
+    'cubegm\treevidplay.sh',
     'cubegm\nosleep',
     'cubegm\r36sx_displayfix.so',
     'cubegm\driver_r36sx.so',

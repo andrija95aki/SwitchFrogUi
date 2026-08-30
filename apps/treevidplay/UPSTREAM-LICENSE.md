@@ -2,11 +2,6 @@
 
 This project is a compilation of multiple components, each retaining its original license terms.
 
-The SwitchFrogUI R36SX fork is directed and tested by Andrija
-(`@andrija95aki`) and preserves all TreeFrogUI/FrogUI attribution and
-ShareAlike requirements. See `docs/r36sx/THIRD_PARTY_NOTICES.md` for the full
-contributor and development-resource list.
-
 ---
 
 ## 1. TreeFrogUI Frontend Code
@@ -71,36 +66,3 @@ POSSIBILITY OF SUCH DAMAGE.
 ## 3. Emulator Cores
 
 All emulator cores contained or cloned into the `cores/` directory are built from separate upstream source repositories. They are governed by their respective individual open-source licenses (GPL, LGPL, BSD, MIT, MAME, etc.). Please refer to the documentation or source files within each core's directory, or see [cores.md](cores.md) for links to the upstream repositories.
-
-The v1.0.12 compatibility payload specifically includes
-[PrBoom](https://github.com/libretro/libretro-prboom) (GPL-2.0),
-[O2EM](https://github.com/libretro/libretro-o2em), and
-[vecx](https://github.com/libretro/libretro-vecx) (GPL-3.0). Game ROMs,
-commercial IWADs, and BIOS files are not distributed by this project.
-
-## 4. Ebook Reader
-
-The standalone reader is built from
-[TreeFrogUI Ebook Reader](https://github.com/tzubertowski/TreeFrogUI_ebook_reader)
-and statically links [MuPDF](https://github.com/ArtifexSoftware/mupdf). The
-reader and distributed combined binary are governed by **AGPL-3.0**. Complete
-corresponding build instructions and source links are provided by that reader
-repository; the main build consumes the official TreeFrogUI v1.0.12 binary.
-
-## 5. JSDev runtime
-
-The JSDev libretro integration is part of the SwitchFrogUI source changes and
-retains the project's applicable licensing terms. It embeds the unmodified
-[Duktape 2.7.0](https://duktape.org/) amalgamated source, distributed under the
-**MIT License**. Duktape's complete license is included at
-`apps/jsdev/third_party/duktape/LICENSE.txt`.
-
-## 6. TreeVidPlay
-
-The `TreeVidPlay` Home application contains the unchanged standalone hardware
-video player from TreeFrogUI `v1.2.0_b` by Tomasz Zubertowski. The pinned
-source, official release-runtime hash, original README, and complete upstream
-license are included under `apps/treevidplay/`. The TreeFrogUI frontend
-creative-code terms are CC BY-NC-SA 4.0; all linked component licenses remain
-in force. SwitchFrogUI changes are limited to the separate Home/browser entry,
-state restoration, and launch wrapper.

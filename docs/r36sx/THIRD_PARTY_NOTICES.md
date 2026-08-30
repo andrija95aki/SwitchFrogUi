@@ -16,6 +16,10 @@ with release components.
 
 - Original TreeFrogUI developer and maintainer: Tomasz Zubertowski
   (`tzubertowski`, also known as Proszty).
+- TreeVidPlay is the unchanged `v1.2.0_b` TreeFrogUI hardware video-player
+  source/runtime by Tomasz Zubertowski. The pinned source, upstream license,
+  release hash, and modification boundary are recorded in
+  `apps/treevidplay/ORIGIN.md`.
 - Original FrogUI contributors: Tomasz Zubertowski, Desoxyn, and Q_ta.
 - SwitchFrogUI R36SX fork direction, device testing, feature design, and
   publishing: Andrija (`@andrija95aki`).

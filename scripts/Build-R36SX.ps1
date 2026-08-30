@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory = $true)][string]$ZigPath,
     [Parameter(Mandatory = $true)][string]$GnuRuntimeRoot,
     [Parameter(Mandatory = $true)][string]$UpstreamReleaseArchive,
+    [Parameter(Mandatory = $true)][string]$TreeVidPlayBinary,
     [switch]$BuildPicoarch
 )
 
@@ -25,7 +26,7 @@ $hcFfmpegInclude = Join-Path $HcrtosRoot 'components\ffmpeg\source'
 $pcsxFont = Join-Path $Pcsx4allRoot 'src\port\sf3000\fonts.c'
 $syscalls = Join-Path $repoRoot 'toolchain\mips_syscalls.S'
 $sampleEbookRoot = Join-Path $appsRoot 'assets\ebooks'
-$switchFrogVersion = '1.3.0'
+$switchFrogVersion = '1.3.1'
 
 $required = @(
     $ZigPath,
@@ -50,7 +51,8 @@ $required = @(
     (Join-Path $GnuRuntimeRoot 'pcsx4all'),
     (Join-Path $GnuRuntimeRoot 'picoarch'),
     (Join-Path $GnuRuntimeRoot 'picoarch_hi'),
-    $UpstreamReleaseArchive
+    $UpstreamReleaseArchive,
+    $TreeVidPlayBinary
 )
 if ($BuildPicoarch) { $required += (Join-Path $picoRoot 'main.c') }
 foreach ($path in $required) {
@@ -168,6 +170,15 @@ try {
         -Destination (Join-Path $output 'picoarch')
     Copy-Item -Force -LiteralPath (Join-Path $GnuRuntimeRoot 'picoarch_hi') `
         -Destination (Join-Path $output 'picoarch_hi')
+    # Use the exact official TreeFrogUI v1.2.0_b GNU-SDK runtime. Rebuilding
+    # this executable with Zig produces an incompatible H.OS 1.2 process.
+    $treeVidExpected = '0347E4BF1B26FBDA5CA964E88B9CC57DCB10008E316F2992B933430E7AFAFAEC'
+    $treeVidActual = (Get-FileHash -LiteralPath $TreeVidPlayBinary -Algorithm SHA256).Hash
+    if ($treeVidActual -ne $treeVidExpected) {
+        throw "Unexpected TreeVidPlay runtime hash: $treeVidActual"
+    }
+    Copy-Item -Force -LiteralPath $TreeVidPlayBinary `
+        -Destination (Join-Path $output 'treevidplay')
 } finally { Pop-Location }
 
 Push-Location $hijackRoot
@@ -207,6 +218,7 @@ Copy-Item -Force -LiteralPath (Join-Path $output 'frogui_libretro.so') -Destinat
 Copy-Item -Force -LiteralPath (Join-Path $output 'jsdev_libretro.so') -Destination $cardCore
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'video_player_impl.so') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $output 'treevidplay') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'pcsx4all') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $output 'picoarch_hi') -Destination (Join-Path $cardFiles 'cubegm')
@@ -219,6 +231,7 @@ Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'jsdev\examples\JSDev API Sho
     -Destination (Join-Path $cardFiles 'roms\JSDev')
 Copy-Item -Force -Path (Join-Path $sampleEbookRoot '*') -Destination $cardEbookSamples
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'video_player.sh') -Destination (Join-Path $cardFiles 'cubegm')
+Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'treevidplay.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -LiteralPath (Join-Path $appsRoot 'switchfrog-update.sh') -Destination (Join-Path $cardFiles 'cubegm')
 Copy-Item -Force -Path (Join-Path $frogRoot 'fonts\*') -Destination $cardFonts
 $extraFonts = Join-Path $repoRoot 'assets\ui-fonts'

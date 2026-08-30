@@ -1,4 +1,4 @@
-# Standalone apps in TreeFrogUI
+# Standalone apps in SwitchFrogUI
 
 Most "systems" in TreeFrogUI are **libretro cores** (`.so`) run inside picoarch.
 A few entries are **standalone binaries** run directly instead - pcsx4all (PS1)
@@ -21,6 +21,7 @@ Current standalone apps:
 | `lgpt`           | `cubegm/lgpt`      | LittleGPTracker (music tracker)    |
 | `rockbox`        | `cubegm/rockbox.sh`| Rockbox music player               |
 | Files/Videos: video | `cubegm/video_player.sh` | Validated H.OS hardware player; restores the selected file |
+| Home: `TreeVidPlay` | `cubegm/treevidplay.sh` | Exact TreeFrogUI v1.2.0_b hardware player; separate browser and return state |
 | Home: `Ebooks`   | `cubegm/ebook`     | Ebook/document reader (MuPDF - EPUB/MOBI/PDF) - [guide](cores/ebook.md) |
 
 ## The launch contract

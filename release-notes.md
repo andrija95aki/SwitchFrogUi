@@ -1,3 +1,19 @@
+## SwitchFrogUI 1.3.1 TreeVidPlay update
+
+### 2026-08-30
+
+- Added a separate `TreeVidPlay` Home card backed by the exact official
+  TreeFrogUI v1.2.0_b hardware video-player runtime and pinned matching source.
+- Preserved the existing `Videos` player and its subtitle/pause/scaling
+  features as an independent fallback; Files continues to open videos with it.
+- TreeVidPlay gets a whole-card video-only browser, dedicated logging, and exact
+  directory/file selection restoration after normal completion or manual exit.
+- Added release-hash enforcement, staged-card/release-package integration,
+  source provenance, license attribution, and build documentation.
+
+Physical R36SX testing is required to confirm the upstream player's claimed
+high-bitrate/1080p60 behavior on each source codec and profile.
+
 ## SwitchFrogUI 1.3.0 development update
 
 This source update ports the eight compatible groups selected from newer

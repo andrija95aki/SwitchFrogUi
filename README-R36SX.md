@@ -25,7 +25,7 @@ images, save data, play history, or personal card logs**.
 
 | Compared with | Highlights |
 | --- | --- |
-| **Stock H.OS 1.2** | Switch-style Home and category-tabbed game library, broad emulator/core collection, save and resume tools, corrected GBA audio pacing, Rockbox, hardware video with subtitles, Ebooks, multi-select recursive file management, Terminal, Text Editor, JSDev, themes/fonts/sounds, keyboard mapping, diagnostics, and R36SX display/power/volume fixes. |
+| **Stock H.OS 1.2** | Switch-style Home and category-tabbed game library, broad emulator/core collection, save and resume tools, corrected GBA audio pacing, Rockbox, two independent hardware video players (Videos and TreeVidPlay), Ebooks, multi-select recursive file management, Terminal, Text Editor, JSDev, themes/fonts/sounds, keyboard mapping, diagnostics, and R36SX display/power/volume fixes. |
 | **Pinned TreeFrogUI/FrogUI** | New horizontal Home and game views, utility applications, R36SX-specific display and resume engineering, PS1 repairs, global keyboard support, modern settings/themes, hardware diagnostics, reproducible build scripts, and an audited ROM-free release workflow. |
 
 The [complete additions page](https://github.com/andrija95aki/SwitchFrogUi/blob/r36sx-source-build/docs/r36sx/ADDITIONS.md) expands both comparisons

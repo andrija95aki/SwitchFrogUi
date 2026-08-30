@@ -135,6 +135,12 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   AV1, and Y4M. Actual decoding remains limited to codecs implemented by the
   card's stock H.OS hardware `libffplayer`; an unsupported stream exits cleanly
   back to its selected file and records the reason in `video_player.log`.
+- A separate `TreeVidPlay` Home card launches the exact upstream TreeFrogUI
+  v1.2.0_b GNU-SDK player. It uses upstream's hardware/audio-master pacing,
+  folder playlist, seek and playback-mode behavior while preserving the
+  existing SwitchFrogUI Videos player as an independent fallback. It returns
+  to the same directory and selected file and logs to `treevidplay.log` when
+  card logging is enabled.
 
 ## R36SX hardware fixes
 

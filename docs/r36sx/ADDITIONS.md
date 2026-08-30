@@ -65,6 +65,8 @@ ROMs, console BIOS files, personal saves, or play history.
 - Rockbox Music card with whole-card browsing and OS master-volume integration.
 - Corrected Rockbox gamepad mapping with intuitive A-confirm and B-back behavior.
 - Hardware-decoded Videos application using the stock H.OS media stack safely.
+- Separate TreeVidPlay card containing the exact TreeFrogUI v1.2.0_b
+  high-throughput hardware player; the original Videos card remains available.
 - Video Fit, Fill, Stretch, and Original scaling modes.
 - Simple pause menu, 10-second seeking, pause/resume, and clean exit controls.
 - Automatic same-basename SRT and WebVTT subtitle loading.
