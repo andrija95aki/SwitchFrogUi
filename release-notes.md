@@ -1,3 +1,14 @@
+## SwitchFrogUI 1.3.6 pause-menu resize synchronization
+
+- Video sizing changes made in the pause menu are now collected without
+  touching the proprietary display pipeline while the decoder is paused.
+- Only the final selected Fit, Fill, Stretch or Original mode is applied, 250
+  ms after playback has resumed. This avoids H.OS implicitly restarting the
+  decoder behind the still-open pause menu and prevents the subsequent double-
+  resume freeze.
+- Added explicit pause, resume and deferred-resize trace points for reliable
+  physical-device diagnosis without recurring SD-card writes.
+
 ## SwitchFrogUI 1.3.5 upstream-startup restoration
 
 ### 2026-08-30

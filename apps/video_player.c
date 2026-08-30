@@ -1407,6 +1407,8 @@ int main(int argc, char **argv) {
     int64_t last_draw = 0;
     bool first_frame = false;
     bool background_cleared = false;
+    bool display_mode_pending = false;
+    int64_t display_mode_apply_at = 0;
     bool overlay_has_content = false;
     bool last_controls_visible = true;
     int last_subtitle = -2;
@@ -1514,8 +1516,19 @@ int main(int argc, char **argv) {
             /* Consume the shoulders while the rotation chord is held. */
         } else if (paused) {
             if (pressed & (1u << BTN_B)) {
+                log_step("pause menu: resume requested");
                 hcplayer_resume(player);
+                log_step("pause menu: resume returned");
                 paused = false;
+                if (display_mode_pending) {
+                    /* H.OS restarts its decoder from inside
+                     * hcplayer_set_display_rect(). Calling it while paused
+                     * therefore desynchronizes our pause state and a later
+                     * hcplayer_resume() can wedge the vendor player. Apply one
+                     * final rectangle only after normal playback has resumed. */
+                    display_mode_apply_at = now + 250;
+                    log_step("scale change queued after resume");
+                }
                 status = NULL;
                 hud_until = now + 3500;
             } else if (pressed & (1u << BTN_UP)) {
@@ -1527,8 +1540,8 @@ int main(int argc, char **argv) {
                 if (menu_index == 1 && !audio_only) {
                     scale_mode = (ScaleMode)(((int)scale_mode + SCALE_COUNT + direction) % SCALE_COUNT);
                     save_scale_mode(scale_mode);
-                    if (first_frame) apply_display_mode(player, scale_mode, video_w, video_h,
-                                                        panel_w, panel_h);
+                    display_mode_pending = first_frame;
+                    log_step("pause menu: scale selection changed; apply deferred");
                 } else if (menu_index == 2 && subtitle_available) {
                     subtitles_enabled = !subtitles_enabled;
                 } else if (menu_index == 3 && subtitle_available) {
@@ -1544,15 +1557,21 @@ int main(int argc, char **argv) {
                 }
             } else if (pressed & ((1u << BTN_A) | (1u << BTN_START))) {
                 if (menu_index == 0) {
+                    log_step("pause menu: resume requested");
                     hcplayer_resume(player);
+                    log_step("pause menu: resume returned");
                     paused = false;
+                    if (display_mode_pending) {
+                        display_mode_apply_at = now + 250;
+                        log_step("scale change queued after resume");
+                    }
                     status = NULL;
                     hud_until = now + 3500;
                 } else if (menu_index == 1 && !audio_only) {
                     scale_mode = (ScaleMode)(((int)scale_mode + 1) % SCALE_COUNT);
                     save_scale_mode(scale_mode);
-                    if (first_frame) apply_display_mode(player, scale_mode, video_w, video_h,
-                                                        panel_w, panel_h);
+                    display_mode_pending = first_frame;
+                    log_step("pause menu: scale selection changed; apply deferred");
                 } else if (menu_index == 2 && subtitle_available) {
                     subtitles_enabled = !subtitles_enabled;
                 } else if (menu_index == 3 && subtitle_available) {
@@ -1581,7 +1600,9 @@ int main(int argc, char **argv) {
             restart_requested = true;
             exit_now = true;
         } else if (pressed & ((1u << BTN_A) | (1u << BTN_START))) {
+            log_step("pause menu: pause requested");
             hcplayer_pause(player);
+            log_step("pause menu: pause returned");
             paused = true;
             menu_index = 0;
             status = NULL;
@@ -1603,6 +1624,17 @@ int main(int argc, char **argv) {
             }
         }
         if (exit_now) break;
+
+        if (!paused && display_mode_pending && display_mode_apply_at > 0 &&
+            now >= display_mode_apply_at) {
+            log_step("applying deferred scale change during playback");
+            apply_display_mode(player, scale_mode, video_w, video_h,
+                               panel_w, panel_h);
+            display_mode_pending = false;
+            display_mode_apply_at = 0;
+            last_progress_pos = pos;
+            last_progress_at = now;
+        }
 
         int cue_index = subtitle_at(pos, subtitle_offset_ms,
                                     subtitle_available && subtitles_enabled && !paused);
