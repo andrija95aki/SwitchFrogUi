@@ -1,3 +1,18 @@
+## SwitchFrogUI 1.3.4 video startup hotfix
+
+### 2026-08-30
+
+- Corrected the 1.3.3 black-background implementation after a Porco Rosso
+  device trace reached READY but blocked before its first decoded frame.
+- Clear only the active fb0 scanout page. The earlier implementation cleared
+  all seven virtual SF3000 framebuffer pages and could disturb display pages
+  retained by the hardware pipeline.
+- Reduced external hard-block recovery from 18 to 12 seconds and synchronously
+  record watchdog arming/timeouts in `log.txt`, making recovery behavior
+  auditable even after a forced power-off.
+- If a decoder process remains stuck after TERM and KILL, release the wrapper
+  itself so zhijack is no longer held indefinitely waiting for the player.
+
 ## SwitchFrogUI 1.3.3 video freeze-recovery update
 
 ### 2026-08-30

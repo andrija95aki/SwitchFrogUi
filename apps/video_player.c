@@ -169,49 +169,65 @@ static void configure_video_layer(void) {
 
 /* FrogUI renders its browser into fb0 and then exits for the standalone
  * player. The decoded MAIN plane does not cover letterbox/pillarbox areas, so
- * stale browser pixels used to remain visible around the movie. Clear fb0 to
- * opaque black before bringing up the decoder; FrogUI redraws it when zhijack
- * relaunches the frontend. */
+ * stale browser pixels remain visible around the movie. Clear only the active
+ * fb0 scanout page to opaque black. The SF3000 reports seven virtual fb pages;
+ * writing all of that allocation can disturb pages retained by its display
+ * pipeline. FrogUI redraws the active page when zhijack relaunches it. */
 static void clear_frontend_background(void) {
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) { log_step("cannot open fb0 for black background"); return; }
     struct fb_var_screeninfo vi;
     struct fb_fix_screeninfo fi;
     if (ioctl(fd, FBIOGET_VSCREENINFO, &vi) < 0 ||
-        ioctl(fd, FBIOGET_FSCREENINFO, &fi) < 0 || fi.smem_len == 0) {
+        ioctl(fd, FBIOGET_FSCREENINFO, &fi) < 0 || fi.smem_len == 0 ||
+        fi.line_length == 0 || vi.xres == 0 || vi.yres == 0) {
         close(fd);
         log_step("cannot query fb0 for black background");
         return;
     }
-    size_t bytes = fi.smem_len;
-    if (vi.yres_virtual && fi.line_length &&
-        (size_t)vi.yres_virtual <= SIZE_MAX / (size_t)fi.line_length) {
-        size_t described = (size_t)vi.yres_virtual * (size_t)fi.line_length;
-        if (described < bytes) bytes = described;
+    size_t map_bytes = fi.smem_len;
+    unsigned bytespp = vi.bits_per_pixel / 8;
+    if (!bytespp || (size_t)vi.xres > SIZE_MAX / bytespp ||
+        (size_t)vi.xoffset > SIZE_MAX / bytespp) {
+        close(fd);
+        log_step("invalid fb0 geometry for black background");
+        return;
     }
-    unsigned char *mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    unsigned char *mem = mmap(NULL, map_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (mem == MAP_FAILED) {
         close(fd);
         log_step("cannot map fb0 for black background");
         return;
     }
-    unsigned bytespp = vi.bits_per_pixel / 8;
     uint32_t opaque_black = 0;
     if (vi.transp.length && vi.transp.length < 32)
         opaque_black = ((1u << vi.transp.length) - 1u) << vi.transp.offset;
-    if (bytespp == 4) {
-        uint32_t *pixels = (uint32_t *)mem;
-        for (size_t i = 0; i < bytes / 4; i++) pixels[i] = opaque_black;
-    } else if (bytespp == 2) {
-        uint16_t value = (uint16_t)opaque_black;
-        uint16_t *pixels = (uint16_t *)mem;
-        for (size_t i = 0; i < bytes / 2; i++) pixels[i] = value;
-    } else {
-        memset(mem, 0, bytes);
+    size_t row_bytes = (size_t)vi.xres * bytespp;
+    for (uint32_t y = 0; y < vi.yres; y++) {
+        size_t virtual_y = (size_t)vi.yoffset + y;
+        if (virtual_y > SIZE_MAX / (size_t)fi.line_length) break;
+        size_t offset = virtual_y * (size_t)fi.line_length +
+                        (size_t)vi.xoffset * bytespp;
+        if (offset > map_bytes || row_bytes > map_bytes - offset) break;
+        unsigned char *row = mem + offset;
+        if (bytespp == 4) {
+            uint32_t *pixels = (uint32_t *)row;
+            for (uint32_t x = 0; x < vi.xres; x++) pixels[x] = opaque_black;
+        } else if (bytespp == 2) {
+            uint16_t value = (uint16_t)opaque_black;
+            uint16_t *pixels = (uint16_t *)row;
+            for (uint32_t x = 0; x < vi.xres; x++) pixels[x] = value;
+        } else {
+            memset(row, 0, row_bytes);
+        }
     }
-    munmap(mem, bytes);
+    munmap(mem, map_bytes);
     close(fd);
-    log_step("frontend background cleared to black");
+    char message[128];
+    snprintf(message, sizeof(message),
+             "active frontend page cleared to black (%ux%u at %u,%u)",
+             vi.xres, vi.yres, vi.xoffset, vi.yoffset);
+    log_step(message);
 }
 
 static int64_t now_ms(void) {
