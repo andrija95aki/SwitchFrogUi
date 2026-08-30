@@ -1,5 +1,5 @@
 #!/bin/sh
-# H.OS hardware video-player wrapper for SwitchFrogUI.
+# Merged TreeFrogUI/SwitchFrogUI H.OS hardware video-player wrapper.
 export LD_LIBRARY_PATH=/mnt/sdcard/rootfs/usr/lib:/mnt/sdcard/cubegm/usr/lib:/usr/lib:$LD_LIBRARY_PATH
 # FrogUI/emulators use this optional preload to compensate a faulty R36SX
 # panel.  The hardware video player uses libffplayer's own display pipeline;
@@ -11,6 +11,9 @@ if [ -f /mnt/sdcard/log.txt ]; then
     [ -f /mnt/sdcard/video_player.log ] &&
         mv /mnt/sdcard/video_player.log /mnt/sdcard/video_player.log.prev
     echo "=== video_player: $1 ===" > /mnt/sdcard/video_player.log
-    exec /mnt/sdcard/cubegm/video_player "$1" >> /mnt/sdcard/video_player.log 2>&1
+    /mnt/sdcard/cubegm/video_player "$1" >> /mnt/sdcard/video_player.log 2>&1
+    result=$?
+    echo "video_player exit=$result" >> /mnt/sdcard/video_player.log
+    exit $result
 fi
 exec /mnt/sdcard/cubegm/video_player "$1"

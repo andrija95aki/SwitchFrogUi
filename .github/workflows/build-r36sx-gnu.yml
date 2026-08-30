@@ -5,7 +5,8 @@ on:
   push:
     branches: [r36sx-source-build]
     paths:
-      - apps/video_launcher.c
+      - apps/video_player.c
+      - apps/treevidplay/upstream_video_player.c
       - patches/r36sx-pcsx4all-runtime.patch
       - patches/r36sx-picoarch.patch
       - .github/workflows/build-r36sx-gnu.yml
@@ -100,14 +101,17 @@ jobs:
           echo "SF_PNG_INCLUDE=$RUNNER_TEMP/libpng-1.6.37" >> "$GITHUB_ENV"
           echo "SF_PNG_LIB=$RUNNER_TEMP/libpng-1.6.37/target-lib" >> "$GITHUB_ENV"
 
-      - name: Build GNU launcher, PicoArch and PCSX4ALL
+      - name: Build merged GNU video player, PicoArch and PCSX4ALL
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          "$SF_GCC" -mips32r2 -march=mips32r2 -mtune=74kc -mhard-float -mfp32 -EL \
-            --sysroot="$SF_SYSROOT" -O2 -DNDEBUG -Wl,--gc-sections -s \
-            apps/video_launcher.c -ldl -o artifacts/video_player
+          "$SF_GCC" -mips32r2 -march=mips32r2 -mtune=24kc -mhard-float -mfp32 \
+            -mlong-calls -G0 -EL --sysroot="$SF_SYSROOT" -O2 -DNDEBUG \
+            -I"$SF_SYSROOT/usr/include" apps/video_player.c \
+            "$RUNNER_TEMP/pcsx4all/src/port/sf3000/fonts.c" \
+            -L"$SF_SYSROOT/usr/lib" -Wl,--gc-sections -s \
+            -lffplayer -ljpeg -lpthread -o artifacts/video_player
           make -C "$RUNNER_TEMP/picoarch" -j2 platform=sf3000 \
             CROSS_COMPILE="$SF_PREFIX" SYSROOT="$SF_SYSROOT" \
             EXTRA_CFLAGS="-I$SF_SYSROOT/usr/include -I$SF_PNG_INCLUDE" \

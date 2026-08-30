@@ -1,8 +1,8 @@
-# TreeVidPlay upstream provenance
+# Merged video-player upstream provenance
 
-TreeVidPlay is an unchanged copy of TreeFrogUI's standalone hardware video
-player, exposed as a second SwitchFrogUI Home application so the existing
-SwitchFrogUI `Videos` player remains available.
+This directory preserves an unchanged copy of TreeFrogUI's standalone hardware
+video player as the decoder/timing baseline for SwitchFrogUI's single merged
+`Videos` application.
 
 - Project: <https://github.com/tzubertowski/TreeFrogUI>
 - Release/tag: `v1.2.0_b`
@@ -18,8 +18,13 @@ SwitchFrogUI `Videos` player remains available.
   force.
 
 `upstream_video_player.c`, `UPSTREAM-README.md`, and
-`UPSTREAM-LICENSE.md` are copied verbatim from that pinned commit. The R36SX
-build stages the exact official `v1.2.0_b` runtime rather than rebuilding it
-with Zig because H.OS 1.2 requires the vendor GNU executable ABI. The only
-SwitchFrogUI-specific parts are the Home/browser integration and launch
-wrapper outside this directory.
+`UPSTREAM-LICENSE.md` are copied verbatim from that pinned commit.
+
+The active merged implementation is `../video_player.c`. It retains the
+upstream 256-byte zeroed player-init block, audio-master clock, direct I2SO
+output, layer order, message loop, playlist handling and startup watchdog.
+SwitchFrogUI adds its safe local SRT/WebVTT renderer, automatic exact-basename
+subtitle selection, persistent 100 ms timing offsets, Fit/Fill/Stretch/Original
+display modes, pause menu, broader file extensions and persistent 180-degree
+rotation. It is built by the official SF3000 GNU SDK workflow; Zig is not used
+for this H.OS executable ABI.
