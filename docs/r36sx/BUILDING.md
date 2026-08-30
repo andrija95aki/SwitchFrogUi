@@ -15,8 +15,6 @@ Rockbox, and PCSX4ALL retain their own upstream projects and licenses.
 - A `TreeFrogUI_pcsx4all` source checkout for the video-player bitmap font
 - GNU runtime artifacts produced by the included **Build R36SX GNU runtimes**
   GitHub Actions workflow
-- The official `video_player` runtime from the TreeFrogUI `v1.2.0_b` update
-  (`SHA-256 0347E4BF1B26FBDA5CA964E88B9CC57DCB10008E316F2992B933430E7AFAFAEC`)
 
 No stock firmware, ROM, or BIOS file is committed to this repository.
 
@@ -43,7 +41,7 @@ It is idempotent and refuses to reset or overwrite an unexpected checkout.
 
 Run `.github/workflows/build-r36sx-gnu.yml` on GitHub first and download its
 `switchfrogui-r36sx-gnu-runtimes` artifact. It uses the official SF3000 GNU SDK
-and pinned PCSX4ALL sources to build the launcher and emulator. This separation
+and pinned PCSX4ALL sources to build the merged hardware video player and emulator. This separation
 is required because Zig/LLD-linked MIPS executables fault before `main()` in the
 tested H.OS 1.2 loader, while Zig-built shared modules work correctly.
 
@@ -55,12 +53,11 @@ SwitchFrogUI A-confirm/B-back binary mapping to that exact known Rockbox build;
 unknown hashes are rejected. Corresponding sources and licenses remain linked
 in the project documentation.
 
-Also download the official
-[TreeFrogUI v1.2.0_b update](https://github.com/tzubertowski/TreeFrogUI/releases/tag/v1.2.0_b)
-and extract `treefrog-update/payload/cubegm/video_player`. The build verifies
-its exact release hash before staging it as `treevidplay`. Its corresponding
-pinned source, upstream README, provenance, and license are vendored under
-`apps/treevidplay/`.
+The merged player's TreeFrogUI `v1.2.0_b` baseline source, upstream README,
+provenance and license are vendored under `apps/treevidplay/`. The active
+`apps/video_player.c` keeps that proven decoder path and adds SwitchFrogUI's
+pause, fit and safe local-subtitle features. It is compiled directly by the
+GNU workflow rather than supplied as a prebuilt input.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
@@ -70,17 +67,14 @@ powershell -ExecutionPolicy Bypass -File scripts/Build-R36SX.ps1 `
   -DependencyRoot "$env:LOCALAPPDATA\Temp\treefrog-deps" `
   -ZigPath 'C:\tools\zig\zig.exe' `
   -GnuRuntimeRoot 'C:\builds\switchfrogui-r36sx-gnu-runtimes' `
-  -UpstreamReleaseArchive 'C:\downloads\TreeFrogUI_v1.0.15_a.zip' `
-  -TreeVidPlayBinary 'C:\downloads\TreeFrogUI-v1.2.0_b-video_player'
+  -UpstreamReleaseArchive 'C:\downloads\TreeFrogUI_v1.0.15_a.zip'
 ```
 
 Outputs are written to `.r36sx-build/out`:
 
 - `frogui_libretro.so`
 - `jsdev_libretro.so` (Duktape-powered JavaScript game runtime)
-- `video_player`
-- `video_player_impl.so`
-- `treevidplay` (exact official TreeFrogUI v1.2.0_b GNU runtime)
+- `video_player` (single merged GNU-SDK hardware player)
 - `pcsx4all`
 - `picoarch` and `picoarch_hi` (official GNU-SDK builds with USB keyboard input)
 - `ebook` (official MuPDF reader from the v1.0.12 archive)
@@ -89,7 +83,7 @@ Outputs are written to `.r36sx-build/out`:
 - `nosleep`
 - `r36sx_displayfix.so`
 
-`out/card-files/` is also produced with the cores, JSDev API showcase, both video players, PicoArch pair,
+`out/card-files/` is also produced with the cores, JSDev API showcase, merged video player, PicoArch pair,
 PCSX4ALL, the default editable keyboard map, ebook
 reader, missing Odyssey 2/Vectrex cores, twelve UI fonts, their OFL notices,
 icon packs, and the CC0 sound packs already arranged in their final SD-card

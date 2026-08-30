@@ -1,3 +1,21 @@
+## SwitchFrogUI 1.3.2 merged video-player update
+
+### 2026-08-30
+
+- Consolidated the temporary Videos/TreeVidPlay pair into one `Videos` Home
+  card and one direct GNU-SDK executable.
+- Retained TreeFrogUI v1.2.0_b's device-proven 256-byte zeroed initialization,
+  audio-master/I2SO timing, decoder lifecycle, playlist and seek behavior.
+- Ported Fit, Fill, Stretch and Original sizing, a six-row pause menu,
+  exact-basename SRT/WebVTT subtitles and persistent 100 ms timing offsets.
+- Kept subtitle parsing outside `libffplayer` because H.OS 1.2's external
+  subtitle decoder is unstable. Subtitle-only playback redraws occur only when
+  the active cue changes, protecting high-bitrate playback performance.
+- Preserved playback-mode selection, previous/next video, 10/60-second seeks,
+  persistent FN+L1+R1 rotation, startup watchdog and exact browser return.
+- The official SF3000 GNU workflow compiled the merged MIPS32r2 executable
+  successfully in run `33315346123`.
+
 ## SwitchFrogUI 1.3.1 TreeVidPlay update
 
 ### 2026-08-30

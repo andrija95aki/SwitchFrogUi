@@ -95,12 +95,12 @@ retains the project's applicable licensing terms. It embeds the unmodified
 **MIT License**. Duktape's complete license is included at
 `apps/jsdev/third_party/duktape/LICENSE.txt`.
 
-## 6. TreeVidPlay
+## 6. Merged hardware video player
 
-The `TreeVidPlay` Home application contains the unchanged standalone hardware
-video player from TreeFrogUI `v1.2.0_b` by Tomasz Zubertowski. The pinned
-source, official release-runtime hash, original README, and complete upstream
-license are included under `apps/treevidplay/`. The TreeFrogUI frontend
-creative-code terms are CC BY-NC-SA 4.0; all linked component licenses remain
-in force. SwitchFrogUI changes are limited to the separate Home/browser entry,
-state restoration, and launch wrapper.
+The `Videos` Home application is based on the standalone hardware video player
+from TreeFrogUI `v1.2.0_b` by Tomasz Zubertowski. The unchanged baseline source,
+official release-runtime hash, original README and complete upstream license
+are included under `apps/treevidplay/`. The TreeFrogUI frontend creative-code
+terms are CC BY-NC-SA 4.0; all linked component licenses remain in force.
+SwitchFrogUI adds the pause/fit/subtitle UI and card-browser integration; the
+exact modification boundary is documented in `apps/treevidplay/ORIGIN.md`.

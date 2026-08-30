@@ -20,8 +20,7 @@ Current standalone apps:
 | `pico286`        | `cubegm/pico286`   | DOS / PC (8086-286), boots FreeDOS |
 | `lgpt`           | `cubegm/lgpt`      | LittleGPTracker (music tracker)    |
 | `rockbox`        | `cubegm/rockbox.sh`| Rockbox music player               |
-| Files/Videos: video | `cubegm/video_player.sh` | Validated H.OS hardware player; restores the selected file |
-| Home: `TreeVidPlay` | `cubegm/treevidplay.sh` | Exact TreeFrogUI v1.2.0_b hardware player; separate browser and return state |
+| Home/Files: video | `cubegm/video_player.sh` | Single merged TreeFrogUI/ SwitchFrogUI hardware player; restores the selected file |
 | Home: `Ebooks`   | `cubegm/ebook`     | Ebook/document reader (MuPDF - EPUB/MOBI/PDF) - [guide](cores/ebook.md) |
 
 ## The launch contract
