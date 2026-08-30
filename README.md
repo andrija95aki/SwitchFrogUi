@@ -54,7 +54,7 @@ and upstream TreeFrogUI start from very different feature sets.
 | **Keyboard support** | One editable 14-button mapping shared by FrogUI, PicoArch/libretro and PCSX4ALL, plus a live keyboard tester and standard editor/terminal shortcuts. |
 | **Visual system** | Modern settings/sliders; theme gallery; gradients; background control; fonts and sizing; icon/sound packs; contained artwork; animation-free rendering. |
 | **System visibility** | Hardware Information; Play Activity totals and most-played games; live I/O diagnostics; shareable reports; Controls & Shortcuts; scrollable About & Contributions. |
-| **Engineering** | Stock-compatible H.OS video bootstrap plus startup, progress and external heartbeat watchdogs; PicoArch runtime audio recovery; hardware-assisted scaling fast paths; clean app handoff; R36SX patches; reproducible cross-build; guarded offline updates; audited ROM-free releases; rollback workflow; expanded docs. |
+| **Engineering** | Stock-compatible H.OS video bootstrap plus in-player startup and progress checks; PicoArch runtime audio recovery; hardware-assisted scaling fast paths; clean app handoff; R36SX patches; reproducible cross-build; guarded offline updates; audited ROM-free releases; rollback workflow; expanded docs. |
 
 > [!TIP]
 > **Want the exhaustive line-by-line lists?** Open

@@ -8,72 +8,14 @@ export LD_LIBRARY_PATH=/mnt/sdcard/rootfs/usr/lib:/mnt/sdcard/cubegm/usr/lib:/us
 unset LD_PRELOAD
 unset TF_R36SX_DISPLAYFIX_PRELOADED
 
-# libffplayer is proprietary and a bad stream can occasionally block inside a
-# decoder call. Supervise the child from outside the library. The player
-# updates this /tmp heartbeat every loop; twelve unchanged seconds means the
-# process is wedged, so terminate it and let zhijack relaunch FrogUI.
-heartbeat="/tmp/switchfrog-video.$$.heartbeat"
-export SWITCHFROG_VIDEO_HEARTBEAT="$heartbeat"
-rm -f "$heartbeat"
-
-logfile=""
 if [ -f /mnt/sdcard/log.txt ]; then
-    logfile=/mnt/sdcard/video_player.log
+    logfile="/mnt/sdcard/video_player.log"
     [ -f "$logfile" ] && mv "$logfile" "$logfile.prev"
     echo "=== video_player: $1 ===" > "$logfile"
-    /mnt/sdcard/cubegm/video_player "$1" >> "$logfile" 2>&1 &
-else
-    /mnt/sdcard/cubegm/video_player "$1" &
-fi
-player_pid=$!
-
-(
-    previous=""
-    stale=0
-    while kill -0 "$player_pid" 2>/dev/null; do
-        current=""
-        [ -f "$heartbeat" ] && current=$(cat "$heartbeat" 2>/dev/null)
-        if [ -n "$current" ] && [ "$current" != "$previous" ]; then
-            previous="$current"
-            stale=0
-        else
-            stale=$((stale + 1))
-        fi
-        if [ "$stale" -ge 12 ]; then
-            if [ -n "$logfile" ]; then
-                echo "video_player watchdog: heartbeat stalled; terminating pid $player_pid" >> "$logfile"
-                echo "VIDEO_WATCHDOG: heartbeat stalled; terminating pid=$player_pid" >> /mnt/sdcard/log.txt
-                sync &
-            fi
-            kill -TERM "$player_pid" 2>/dev/null
-            sleep 1
-            kill -KILL "$player_pid" 2>/dev/null
-            sleep 1
-            if kill -0 "$player_pid" 2>/dev/null; then
-                if [ -n "$logfile" ]; then
-                    echo "VIDEO_WATCHDOG: child survived KILL; releasing wrapper" >> /mnt/sdcard/log.txt
-                    sync &
-                fi
-                kill -TERM "$$" 2>/dev/null
-            fi
-            exit 0
-        fi
-        sleep 1
-    done
-) &
-watchdog_pid=$!
-if [ -n "$logfile" ]; then
-    echo "video_player watchdog: armed for pid $player_pid (12 seconds)" >> "$logfile"
-    echo "VIDEO_WATCHDOG: armed pid=$player_pid timeout=12s" >> /mnt/sdcard/log.txt
-    sync &
-fi
-
-wait "$player_pid"
-result=$?
-kill "$watchdog_pid" 2>/dev/null
-wait "$watchdog_pid" 2>/dev/null
-rm -f "$heartbeat"
-if [ -n "$logfile" ]; then
+    echo "video_player: foreground upstream startup" >> "$logfile"
+    /mnt/sdcard/cubegm/video_player "$1" >> "$logfile" 2>&1
+    result=$?
     echo "video_player exit=$result" >> "$logfile"
+    exit "$result"
 fi
-exit "$result"
+exec /mnt/sdcard/cubegm/video_player "$1"

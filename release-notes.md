@@ -1,3 +1,19 @@
+## SwitchFrogUI 1.3.5 upstream-startup restoration
+
+### 2026-08-30
+
+- A one-minute Porco Rosso retest proved the external watchdog was armed but
+  could not run once the proprietary decoder wedged, so recovery after the
+  fault is not reliable on this single-core H.OS environment.
+- Restored TreeVidPlay's proven startup ordering: no fb0 memory write and no
+  `hcplayer_set_display_rect()` call before the first decoded frame.
+- Defer the active-page black clear until video is confirmed running. Sizing
+  modes remain in the pause menu and are applied only after first frame when
+  the user explicitly changes one, avoiding unproven startup-side mutations.
+- Removed the shell heartbeat supervisor after the device trace proved it
+  could not be scheduled during the proprietary decoder fault. Playback once
+  again uses the simple foreground handoff of the proven upstream player.
+
 ## SwitchFrogUI 1.3.4 video startup hotfix
 
 ### 2026-08-30
