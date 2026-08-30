@@ -1,3 +1,19 @@
+## SwitchFrogUI 1.3.3 video freeze-recovery update
+
+### 2026-08-30
+
+- Added an external heartbeat supervisor around the proprietary H.OS decoder.
+  If `libffplayer` blocks inside an open, playback or shutdown call for 18
+  seconds, the stuck process is terminated and zhijack can restore FrogUI.
+- Added an internal 15-second playback-progress watchdog for files which open
+  and display a first frame but stop advancing their media timestamp.
+- Added explicit lifecycle logging before decoder shutdown so a future device
+  log distinguishes playback stalls from cleanup stalls.
+- Clear the retired frontend framebuffer to opaque black before starting the
+  video plane. Letterbox and pillarbox areas no longer show the file browser.
+- The heartbeat is stored only in `/tmp` and updated at most twice per second,
+  so it does not write to the SD card or burden smooth video playback.
+
 ## SwitchFrogUI 1.3.2 merged video-player update
 
 ### 2026-08-30

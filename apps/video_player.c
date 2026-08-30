@@ -43,6 +43,8 @@ extern unsigned char fontdata8x8[64 * 16];
 #define VIDEO_SETTINGS_TMP  "/mnt/sdcard/frogui/video_player.tmp"
 #define ROTATION_FILE "/mnt/sdcard/frogui/screen_rotation.cfg"
 #define ROTATION_TMP  "/mnt/sdcard/frogui/screen_rotation.tmp"
+#define HEARTBEAT_ENV "SWITCHFROG_VIDEO_HEARTBEAT"
+#define PLAYBACK_STALL_MS 15000
 
 enum {
     BTN_UP, BTN_DOWN, BTN_LEFT, BTN_RIGHT, BTN_A, BTN_B, BTN_X, BTN_Y,
@@ -93,10 +95,14 @@ static TimedCue *subtitle_cues;
 static int subtitle_cue_count;
 static int subtitle_cue_cursor;
 static bool screen_rotation_180;
+static char heartbeat_path[MAX_PATH_LEN];
+static unsigned heartbeat_counter;
+static int64_t heartbeat_last_ms;
 
 static volatile sig_atomic_t quit_requested;
 static bool is_audio_path(const char *path);
 static bool is_media_path(const char *path);
+static int64_t now_ms(void);
 
 static void log_step(const char *step) {
     FILE *probe = fopen("/mnt/sdcard/log.txt", "r");
@@ -116,6 +122,34 @@ static void log_message(long type, int val) {
     log_step(line);
 }
 
+/* The H.OS decoder is proprietary and can occasionally block inside a player
+ * call for malformed or otherwise troublesome streams. Keep a /tmp-only
+ * heartbeat for the shell supervisor; if a vendor call never returns, the
+ * supervisor can kill this process and let zhijack restore FrogUI. */
+static void heartbeat_init(void) {
+    const char *path = getenv(HEARTBEAT_ENV);
+    if (!path || strncmp(path, "/tmp/", 5) != 0 || strlen(path) >= sizeof(heartbeat_path))
+        return;
+    snprintf(heartbeat_path, sizeof(heartbeat_path), "%s", path);
+}
+
+static void heartbeat_tick(void) {
+    if (!heartbeat_path[0]) return;
+    int64_t now = now_ms();
+    if (heartbeat_counter && now - heartbeat_last_ms < 500) return;
+    int fd = open(heartbeat_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) return;
+    char value[32];
+    int length = snprintf(value, sizeof(value), "%u\n", ++heartbeat_counter);
+    if (length > 0) (void)write(fd, value, (size_t)length);
+    close(fd);
+    heartbeat_last_ms = now;
+}
+
+static void heartbeat_close(void) {
+    if (heartbeat_path[0]) unlink(heartbeat_path);
+}
+
 static void configure_video_layer(void) {
     int fd = open("/dev/dis", O_RDWR);
     if (fd < 0) { log_step("cannot open /dev/dis"); return; }
@@ -131,6 +165,53 @@ static void configure_video_layer(void) {
     int rc = ioctl(fd, DIS_SET_LAYER_ORDER, &order);
     close(fd);
     log_step(rc == 0 ? "video layer placed above fb0" : "video layer order ioctl failed");
+}
+
+/* FrogUI renders its browser into fb0 and then exits for the standalone
+ * player. The decoded MAIN plane does not cover letterbox/pillarbox areas, so
+ * stale browser pixels used to remain visible around the movie. Clear fb0 to
+ * opaque black before bringing up the decoder; FrogUI redraws it when zhijack
+ * relaunches the frontend. */
+static void clear_frontend_background(void) {
+    int fd = open("/dev/fb0", O_RDWR);
+    if (fd < 0) { log_step("cannot open fb0 for black background"); return; }
+    struct fb_var_screeninfo vi;
+    struct fb_fix_screeninfo fi;
+    if (ioctl(fd, FBIOGET_VSCREENINFO, &vi) < 0 ||
+        ioctl(fd, FBIOGET_FSCREENINFO, &fi) < 0 || fi.smem_len == 0) {
+        close(fd);
+        log_step("cannot query fb0 for black background");
+        return;
+    }
+    size_t bytes = fi.smem_len;
+    if (vi.yres_virtual && fi.line_length &&
+        (size_t)vi.yres_virtual <= SIZE_MAX / (size_t)fi.line_length) {
+        size_t described = (size_t)vi.yres_virtual * (size_t)fi.line_length;
+        if (described < bytes) bytes = described;
+    }
+    unsigned char *mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (mem == MAP_FAILED) {
+        close(fd);
+        log_step("cannot map fb0 for black background");
+        return;
+    }
+    unsigned bytespp = vi.bits_per_pixel / 8;
+    uint32_t opaque_black = 0;
+    if (vi.transp.length && vi.transp.length < 32)
+        opaque_black = ((1u << vi.transp.length) - 1u) << vi.transp.offset;
+    if (bytespp == 4) {
+        uint32_t *pixels = (uint32_t *)mem;
+        for (size_t i = 0; i < bytes / 4; i++) pixels[i] = opaque_black;
+    } else if (bytespp == 2) {
+        uint16_t value = (uint16_t)opaque_black;
+        uint16_t *pixels = (uint16_t *)mem;
+        for (size_t i = 0; i < bytes / 2; i++) pixels[i] = value;
+    } else {
+        memset(mem, 0, bytes);
+    }
+    munmap(mem, bytes);
+    close(fd);
+    log_step("frontend background cleared to black");
 }
 
 static int64_t now_ms(void) {
@@ -1223,6 +1304,8 @@ static bool player_error(long type, bool audio_only) {
 
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
+    heartbeat_init();
+    heartbeat_tick();
     char folder_entry[MAX_PATH_LEN];
     struct stat launch_stat;
     if (stat(argv[1], &launch_stat) == 0 && S_ISDIR(launch_stat.st_mode)) {
@@ -1264,9 +1347,11 @@ int main(int argc, char **argv) {
     log_step(geometry_log);
     log_step(have_overlay ? "fb1 overlay ready" : "fb1 overlay unavailable");
     if (have_overlay) overlay_clear(&overlay);
+    clear_frontend_background();
 
     int msg_id = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
     if (msg_id < 0) msg_id = -1;
+    heartbeat_tick();
     log_step("calling hcplayer_init");
     if (hcplayer_init(LOG_WARNING) != 0) {
         log_step("hcplayer_init failed");
@@ -1276,6 +1361,7 @@ int main(int argc, char **argv) {
         sleep(3);
         goto done;
     }
+    heartbeat_tick();
     log_step("hcplayer_init returned");
 
     /* The R36SX/SF3000 stock player passes a 248-byte init block, while the
@@ -1307,6 +1393,7 @@ int main(int argc, char **argv) {
     args->play_attached_file = 0;
     args->snd_devs = AUDDEV_I2SO;
 
+    heartbeat_tick();
     log_step("calling hcplayer_create");
     void *player = hcplayer_create(args);
     if (!player) {
@@ -1317,9 +1404,12 @@ int main(int argc, char **argv) {
         hcplayer_deinit();
         goto done;
     }
+    heartbeat_tick();
     log_step("hcplayer_create returned");
     configure_video_layer();
+    heartbeat_tick();
     hcplayer_play(player);
+    heartbeat_tick();
     CoverState cover = {0};
     if (audio_only && have_overlay)
         cover_prepare(&cover, argv[1], overlay.logical_w * 44 / 100);
@@ -1337,6 +1427,8 @@ int main(int argc, char **argv) {
     int video_w = panel_w, video_h = panel_h;
     int64_t fatal_at = 0;
     int64_t playback_started_at = now_ms();
+    int64_t last_progress_at = playback_started_at;
+    int64_t last_progress_pos = -1;
     int64_t hud_until = playback_started_at + 4500;
     int64_t last_draw = 0;
     bool first_frame = false;
@@ -1346,6 +1438,7 @@ int main(int argc, char **argv) {
     const char *status = NULL;
 
     while (!quit_requested && !eos) {
+        heartbeat_tick();
         HCPlayerMsg msg;
         if (msg_id >= 0) while (msgrcv(msg_id, &msg, sizeof(msg) - sizeof(long), 0, IPC_NOWAIT) >= 0) {
             log_message(msg.type, msg.val);
@@ -1378,6 +1471,7 @@ int main(int argc, char **argv) {
         int64_t pos = hcplayer_get_position(player);
         int64_t duration = hcplayer_get_duration(player);
         int64_t now = now_ms();
+        heartbeat_tick();
 
         /* Never strand the user on a broken firmware decode path. Position
          * advancement is also accepted because some library builds omit the
@@ -1404,6 +1498,23 @@ int main(int argc, char **argv) {
                          audio_only && theme.background_enabled, NULL);
             sleep(2);
             break;
+        }
+        if (paused) {
+            last_progress_at = now;
+            last_progress_pos = pos;
+        } else if (first_frame && pos >= 0) {
+            if (last_progress_pos < 0 || pos > last_progress_pos + 100 ||
+                pos + 1000 < last_progress_pos) {
+                last_progress_pos = pos;
+                last_progress_at = now;
+            } else if (now - last_progress_at > PLAYBACK_STALL_MS) {
+                log_step("playback watchdog: timestamp stopped advancing");
+                if (have_overlay)
+                    draw_hud(&overlay, theme, &track_info, pos, duration, true, playback,
+                             "VIDEO PLAYBACK STALLED", &cover, !audio_only, NULL);
+                sleep(2);
+                break;
+            }
         }
 
         bool rotation_chord = (keys & ((1u << BTN_FN) | (1u << BTN_L1) |
@@ -1512,6 +1623,8 @@ int main(int argc, char **argv) {
                 if (target < 0) target = 0;
                 if (duration > 0 && target > duration - 250) target = duration - 250;
                 hcplayer_seek(player, target);
+                last_progress_pos = target;
+                last_progress_at = now;
                 status = jump > 0 ? "SEEK FORWARD" : "SEEK BACK";
                 hud_until = now + 2500;
             }
@@ -1567,12 +1680,16 @@ int main(int argc, char **argv) {
         usleep(20000);
     }
 
+    heartbeat_tick();
+    log_step("stopping playback");
     hcplayer_stop2(player, true, true);
+    heartbeat_tick();
     cover_stop(&cover);
     log_step("playback stopped");
     hcplayer_deinit();
 
 done:
+    heartbeat_close();
     subtitles_clear();
     if (msg_id >= 0) msgctl(msg_id, IPC_RMID, NULL);
     if (raw_keys) shmdt((void *)raw_keys);
