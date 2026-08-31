@@ -1042,6 +1042,7 @@ static bool random_media_neighbor(const char *path, char *out, size_t out_size) 
 
 static void apply_display_mode(void *player, ScaleMode mode, int video_w, int video_h,
                                int panel_w, int panel_h) {
+    (void)player;
     /* The H.OS display-rectangle ABI uses the projector's normalized
      * 1920x1080 coordinate space, even on a 640x480 panel. */
     const int norm_w = 1920, norm_h = 1080;
@@ -1080,17 +1081,31 @@ static void apply_display_mode(void *player, ScaleMode mode, int video_w, int vi
         px = (panel_w - pw) / 2;
         py = (panel_h - ph) / 2;
     }
-    struct vdec_dis_rect rect = {
-        {(uint16_t)sx, (uint16_t)sy, (uint16_t)sw, (uint16_t)sh},
-        {(uint16_t)((int64_t)px * norm_w / panel_w),
-         (uint16_t)((int64_t)py * norm_h / panel_h),
-         (uint16_t)((int64_t)pw * norm_w / panel_w),
-         (uint16_t)((int64_t)ph * norm_h / panel_h)}
-    };
-    int rc = hcplayer_set_display_rect(player, &rect);
+    /* hcplayer_set_display_rect() restarts H.OS's proprietary decoder. On the
+     * R36SX this can resume behind the pause menu or stall several seconds
+     * after returning to playback. The stock SDK's preview code also exposes
+     * the lower-level MAIN-layer zoom ioctl; it changes only display geometry
+     * and leaves decoder state untouched. Activate on the next decoded frame
+     * to avoid tearing. */
+    struct dis_zoom zoom;
+    memset(&zoom, 0, sizeof(zoom));
+    zoom.distype = DIS_TYPE_HD;
+    zoom.layer = DIS_LAYER_MAIN;
+    zoom.src_area.x = (uint16_t)sx;
+    zoom.src_area.y = (uint16_t)sy;
+    zoom.src_area.w = (uint16_t)sw;
+    zoom.src_area.h = (uint16_t)sh;
+    zoom.dst_area.x = (uint16_t)((int64_t)px * norm_w / panel_w);
+    zoom.dst_area.y = (uint16_t)((int64_t)py * norm_h / panel_h);
+    zoom.dst_area.w = (uint16_t)((int64_t)pw * norm_w / panel_w);
+    zoom.dst_area.h = (uint16_t)((int64_t)ph * norm_h / panel_h);
+    zoom.active_mode = DIS_SCALE_ACTIVE_NEXTFRAME;
+    int fd = open("/dev/dis", O_RDWR);
+    int rc = fd >= 0 ? ioctl(fd, DIS_SET_ZOOM, &zoom) : -1;
+    if (fd >= 0) close(fd);
     char message[160];
     snprintf(message, sizeof(message),
-             "scale=%s video=%dx%d panel=%dx%d dst=%dx%d+%d+%d rc=%d",
+             "scale=%s video=%dx%d panel=%dx%d dst=%dx%d+%d+%d zoom_rc=%d",
              scale_name(mode), video_w, video_h, panel_w, panel_h,
              pw, ph, px, py, rc);
     log_step(message);

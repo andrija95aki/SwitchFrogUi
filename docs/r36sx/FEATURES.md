@@ -239,6 +239,15 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   restores the folder itself at the same position in its parent instead of
   resetting the browser to the first row; the behavior is shared by Files,
   Videos, Ebooks, Text Editor, and JSDev selectors.
+- Renaming a single directory to the reserved name `locked` registers a
+  persistent access lock without changing its real filesystem name. Every
+  SwitchFrogUI browser blocks the directory and displays `Directory
+  inaccessible.`; Up, Up, Down, Down, Left, Right, Left, Right removes the lock.
+  Locked trees are excluded from game search, platform scans, recents and
+  favourites launch routes, and destructive file-manager operations. The FAT
+  Hidden attribute is applied and removed when the filesystem supports it.
+  This deters casual browsing but is not encryption, and desktop Linux/macOS
+  visibility depends on their FAT mount and file-manager behavior.
 - Permanent Ebooks Home card opens a clean browser at `/mnt/sdcard` and
   shows EPUB, MOBI, PDF, FB2, CBZ, and XPS documents. It launches the official
   TreeFrogUI MuPDF reader, supports custom fonts and per-book progress, and
@@ -267,10 +276,10 @@ TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
   transparent 32-bit OSD plane is physically idle during normal playback and
   enabled only for controls, the pause menu, or an active subtitle cue.
 - Hardware-decoded video playback computes layout against the R36SX panel's
-  real 640x480 shape, then maps it to the stock projector decoder's normalized
-  1920x1080 rectangle ABI. This prevents playback being trapped in a tiny
-  hardware-plane square. Fit, Fill, Stretch, and Original modes are available
-  from the pause menu.
+  real 640x480 shape, then maps it to the stock display layer's normalized
+  1920x1080 coordinates. Fit, Fill, Stretch, and Original use next-frame
+  `DIS_SET_ZOOM` updates from the pause menu, avoiding the vendor
+  `hcplayer_set_display_rect()` path that can restart or stall decoding.
 - Playback controls stay deliberately small: A or Start opens the pause menu,
   Left/Right seeks 10 seconds, and B exits. Volume remains under the OS master
   controls; the player does not override it or expose audio-track selection.

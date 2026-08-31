@@ -1,3 +1,18 @@
+## SwitchFrogUI 1.3.7 safe video zoom and directory locks
+
+- Video Fit, Fill, Stretch and Original modes now use the hardware MAIN-layer
+  `DIS_SET_ZOOM` ioctl with next-frame activation. They no longer call
+  `hcplayer_set_display_rect()`, which could restart or stall the proprietary
+  H.OS decoder several seconds after a size change.
+- Added persistent directory access locks to every SwitchFrogUI browser. Rename
+  one directory to the special name `locked` to register the lock without
+  changing its real name. Attempting to enter it displays `Directory
+  inaccessible.`; Up, Up, Down, Down, Left, Right, Left, Right unlocks it.
+- Locking attempts to set the FAT Hidden attribute and unlocking clears it.
+  This is a convenience/privacy feature, not encryption; visibility of FAT
+  hidden entries on desktop Linux and macOS depends on their mount/file-manager
+  settings.
+
 ## SwitchFrogUI 1.3.6 pause-menu resize synchronization
 
 - Video sizing changes made in the pause menu are now collected without
