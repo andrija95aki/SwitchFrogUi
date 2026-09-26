@@ -1,5 +1,8 @@
 ## SwitchFrogUI 1.4.0 - Controls, save-state launching and full SD-card releases
 
+- 2026-09-27 package refresh: optional, licensed PS1/GBA/GB/GBC firmware
+  alternatives plus BIOS-GUIDE.md, provenance, licenses and GBA BIOS source.
+  Proprietary BIOS dumps remain excluded; existing BIOS selections are kept.
 - Removed the Game Switcher toggle from Settings without changing existing
   Recent presentation preferences.
 - Both full-card ZIPs preserve empty platform/emulator folders, with a

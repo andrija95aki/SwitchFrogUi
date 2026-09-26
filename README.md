@@ -10,9 +10,12 @@
 | R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.0/SwitchFrogUI-1.4.0-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
 
 Extract all files directly to an empty FAT32 card. Both ZIPs include the boot
-system and apps; no separate stock copy is needed. No games, BIOS files, saves,
+system and apps; no separate stock copy is needed. No games, proprietary BIOS dumps, saves,
 history or personal settings are bundled. The requested video, Mozart, photo,
 Bible and JSDev samples are included. Fresh installs use Ocean Depth Gradient.
+Optional open-source PS1, GBA and GB/GBC firmware is included with licenses,
+source/provenance and a [BIOS setup guide](docs/r36sx/BIOS-GUIDE.md). Alternatives
+are not enabled automatically and have not been validated on every game.
 
 This release adds safe list-based button mapping/reset, selectable save-state
 launching, newest-state Quick Resume, MENU+L save / MENU+R load, a keyboard that

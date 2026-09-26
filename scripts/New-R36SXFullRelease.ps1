@@ -102,6 +102,7 @@ foreach($file in @('photo (1).jpg','photo (2).jpg','photo (3).jpg')){
     Copy-One (Join-Path $StockPhotoRoot $file) "Photo/$file"
 }
 & (Join-Path $PSScriptRoot 'Add-R36SXRomFolders.ps1') -CardRoot $stage
+& (Join-Path $PSScriptRoot 'Install-OpenBios.ps1') -CardRoot $stage
 # PCSX creates memcards/savestates below this parent on first launch.
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'cubegm/cores/.pcsx4all') | Out-Null
 foreach($file in @('LICENSE.md','release-notes.md','cores.md')){Copy-One (Join-Path $repo $file) $file}
@@ -111,7 +112,7 @@ foreach($file in @('INSTALL.md','FEATURES.md','THIRD_PARTY_NOTICES.md','JSDEV.md
 }
 $utf8=New-Object Text.UTF8Encoding($false)
 [IO.File]::WriteAllText((Join-Path $stage 'START-HERE.txt'),
- "SwitchFrogUI $Version - R36SX motherboard v$BoardRevision`nExtract ALL ZIP contents directly to an empty FAT32 card root, including rootfs and hidden .rockbox files.`nNo separate stock download is required. ROMs and console BIOS files are not included.`nDefault theme: Ocean Depth Gradient.`nOnly R36SX v2.7 has been hardware-tested during development. v2.6 is experimental and not guaranteed.`nNew 1.4.0 changes still need device testing. Imported TreeFrogUI features have not all been thoroughly tested.`nSee docs/INSTALL.md and release-notes.md.`n",$utf8)
+ "SwitchFrogUI $Version - R36SX motherboard v$BoardRevision`nExtract ALL ZIP contents directly to an empty FAT32 card root, including rootfs and hidden .rockbox files.`nNo separate stock download is required. Game ROMs and proprietary BIOS dumps are not included. Optional open-source firmware and setup instructions: BIOS-GUIDE.md.`nDefault theme: Ocean Depth Gradient.`nOnly R36SX v2.7 has been hardware-tested during development. v2.6 is experimental and not guaranteed.`nNew 1.4.0 changes still need device testing. Imported TreeFrogUI features have not all been thoroughly tested.`nSee docs/INSTALL.md and release-notes.md.`n",$utf8)
 [IO.File]::WriteAllText((Join-Path $stage 'BOARD.txt'),"R36SX motherboard v$BoardRevision`nSwitchFrogUI $Version`n",$utf8)
 
 # Check required boot/application files, forbidden payloads and fresh defaults.
@@ -124,6 +125,14 @@ foreach($file in $required){if(-not(Test-Path -LiteralPath (Join-Path $stage $fi
 $files=Get-ChildItem -LiteralPath $stage -Recurse -File -Force
 foreach($file in $files){
     $rel=$file.FullName.Substring($stage.Length+1).Replace('\','/')
+    if($rel.StartsWith('cubegm/bios/open-source/')){
+        $approved=Join-Path $repo ('assets/open-bios/'+$rel.Substring('cubegm/bios/open-source/'.Length))
+        if(-not(Test-Path -LiteralPath $approved -PathType Leaf) -or
+           (Get-FileHash -LiteralPath $approved).Hash -ne (Get-FileHash -LiteralPath $file.FullName).Hash){
+            throw "Unapproved open firmware/source file: $rel"
+        }
+        continue
+    }
     if($rel -match '(?i)(^|/)(bios|saves?|states?)(/|$)|\.pre-|favorites|game_history|playtime|last_game|home_selection|locked_directories|\.log$|\.sav$|\.mcr$|\.st[0-9]+$|gba_bios|scph[0-9]|neogeo\.zip|pgm\.zip' -or
        $file.Extension -match '(?i)^\.(nes|gba|gb|gbc|sfc|smc|chd|cue|iso|pbp|z64|n64|wad|srm)$' -or
        ($rel -match '^roms/' -and $rel -notmatch '^roms/(rockbox/\.rockbox/|JSDev/[^/]+\.js$)')){
@@ -136,7 +145,7 @@ $hashes=$files | Sort-Object FullName | ForEach-Object {
 }
 [IO.File]::WriteAllLines((Join-Path $stage 'SHA256SUMS.txt'),$hashes,$utf8)
 [IO.File]::WriteAllText((Join-Path $stage 'PUBLISH-AUDIT.txt'),
- "PASS: complete board-specific boot/runtime checks`nPASS: ROM/BIOS/save/history exclusions`nPASS: explicit requested media allow-list`nFiles: $($files.Count)`nBoard: $BoardRevision`n",$utf8)
+ "PASS: complete board-specific boot/runtime checks`nPASS: game ROM/proprietary BIOS/save/history exclusions`nPASS: hash-matched open firmware/source/license allow-list`nPASS: explicit requested media allow-list`nFiles: $($files.Count)`nBoard: $BoardRevision`n",$utf8)
 $zip=Join-Path $out "$name.zip"
 & (Join-Path $PSScriptRoot 'Write-R36SXCardZip.ps1') -StageDirectory $stage -ZipPath $zip
 Write-Host "Verified full-card release: $zip"

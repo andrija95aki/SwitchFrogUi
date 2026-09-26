@@ -13,3 +13,5 @@
 *.bmp binary
 *.ogg binary
 *.so binary
+# Keep vendored firmware, notices and corresponding sources byte-for-byte.
+assets/open-bios/** -text -whitespace

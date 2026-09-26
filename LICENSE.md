@@ -76,7 +76,10 @@ The v1.0.12 compatibility payload specifically includes
 [PrBoom](https://github.com/libretro/libretro-prboom) (GPL-2.0),
 [O2EM](https://github.com/libretro/libretro-o2em), and
 [vecx](https://github.com/libretro/libretro-vecx) (GPL-3.0). Game ROMs,
-commercial IWADs, and BIOS files are not distributed by this project.
+commercial IWADs, and proprietary BIOS dumps are not distributed by this project.
+Optional open firmware is distributed under its own licenses: PCSX-Redux
+OpenBIOS (MIT), gpSP/ReGBA GBA replacement (GPL-2.0, source included), and SameBoy
+GB/GBC boot ROMs (Expat/MIT). See `assets/open-bios/README.md` and its licenses.
 
 ## 4. Ebook Reader
 

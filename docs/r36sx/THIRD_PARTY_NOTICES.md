@@ -80,6 +80,20 @@ Commons CC0. The original notice is included as `frogui/sounds/KENNEY-CC0.txt`.
 The pack names describe their use in SwitchFrogUI; they are not Nintendo or
 Sony recordings and are not affiliated with either company.
 
+## Open firmware alternatives
+
+- PCSX-Redux OpenBIOS: MIT, PCSX-Redux authors, including the uC-sdk attribution
+  supplied by the pinned binary distributor. See `assets/open-bios/README.md`
+  in source or `cubegm/bios/open-source/README.md` on the card for exact commits.
+- gpSP/ReGBA GBA replacement: GPL-2.0, Normmatt and VBA/VBA-M contributors.
+  Corresponding BIOS sources, Makefile and COPYING are included alongside it.
+- SameBoy v1.0.3 GB/GBC boot ROMs: Expat/MIT, Lior Halphon and contributors.
+  The original license is included. These are not Nintendo boot ROM dumps.
+
+These optional files do not overwrite active original BIOSes. No universal
+compatibility claim is made. See `BIOS-GUIDE.md` for activation and original
+firmware instructions. Proprietary BIOS files remain excluded from releases.
+
 ## Included sample recording
 
 `SwitchFrogUI Sample - Mozart - Piano Sonata No. 14.ogg`

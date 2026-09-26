@@ -47,7 +47,17 @@ Empty platform/emulator ROM folders are included, with `ROM-FOLDERS.md`
 explaining where to put games. Platform cards appear after supported games
 are added.
 
-Excluded: game ROMs, console BIOS files, user saves, favourites, history,
+### Open firmware package refresh (2026-09-27)
+
+Both full-card ZIPs now include optional PCSX-Redux OpenBIOS (PS1), the gpSP/ReGBA
+GBA replacement, and SameBoy GB/GBC boot ROMs. Licenses, GBA BIOS source, pinned
+provenance and `BIOS-GUIDE.md` are included. These alternatives are not enabled
+automatically; existing working BIOS selections should be preserved. They are
+not guaranteed substitutes for original firmware and need physical-device tests.
+The runtime binaries remain the published 1.4.0 build; the separate local
+menu-power test build has not been promoted into these ZIPs.
+
+Excluded: game ROMs, proprietary console BIOS dumps, user saves, favourites, history,
 custom settings, other media and custom content. `MD/dummy.md` is a tiny required
 boot hook, not a game. Supply your own BIOS for systems that require one.
 

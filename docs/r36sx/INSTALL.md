@@ -18,11 +18,14 @@ have not been thoroughly tested; new 1.4.0 controls also need device testing.
    default theme is Ocean Depth Gradient.
 
 No separate stock download is required. Do not overwrite this package with a
-different board's stock files. Games and console BIOS files are not included;
+different board's stock files. Games and proprietary console BIOS dumps are not included;
 add your own to the appropriate `roms/<platform>` and emulator BIOS directories.
 Empty platform folders are already included. Read `ROM-FOLDERS.md` in the card
 root for the folder guide; `cores.md` lists systems and requirements.
 The MD dummy/filelist files are required bootstrap data, not games.
+Optional open-source BIOS alternatives are under `cubegm/bios/open-source/`.
+Read the card-root `BIOS-GUIDE.md` (or [online guide](BIOS-GUIDE.md)) for setup,
+compatibility warnings and exact locations for your own original firmware.
 
 Samples are under Videos, Music, Photo, Ebooks and roms/JSDev.
 
