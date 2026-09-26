@@ -25,6 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test button mapping regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule update --init frogui
+          git -C frogui apply --whitespace=nowarn ../patches/r36sx-frogui.patch
+          gcc -std=gnu99 -Wall tests/input_remap_test.c -o /tmp/input_remap_test
+          /tmp/input_remap_test
+
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash
         run: |

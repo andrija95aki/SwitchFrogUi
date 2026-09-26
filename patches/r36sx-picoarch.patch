@@ -106,10 +106,19 @@ index 599031e..b31fdd4 100644
  	CFLAGS  := $(filter-out -flto,$(CFLAGS))
  	LDFLAGS := $(filter-out -flto,$(LDFLAGS))
 diff --git a/core.c b/core.c
-index 25221d8..4b0f461 100644
+index 25221d8..6e5ea8e 100644
 --- a/core.c
 +++ b/core.c
-@@ -623,6 +623,7 @@ static void pa_input_poll(void) {
+@@ -605,6 +605,8 @@ static void pa_input_poll(void) {
+ 		const uint32_t SEL_BIT   = (1u << 0);   /* SELECT = bit 0  */
+ 		const uint32_t START_BIT = (1u << 3);   /* START  = bit 3  */
+ 		const uint32_t R1_BIT    = (1u << 11);  /* R1     = bit 11 */
++        const uint32_t L1_BIT = (1u << 10);
++        if (raw & (1u << 16)) raw |= SEL_BIT; /* physical MENU/FN */
+ 		const uint32_t L2_BIT    = (1u << 8);   /* L2     = bit 8  */
+ 		const uint32_t R2_BIT    = (1u << 9);   /* R2     = bit 9  */
+ 
+@@ -623,6 +625,7 @@ static void pa_input_poll(void) {
  		static int menu_armed = 1;
  		static int ss_armed = 1;   /* save/load-state latch */
  		static int sel_off_cnt = 0;
@@ -117,7 +126,7 @@ index 25221d8..4b0f461 100644
  		if (g_is_frogui) {
  			prev_raw = raw;
  			buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -632,6 +633,10 @@ static void pa_input_poll(void) {
+@@ -632,22 +635,26 @@ static void pa_input_poll(void) {
  			menu_armed = 0;
  			sel_off_cnt = 0;
  			handle_emu_action(EACTION_MENU);
@@ -128,7 +137,27 @@ index 25221d8..4b0f461 100644
  		}
  		/* Save/load state are LATCHED like the menu: fire once, then refuse until
  		 * SELECT is fully released. The two-writer input race flickers L2/R2 while
-@@ -663,6 +668,12 @@ static void pa_input_poll(void) {
+ 		 * SELECT is held, and a plain edge re-fired the save every flicker → on a
+ 		 * big-state core (picodrive ~663KB) hundreds of rapid saves exhaust RAM,
+ 		 * serialize starts faulting, and the console hard-freezes. One per hold. */
+-		else if (ss_armed && COMBO_EDGE(SEL_BIT | L2_BIT)) {
++		else if (ss_armed && !(raw & L1_BIT) && COMBO_EDGE(SEL_BIT | R1_BIT)) {
+ 			ss_armed = 0;
+ 			handle_emu_action(EACTION_LOAD_STATE);
+ 		}
+-		else if (ss_armed && COMBO_EDGE(SEL_BIT | R2_BIT)) {
++		else if (ss_armed && !(raw & R1_BIT) && COMBO_EDGE(SEL_BIT | L1_BIT)) {
+ 			ss_armed = 0;
+ 			handle_emu_action(EACTION_SAVE_STATE);
+ 		}
+-		else if (COMBO_EDGE(SEL_BIT | R1_BIT))
+-			handle_emu_action(EACTION_TOGGLE_FF);  /* SELECT+R1 = fast-forward */
++		else if (COMBO_EDGE(SEL_BIT | R2_BIT))
++			handle_emu_action(EACTION_TOGGLE_FF);  /* MENU+R2 = fast-forward */
+ 		#undef COMBO_EDGE
+ 
+ 		/* Re-arm the menu only after SELECT has been CONTINUOUSLY released for a
+@@ -663,6 +670,13 @@ static void pa_input_poll(void) {
  		 * persist in the config. Hotkeys above stay on raw physical bits so
  		 * SELECT+START always opens the menu regardless of remapping. */
  		buttons = actions[IN_BINDTYPE_PLAYER12];
@@ -138,10 +167,11 @@ index 25221d8..4b0f461 100644
 +			if (!(raw & (SEL_BIT | START_BIT)))
 +				suppress_menu_buttons = 0;
 +		}
++        if ((raw & SEL_BIT) && (raw & (L1_BIT | R1_BIT | R2_BIT | L2_BIT))) buttons = 0;
  frogui_no_hotkeys: ;
  	} else {
  		buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -820,6 +831,12 @@ int core_load_content(struct content *content) {
+@@ -820,6 +834,12 @@ int core_load_content(struct content *content) {
  		 * bound (controls dead + console spam on button press). */
  		current_core.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
  	}
@@ -513,7 +543,7 @@ index 6e72d66..7f37246 100644
  /* Present an RGB565 frame to the panel via HW.
   * src: RGB565 pixel buffer (16bpp)
 diff --git a/main.c b/main.c
-index 0366317..37fa4f9 100644
+index 0366317..edb05ae 100644
 --- a/main.c
 +++ b/main.c
 @@ -9,6 +9,7 @@
@@ -555,8 +585,45 @@ index 0366317..37fa4f9 100644
  	}
  }
  
+@@ -1045,6 +1055,36 @@ int main(int argc, char **argv) {
+ 	}
+ #endif
+ 	show_startup_message();
++#ifdef PLATFORM_SF3000
++    if (!g_is_frogui) {
++        int explicit_slot = -1, backend = -1;
++        char requested_rom[MAX_PATH];
++        FILE *request = fopen("/tmp/switchfrog_state_request", "r");
++        if (request) {
++            if (fgets(requested_rom, sizeof(requested_rom), request)) {
++                requested_rom[strcspn(requested_rom, "\r\n")] = 0;
++                if (strcmp(requested_rom, content_path) == 0 &&
++                    fscanf(request, "%d\n%d", &explicit_slot, &backend) == 2 &&
++                    backend == 0 && explicit_slot >= 0 && explicit_slot < 10)
++                    resume_slot = explicit_slot;
++                else explicit_slot = -1;
++            }
++            fclose(request); unlink("/tmp/switchfrog_state_request");
++        }
++        if (explicit_slot < 0 && g_quick_resume) {
++            time_t newest = 0;
++            resume_slot = -1;
++            for (int slot = 0; slot < 10; slot++) {
++                char path[MAX_PATH]; struct stat st;
++                state_file_name(path, sizeof(path), slot);
++                if (stat(path, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0 &&
++                    (resume_slot < 0 || st.st_mtime >= newest)) {
++                    newest = st.st_mtime; resume_slot = slot;
++                }
++            }
++        }
++    }
++#endif
+ 	state_resume();
+ #ifdef PLATFORM_SF3000
+ 	rewind_init();
 diff --git a/menu.c b/menu.c
-index cdd9e76..ab2f6a2 100644
+index cdd9e76..0168866 100644
 --- a/menu.c
 +++ b/menu.c
 @@ -435,9 +435,98 @@ static int menu_loop_cheats(int id, int keys)
@@ -675,6 +742,24 @@ index cdd9e76..ab2f6a2 100644
  
  	options_update_changed();
  
+@@ -500,7 +590,7 @@ static const char h_restore_def[]     = "Switches back to default settings";
+ 
+ static const char h_show_fps[]        = "Shows frames and vsyncs per second";
+ static const char h_show_cpu[]        = "Shows CPU usage";
+-static const char h_ff_enabled[]      = "Allow fast-forward (SELECT+R1). Off by default.";
++static const char h_ff_enabled[]      = "Allow fast-forward (MENU+R2). Off by default.";
+ static const char h_rewind_enabled[]  = "Allow rewind (hold SELECT+B). Uses RAM and slows frames; off by default.";
+ 
+ static const char h_audio_buffer_size[]        =
+@@ -589,7 +679,7 @@ static menu_entry e_menu_video_options[] =
+ {
+ 	mee_onoff_h      ("Show FPS",                 0, show_fps, 1, h_show_fps),
+ 	mee_onoff_h      ("Show CPU %",               0, show_cpu, 1, h_show_cpu),
+-	mee_onoff_h      ("Fast forward (SELECT+R1)",  0, ff_enabled, 1, h_ff_enabled),
++	mee_onoff_h      ("Fast forward (MENU+R2)",  0, ff_enabled, 1, h_ff_enabled),
+ 	mee_onoff_h      ("Rewind (hold SELECT+B)",   0, rewind_enabled, 1, h_rewind_enabled),
+ 	mee_enum_h       ("Aspect ratio",  MA_VID_ASPECT, aspect_ratio_mode, men_aspect_ratio, h_aspect_ratio),
+ 	mee_enum_h       ("Filter",        MA_VID_FILTER, scale_filter, men_scale_filter, h_scale_filter),
 diff --git a/options.c b/options.c
 index a4d56c4..7cdc604 100644
 --- a/options.c
@@ -745,7 +830,7 @@ index 1e955f4..556d4dc 100644
  void* plat_clean_screen(void);
  
 diff --git a/plat_sdl.c b/plat_sdl.c
-index 9978411..2b980e0 100644
+index 9978411..79bff31 100644
 --- a/plat_sdl.c
 +++ b/plat_sdl.c
 @@ -4,6 +4,7 @@
@@ -1103,6 +1188,17 @@ index 9978411..2b980e0 100644
  void plat_sdl_event_handler(void *event_)
  {
      SDL_Event *event = (SDL_Event *)event_;
+@@ -2092,8 +2285,8 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+     {
+         extern volatile uint32_t sf3000_keys_filtered;
+         static int prev_combo = 0;
+-        uint32_t combo = (1u << 0) | (1u << 10);
+-        int now = (sf3000_keys_filtered & combo) == combo;
++        int now = (sf3000_keys_filtered & ((1u << 0) | (1u << 16))) &&
++                  (sf3000_keys_filtered & (1u << 8)); /* MENU+L2 screenshot */
+         if (now && !prev_combo) sf3000_screenshot(src, width, height, pitch);
+         prev_combo = now;
+     }
 @@ -2139,8 +2332,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
          if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
              return;
