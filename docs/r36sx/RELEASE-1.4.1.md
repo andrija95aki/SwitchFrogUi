@@ -1,5 +1,18 @@
 # SwitchFrogUI 1.4.1 for R36SX
 
+## A note from Andrija
+
+A big thank you to YouTuber **SjslTech** for reviewing SwitchFrogUI, and to
+everyone who has tried the OS! I really appreciate your time, feedback and
+patience.
+
+I'm sorry for the bugs in the release and the frustration they've caused.
+SwitchFrogUI is a hobby project, and these days I spend more time developing
+the OS than actually playing games on it! Your testing and bug reports help
+me make it better. Thank you for giving it a try and being part of the project.
+
+## Installation
+
 Complete, ROM-free SD-card packages consolidating the controls/save-state update,
 licensed BIOS alternatives and menu idle-power work. Extract **all contents
 directly to an empty FAT32 card root**, including hidden Rockbox files. No

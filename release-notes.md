@@ -1,5 +1,18 @@
 ## SwitchFrogUI 1.4.1 - Menu idle power and consolidated full-card release
 
+### A note from Andrija
+
+A big thank you to YouTuber **SjslTech** for reviewing SwitchFrogUI, and to
+everyone who has tried the OS! I really appreciate your time, feedback and
+patience.
+
+I'm sorry for the bugs in the release and the frustration they've caused.
+SwitchFrogUI is a hobby project, and these days I spend more time developing
+the OS than actually playing games on it! Your testing and bug reports help
+me make it better. Thank you for giving it a try and being part of the project.
+
+### Changes
+
 - Promotes the local menu-power update into source and both complete SD-card
   packages. Menu timing sleeps at 60 Hz rather than relying on framebuffer
   submissions; input, sound, debounce and timeout semantics are preserved.
