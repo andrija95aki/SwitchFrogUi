@@ -45,8 +45,9 @@ Copy-Tree (Join-Path $stock 'rootfs') 'rootfs'
 Copy-Tree (Join-Path $stock 'cubegm/usr') 'cubegm/usr'
 Copy-Tree (Join-Path $stock 'cubegm/lib') 'cubegm/lib'
 Get-ChildItem -LiteralPath (Join-Path $stock 'cubegm') -File | Where-Object {
-    $_.Name -match '^(advapi32\.dll|ApplicationFrame\.dll|Bubbles\.scr|dtb\.bin|.*\.uImage|.*\.cpd|.*\.ttf|.*\.wav|cubepoweroff\.bmp|xgame-logo1\.hc|driver\.so|rkgame|icube|icube\.sh|icube_start\.sh|icubemp_start\.sh|MyExecutable|AcXtrnal|root\.dat|resource|pagefile\.sys)$'
+    $_.Name -match '^(advapi32\.dll|ApplicationFrame\.dll|Bubbles\.scr|dtb\.bin|.*\.uImage|.*\.cpd|.*\.ttf|.*\.wav|cubepoweroff\.bmp|xgame-logo1\.hc|driver\.so|rkgame|icube|icube\.sh|icube_start\.sh|icubemp_start\.sh|MyExecutable|AcXtrnal|resource)$'
 } | ForEach-Object {Copy-One $_.FullName (Join-Path 'cubegm' $_.Name)}
+& (Join-Path $PSScriptRoot 'New-CleanSwapFile.ps1') -OutputPath (Join-Path $stage 'cubegm/pagefile.sys')
 
 $runtime=@('picoarch','picoarch_hi','pcsx4all','rockbox','rockbox.sh','video_player',
  'video_player.sh','ebook','nosleep','r36sx_displayfix.so','driver_r36sx.so',
