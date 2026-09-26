@@ -2,7 +2,8 @@
 
 ## A note from Andrija
 
-A big thank you to YouTuber **SjslTech** for reviewing SwitchFrogUI, and to
+A big thank you to YouTubers **SjslTech** and **MartStratIV** for their reviews
+of SwitchFrogUI, and to
 everyone who has tried the OS! I really appreciate your time, feedback and
 patience.
 
