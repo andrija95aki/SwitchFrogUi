@@ -80,7 +80,7 @@ index a189b7b..4a3ae2f 100644
      g_active = 0;
  }
 diff --git a/src/port/sf3000/port.c b/src/port/sf3000/port.c
-index b2fbcf3..08000b2 100644
+index b2fbcf3..c69fc62 100644
 --- a/src/port/sf3000/port.c
 +++ b/src/port/sf3000/port.c
 @@ -2,8 +2,7 @@
@@ -967,7 +967,7 @@ index b2fbcf3..08000b2 100644
      }
 -    menu_was = menu_now;
 +    if (!modifier) menu_was = 0;
-+    if (modifier) k = 0;
++    if (modifier && (btn(k, CV_L) || btn(k, CV_R))) k = 0;
  
      /* Build PSX pad word (0=pressed, 1=released) */
      uint16_t p = 0xFFFF;
