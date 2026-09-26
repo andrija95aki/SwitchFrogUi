@@ -12,6 +12,11 @@ SwitchFrogUI is a hobby project, and these days I spend more time developing
 the OS than actually playing games on it! Your testing and bug reports help
 me make it better. Thank you for giving it a try and being part of the project.
 
+### Known bug: Quick Resume
+
+Quick Resume can cause emulators to become unstable. If you encounter issues,
+disable **Quick Resume** in Settings. A fix is planned soon.
+
 ### Changes
 
 - Promotes the local menu-power update into source and both complete SD-card
