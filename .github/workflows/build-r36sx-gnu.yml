@@ -14,6 +14,8 @@ on:
       - tests/input_remap_test.c
       - tests/state_slot_history_test.c
       - apps/state_slot_history.h
+      - apps/menu_power.h
+      - tests/menu_power_test.c
 
 permissions:
   contents: read
@@ -39,6 +41,8 @@ jobs:
           /tmp/input_remap_test
           gcc -std=gnu99 -Wall tests/state_slot_history_test.c -o /tmp/state_slot_history_test
           /tmp/state_slot_history_test
+          gcc -std=gnu99 -Wall -Wextra tests/menu_power_test.c -o /tmp/menu_power_test
+          /tmp/menu_power_test "$(mktemp -d)"
 
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash

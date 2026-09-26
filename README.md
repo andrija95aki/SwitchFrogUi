@@ -2,12 +2,12 @@
 
 # SwitchFrogUI - R36SX Retro Frontend
 
-## Version 1.4.0 - full SD-card packages
+## Version 1.4.1 - full SD-card packages
 
 | Board | Download | Hardware status |
 | --- | --- | --- |
-| R36SX v2.7 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.0/SwitchFrogUI-1.4.0-R36SX-v2.7.zip) | Development tested on v2.7; new changes need testing |
-| R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.0/SwitchFrogUI-1.4.0-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
+| R36SX v2.7 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.1/SwitchFrogUI-1.4.1-R36SX-v2.7.zip) | Development tested on v2.7; new changes need testing |
+| R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.1/SwitchFrogUI-1.4.1-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
 
 Extract all files directly to an empty FAT32 card. Both ZIPs include the boot
 system and apps; no separate stock copy is needed. No games, proprietary BIOS dumps, saves,
@@ -19,7 +19,11 @@ are not enabled automatically and have not been validated on every game.
 
 This release adds safe list-based button mapping/reset, selectable save-state
 launching, newest-state Quick Resume, MENU+L save / MENU+R load, a keyboard that
-fits the screen, and a versioned boot logo. See [release notes](release-notes.md)
+fits the screen, and a versioned boot logo. Version 1.4.1 adds idle frame reuse,
+sleep-based menu pacing and supported dynamic CPU governors, restored before
+launching games/apps. Actual battery/temperature improvements are not yet
+measured; see [menu power notes](docs/r36sx/MENU-POWER.md).
+See [release notes](release-notes.md)
 and [installation/controls](docs/r36sx/INSTALL.md).
 
 Some imported TreeFrogUI features have not been thoroughly tested. Andrija has

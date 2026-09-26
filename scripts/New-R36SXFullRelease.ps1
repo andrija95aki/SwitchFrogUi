@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$StockCardRoot,
     [Parameter(Mandatory=$true)][ValidateSet('2.6','2.7')][string]$BoardRevision,
     [Parameter(Mandatory=$true)][string]$StockPhotoRoot,
-    [string]$Version='1.4.0',
+    [string]$Version='1.4.1',
     [string]$OutputDirectory=(Join-Path $PSScriptRoot '../dist')
 )
 $ErrorActionPreference='Stop'
@@ -107,12 +107,12 @@ foreach($file in @('photo (1).jpg','photo (2).jpg','photo (3).jpg')){
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'cubegm/cores/.pcsx4all') | Out-Null
 foreach($file in @('LICENSE.md','release-notes.md','cores.md')){Copy-One (Join-Path $repo $file) $file}
 Copy-One (Join-Path $repo 'cores.md') 'CORE-SOURCES.md'
-foreach($file in @('INSTALL.md','FEATURES.md','THIRD_PARTY_NOTICES.md','JSDEV.md')){
+foreach($file in @('INSTALL.md','FEATURES.md','THIRD_PARTY_NOTICES.md','JSDEV.md','MENU-POWER.md')){
     Copy-One (Join-Path $repo "docs/r36sx/$file") "docs/$file"
 }
 $utf8=New-Object Text.UTF8Encoding($false)
 [IO.File]::WriteAllText((Join-Path $stage 'START-HERE.txt'),
- "SwitchFrogUI $Version - R36SX motherboard v$BoardRevision`nExtract ALL ZIP contents directly to an empty FAT32 card root, including rootfs and hidden .rockbox files.`nNo separate stock download is required. Game ROMs and proprietary BIOS dumps are not included. Optional open-source firmware and setup instructions: BIOS-GUIDE.md.`nDefault theme: Ocean Depth Gradient.`nOnly R36SX v2.7 has been hardware-tested during development. v2.6 is experimental and not guaranteed.`nNew 1.4.0 changes still need device testing. Imported TreeFrogUI features have not all been thoroughly tested.`nSee docs/INSTALL.md and release-notes.md.`n",$utf8)
+ "SwitchFrogUI $Version - R36SX motherboard v$BoardRevision`nExtract ALL ZIP contents directly to an empty FAT32 card root, including rootfs and hidden .rockbox files.`nNo separate stock download is required. Game ROMs and proprietary BIOS dumps are not included. Optional open-source firmware and setup instructions: BIOS-GUIDE.md.`nDefault theme: Ocean Depth Gradient.`nOnly R36SX v2.7 has been hardware-tested during development. v2.6 is experimental and not guaranteed.`nNew controls and menu-power changes still need device testing. Imported TreeFrogUI features have not all been thoroughly tested.`nSee docs/INSTALL.md and release-notes.md.`n",$utf8)
 [IO.File]::WriteAllText((Join-Path $stage 'BOARD.txt'),"R36SX motherboard v$BoardRevision`nSwitchFrogUI $Version`n",$utf8)
 
 # Check required boot/application files, forbidden payloads and fresh defaults.

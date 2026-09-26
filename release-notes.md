@@ -1,3 +1,29 @@
+## SwitchFrogUI 1.4.1 - Menu idle power and consolidated full-card release
+
+- Promotes the local menu-power update into source and both complete SD-card
+  packages. Menu timing sleeps at 60 Hz rather than relying on framebuffer
+  submissions; input, sound, debounce and timeout semantics are preserved.
+- Reuses unchanged frames, with one visible keepalive per second and no
+  framebuffer presents while blanked when the host supports frame duplication.
+  Input, redraw and wake submit immediately. Other hosts retain full presents.
+- Uses a supported dynamic CPU governor and hardware minimum only while the
+  frontend is active; restores the previous governor/minimum before games/apps.
+  Missing CPUFreq support is a no-op. No voltage, maximum-clock or thermal edits.
+- Retains the 1.4.0 controls, save-state launching, keyboard fix, removed Game
+  Switcher toggle, empty platform directories, and licensed open BIOS package.
+- Static boot graphic now reads SwitchFrogUI Version 1.4.1. Fresh installs keep
+  Ocean Depth Gradient. User card settings, saves and favourites are preserved.
+- Video/emulator runtime code and suspend/wake helpers are unchanged. The
+  regression test simulates 10 static-frame presents instead of 600 over ten
+  seconds; this is not a measured battery-life or temperature improvement.
+- Physical checks remain: boot, inputs/sounds, screen timeout/power wake,
+  game/app handoff, save/load/resume and idle warmth. Some TreeFrogUI imports
+  remain insufficiently tested; only v2.7 has been tested during development,
+  and v2.6 remains experimental with no compatibility guarantee.
+- Both ZIPs include complete boot files and apps, approved samples, empty ROM
+  folders, and optional open firmware with licenses/source/provenance. No game
+  ROMs, proprietary BIOS dumps, private media, saves or personal settings.
+
 ## SwitchFrogUI 1.4.0 - Controls, save-state launching and full SD-card releases
 
 - 2026-09-27 package refresh: optional, licensed PS1/GBA/GB/GBC firmware
@@ -34,7 +60,7 @@
 - Two complete card-root ZIPs target R36SX motherboard v2.6 and v2.7, including
   boot files, emulators and app runtimes, including Rockbox's hidden `.rockbox`.
   Extract directly to an empty FAT32 card; no separate stock copy is needed.
-- No games, console BIOS files, saves, favourites, history, custom settings
+- No games, proprietary console BIOS dumps, saves, favourites, history, custom settings
   or custom media. Samples: SwitchFrogUI video/subtitles, stock H.OS
   `sample.mp4`, Mozart recording, three stock-card photos, World English Bible
   and JSDev API Showcase.

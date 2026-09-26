@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ZigPath,
     [Parameter(Mandatory = $true)][string]$GnuRuntimeRoot,
     [Parameter(Mandatory = $true)][string]$UpstreamReleaseArchive,
-    [switch]$BuildPicoarch
+    [switch]$BuildPicoarch,
+    [ValidatePattern('^[A-Za-z0-9._-]*$')][string]$BuildLabel=''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,7 +26,7 @@ $hcFfmpegInclude = Join-Path $HcrtosRoot 'components\ffmpeg\source'
 $pcsxFont = Join-Path $Pcsx4allRoot 'src\port\sf3000\fonts.c'
 $syscalls = Join-Path $repoRoot 'toolchain\mips_syscalls.S'
 $sampleEbookRoot = Join-Path $appsRoot 'assets\ebooks'
-$switchFrogVersion = '1.4.0'
+$switchFrogVersion = '1.4.1'
 
 $required = @(
     $ZigPath,
@@ -132,6 +133,7 @@ $frogSources = @(
 )
 $buildCommit = (& git -C $repoRoot rev-parse --short=8 HEAD 2>$null)
 if (-not $buildCommit) { $buildCommit = 'source' }
+if ($BuildLabel) { $buildCommit += "+$BuildLabel" }
 $buildDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
 $buildHeader = Join-Path $buildRoot 'switchfrog_build_info.h'
 [IO.File]::WriteAllText($buildHeader, @"
