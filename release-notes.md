@@ -1,3 +1,48 @@
+## SwitchFrogUI 1.4.0 - Controls, save-state launching and full SD-card releases
+
+- Replaced the button-capture wizard with logical-button and physical-button
+  lists. B can be reassigned without leaving the page. Conflicting assignments
+  swap to prevent duplicates. This page uses fixed physical A/B and D-pad.
+- Added Reset All to Defaults, recovery by holding physical Start + L1 + R1
+  for about two seconds in SwitchFrogUI, repair of invalid old maps, and atomic
+  mapping-file replacement.
+- Game Details has a scrollable save-slot list: Up/Down selects a slot; A
+  launches and loads it. PCSX4ALL records each game's disc ID on launch, so
+  existing PS1 states become discoverable after opening the game once.
+- Quick Resume loads the most recently modified existing state on opening
+  a game in PicoArch or PCSX4ALL. Explicit slot selection takes priority.
+  Battery saves and memory cards are separate from emulator save states.
+- MENU/FN + L1 saves and MENU/FN + R1 loads the selected state slot in PicoArch
+  and PCSX4ALL; SELECT also works as modifier. Actions fire once per hold.
+  SELECT + START still opens the emulator menu. PicoArch fast-forward moves
+  to MENU + R2 and screenshot to MENU + L2. Cores lacking serialization support
+  cannot offer save states.
+- On-screen keyboard rows fit the available panel width instead of extending
+  beyond the 640x480 screen.
+- Fresh installs use Ocean Depth Gradient. The static boot graphic shows
+  SwitchFrogUI Version 1.4.0 instead of an H.OS version.
+- Two complete card-root ZIPs target R36SX motherboard v2.6 and v2.7, including
+  boot files, emulators and app runtimes, including Rockbox's hidden `.rockbox`.
+  Extract directly to an empty FAT32 card; no separate stock copy is needed.
+- No games, console BIOS files, saves, favourites, history, custom settings
+  or custom media. Samples: SwitchFrogUI video/subtitles, stock H.OS
+  `sample.mp4`, Mozart recording, three stock-card photos, World English Bible
+  and JSDev API Showcase.
+
+### Testing and compatibility
+
+Some features and emulators are imported from TreeFrogUI and have not been
+thoroughly tested. Andrija has only been able to test development builds on
+R36SX v2.7; **v2.6 is experimental and is not guaranteed to work**. New 1.4.0
+controls/save-state changes still need physical-device testing. The v2.6/v2.7
+labels refer to motherboard revisions, not H.OS version numbers.
+
+The v2.7 package retains the working H.OS 1.2 boot base. v2.6 uses the upstream
+R36SX v2.6 minimal stock backup with SwitchFrogUI and its driver fallback.
+Retained fixes include 1.3.7 hardware display-layer video sizing and directory
+locks, the merged player/subtitle offset, file manager, photo viewer and
+earlier emulator fixes.
+
 ## SwitchFrogUI 1.3.7 safe video zoom and directory locks
 
 - Video Fit, Fill, Stretch and Original modes now use the hardware MAIN-layer

@@ -2,6 +2,26 @@
 
 # SwitchFrogUI - R36SX Retro Frontend
 
+## Version 1.4.0 - full SD-card packages
+
+| Board | Download | Hardware status |
+| --- | --- | --- |
+| R36SX v2.7 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.0/SwitchFrogUI-1.4.0-R36SX-v2.7.zip) | Development tested on v2.7; new changes need testing |
+| R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.0/SwitchFrogUI-1.4.0-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
+
+Extract all files directly to an empty FAT32 card. Both ZIPs include the boot
+system and apps; no separate stock copy is needed. No games, BIOS files, saves,
+history or personal settings are bundled. The requested video, Mozart, photo,
+Bible and JSDev samples are included. Fresh installs use Ocean Depth Gradient.
+
+This release adds safe list-based button mapping/reset, selectable save-state
+launching, newest-state Quick Resume, MENU+L save / MENU+R load, a keyboard that
+fits the screen, and a versioned boot logo. See [release notes](release-notes.md)
+and [installation/controls](docs/r36sx/INSTALL.md).
+
+Some imported TreeFrogUI features have not been thoroughly tested. Andrija has
+only tested on R36SX v2.7 and cannot guarantee v2.6 compatibility.
+
 <p align="center">
   <img alt="R36SX v2.7" src="https://img.shields.io/badge/target-R36SX%20v2.7-45c8ff">
   <img alt="H.OS 1.2" src="https://img.shields.io/badge/base-H.OS%201.2-6d5dfc">
@@ -21,7 +41,7 @@
 > the ROM-free R36SX v2.7/H.OS 1.2 build, source instructions, media-player
 > additions, hardware fixes, release documentation, and
 > [annotated hardware screenshots](docs/r36sx/SCREENSHOTS.md).
-> [Download the R36SX overlay](https://github.com/andrija95aki/SwitchFrogUi/releases/latest).
+> [Download the complete R36SX card packages](https://github.com/andrija95aki/SwitchFrogUi/releases/latest).
 
 ## What SwitchFrogUI adds
 

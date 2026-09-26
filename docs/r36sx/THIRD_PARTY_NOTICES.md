@@ -44,7 +44,11 @@ licenses. Release packages include the corresponding notices and source links.
 - Rockbox: GNU GPL v2 or later.
 - SDL 1.2: GNU LGPL v2.1.
 - FFmpeg/libffplayer and HCRTOS headers/APIs: their respective upstream and
-  component licenses apply; proprietary H.OS firmware is not redistributed.
+  component licenses apply. Full-card 1.4.0 ZIPs contain the stock H.OS boot
+  system needed to boot an empty card. These binaries retain their original
+  terms/ownership and are not relicensed as SwitchFrogUI. v2.6 provenance:
+  https://github.com/tzubertowski/H.OS_stock_backup/releases/tag/stock-backups-v1
+  v2.7 provenance: the working R36SX v2.7 H.OS 1.2 stock-card base.
 - libpng and zlib: the libpng and zlib licenses respectively.
 - Duktape 2.7.0 by the Duktape authors: MIT. The official unmodified
   amalgamated source and license are vendored in
@@ -94,7 +98,8 @@ is legally required by CC0, but provenance is recorded here.
 
 ## Included sample ebooks
 
-The following English EPUB files are included only to test the Ebooks reader:
+Full-card 1.4.0 releases include only the World English Bible. The source tree
+also retains these English EPUB resources for development:
 
 - `World English Bible (WEB).epub`: World English Bible Complete, Project
   Gutenberg ebook #8294. The source page identifies it as public domain in the

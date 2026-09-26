@@ -126,6 +126,26 @@ The output is an uncompressed 640x480, 32-bit, top-down BMP accepted by H.OS.
 
 ## 4. Create a maintainer release
 
+For the **complete 1.4.0 empty-card ZIPs**, use `New-R36SXFullRelease.ps1`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/New-R36SXFullRelease.ps1 `
+  -TestedCardRoot 'C:\TreeFrogUI\TESTCARD' `
+  -StockCardRoot 'C:\TreeFrogUI\R36SX-v2.6-stock' `
+  -StockPhotoRoot 'E:\Photo' -BoardRevision 2.6 -OutputDirectory '.\dist'
+```
+
+Run again for board 2.7 using the working H.OS 1.2 stock base. The script copies
+the board-specific rootfs/boot files, required application data, clean defaults
+and explicit sample list; audits ROM/BIOS/save/history exclusions; writes a
+per-file checksum manifest; and verifies mandatory files inside the ZIP.
+The ZIP contains card-root files directly, including hidden `.rockbox` data.
+Obtain the v2.6 base from the upstream
+[stock backup release](https://github.com/tzubertowski/H.OS_stock_backup/releases/tag/stock-backups-v1).
+The two board labels must not be presented as H.OS version numbers.
+
+The older overlay-only script below remains for historical builds:
+
 Release assembly is intentionally allow-list based. Point it at a locally
 tested card tree; it copies only required runtime files and rejects ROM, BIOS,
 save, history, and log patterns.

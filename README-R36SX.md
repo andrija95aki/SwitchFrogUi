@@ -1,5 +1,13 @@
 # SwitchFrogUI for R36SX
 
+**1.4.0 full-card releases:** download the v2.7 or experimental v2.6 ZIP from
+[Releases](https://github.com/andrija95aki/SwitchFrogUi/releases/latest) and
+extract its contents directly to an empty FAT32 card. See
+[current installation instructions](docs/r36sx/INSTALL.md) and
+[1.4.0 changes and testing limits](release-notes.md). Only v2.7 has been tested
+during development; v2.6 is not guaranteed. Some imported TreeFrogUI features
+have not been thoroughly tested.
+
 This branch is an R36SX v2.7 / H.OS 1.2-focused fork of
 [TreeFrogUI](https://github.com/tzubertowski/treefrog-ui). It keeps the original
 TreeFrogUI and FrogUI attribution and license terms, and adds the console-style

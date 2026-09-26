@@ -1,5 +1,21 @@
 # R36SX features and fixes
 
+## New in 1.4.0
+
+- Button Remap uses logical and physical lists, swaps conflicting assignments,
+  keeps fixed physical navigation, and includes Reset All to Defaults.
+  Hold physical Start + L1 + R1 for two seconds in the UI for recovery.
+- Game Details: Up/Down selects a state; A launches and loads it. PCSX4ALL
+  registers disc IDs after one launch to expose existing states.
+- Quick Resume picks the newest state on game launch; explicit selection wins.
+- MENU/FN (or SELECT) + L1 saves and + R1 loads in PicoArch and PCSX4ALL.
+  PicoArch screenshot is MENU + L2; fast-forward is MENU + R2.
+- On-screen keyboard rows fit the panel. Fresh-install theme is Ocean Depth
+  Gradient; boot art shows SwitchFrogUI Version 1.4.0.
+- Complete, audited card-root ZIPs for v2.7 and experimental v2.6. Only v2.7
+  has been tested during development. Not all imported TreeFrogUI features
+  have been thoroughly tested; new changes still need device validation.
+
 For a reader-friendly comparison against both stock H.OS 1.2 and the pinned
 TreeFrogUI/FrogUI base, see [What SwitchFrogUI adds](ADDITIONS.md).
 

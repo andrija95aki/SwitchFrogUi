@@ -1,0 +1,11 @@
+theme=Ocean Depth Gradient
+background=Theme / artwork
+font_size=100
+brightness=75
+screen_timeout=30
+volume=50
+ui_sound_pack=Classic
+auto_resume=off
+autosave_autoload=off
+r36sx_display_glitch_fix=off
+disable_sleep=on

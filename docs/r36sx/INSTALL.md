@@ -1,4 +1,52 @@
-# Install on R36SX v2.7 / H.OS 1.2
+# Install SwitchFrogUI 1.4.0 on R36SX
+
+Choose the ZIP for the revision printed on your motherboard:
+
+- `SwitchFrogUI-1.4.0-R36SX-v2.7.zip`: working H.OS 1.2 boot base.
+- `SwitchFrogUI-1.4.0-R36SX-v2.6.zip`: experimental, not hardware-tested or guaranteed.
+
+Only v2.7 has been tested during development. Some imported TreeFrogUI features
+have not been thoroughly tested; new 1.4.0 controls also need device testing.
+
+## Full-package installation (1.4.0 and later)
+
+1. Keep your existing card as a backup and prepare an empty FAT32 SD card.
+2. Extract **all ZIP contents directly to its root**, including `rootfs`,
+   `cubegm`, `frogui`, `roms`, and `MD`. Do not add an enclosing folder.
+3. Include hidden files: `roms/rockbox/.rockbox` is required by Music.
+4. Safely eject and boot. The logo shows SwitchFrogUI Version 1.4.0 and the
+   default theme is Ocean Depth Gradient.
+
+No separate stock download is required. Do not overwrite this package with a
+different board's stock files. Games and console BIOS files are not included;
+add your own to the appropriate `roms/<platform>` and emulator BIOS directories.
+The MD dummy/filelist files are required bootstrap data, not games.
+
+Samples are under Videos, Music, Photo, Ebooks and roms/JSDev.
+
+## New controls
+
+- Button Remap: select a logical button, then a physical one. Conflicts swap.
+  The page always uses physical A/B and D-pad, regardless of remapping.
+- Reset: use Reset All to Defaults or hold physical **Start + L1 + R1** for
+  about two seconds anywhere in SwitchFrogUI.
+- Game Details: Up/Down selects a saved slot; A launches and loads it. Open
+  PS1 games once so PCSX4ALL can register their disc IDs for the save list.
+- Quick Resume loads the newest state. Explicit slot choice takes priority.
+  Battery saves and memory cards remain managed inside each game.
+- MENU/FN + L1 saves; MENU/FN + R1 loads. SELECT also works as modifier.
+- SELECT + START opens the emulator menu. PicoArch uses MENU + L2 for
+  screenshots and MENU + R2 for fast-forward when enabled.
+- SELECT toggles the on-screen keyboard. Cores without state serialization
+  cannot support emulator save/load shortcuts.
+
+Retest FIT playback, B remapping, reset, keyboard edges, save/load and resume
+on your device. Restore your card backup to roll back.
+
+---
+
+The following instructions apply **only to older overlay releases**, not the
+complete 1.4.0 ZIPs described above.
 
 ## What you need
 
