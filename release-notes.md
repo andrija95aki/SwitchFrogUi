@@ -9,7 +9,7 @@
 - Game Details has a scrollable save-slot list: Up/Down selects a slot; A
   launches and loads it. PCSX4ALL records each game's disc ID on launch, so
   existing PS1 states become discoverable after opening the game once.
-- Quick Resume loads the most recently modified existing state on opening
+- Quick Resume loads the last successfully saved state on opening
   a game in PicoArch or PCSX4ALL. Explicit slot selection takes priority.
   Battery saves and memory cards are separate from emulator save states.
   Successful saves now write an atomic last-slot marker, which takes priority
