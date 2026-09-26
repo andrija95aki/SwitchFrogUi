@@ -106,7 +106,7 @@ index 599031e..b31fdd4 100644
  	CFLAGS  := $(filter-out -flto,$(CFLAGS))
  	LDFLAGS := $(filter-out -flto,$(LDFLAGS))
 diff --git a/core.c b/core.c
-index 25221d8..e9e6df4 100644
+index 25221d8..94667fd 100644
 --- a/core.c
 +++ b/core.c
 @@ -15,6 +15,7 @@
@@ -140,7 +140,23 @@ index 25221d8..e9e6df4 100644
  
  	return ret;
  }
-@@ -605,6 +610,8 @@ static void pa_input_poll(void) {
+@@ -274,6 +279,15 @@ int state_resume(void) {
+ 	return ret;
+ }
+ 
++int state_last_saved_slot(void) {
++    char latest[MAX_PATH], path[MAX_PATH]; struct stat st;
++    content_based_name(content,latest,sizeof(latest),config_dir,NULL,".laststate");
++    int slot=sf_state_slot_read(latest,0,9);
++    if (slot < 0) return -1;
++    state_file_name(path,sizeof(path),slot);
++    return !stat(path,&st) && S_ISREG(st.st_mode) && st.st_size > 0 ? slot : -1;
++}
++
+ unsigned disc_get_count(void) {
+ 	if (disk_control_ext.get_num_images)
+ 		return disk_control_ext.get_num_images();
+@@ -605,6 +619,8 @@ static void pa_input_poll(void) {
  		const uint32_t SEL_BIT   = (1u << 0);   /* SELECT = bit 0  */
  		const uint32_t START_BIT = (1u << 3);   /* START  = bit 3  */
  		const uint32_t R1_BIT    = (1u << 11);  /* R1     = bit 11 */
@@ -149,7 +165,7 @@ index 25221d8..e9e6df4 100644
  		const uint32_t L2_BIT    = (1u << 8);   /* L2     = bit 8  */
  		const uint32_t R2_BIT    = (1u << 9);   /* R2     = bit 9  */
  
-@@ -623,6 +630,7 @@ static void pa_input_poll(void) {
+@@ -623,6 +639,7 @@ static void pa_input_poll(void) {
  		static int menu_armed = 1;
  		static int ss_armed = 1;   /* save/load-state latch */
  		static int sel_off_cnt = 0;
@@ -157,7 +173,7 @@ index 25221d8..e9e6df4 100644
  		if (g_is_frogui) {
  			prev_raw = raw;
  			buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -632,22 +640,26 @@ static void pa_input_poll(void) {
+@@ -632,22 +649,26 @@ static void pa_input_poll(void) {
  			menu_armed = 0;
  			sel_off_cnt = 0;
  			handle_emu_action(EACTION_MENU);
@@ -188,7 +204,7 @@ index 25221d8..e9e6df4 100644
  		#undef COMBO_EDGE
  
  		/* Re-arm the menu only after SELECT has been CONTINUOUSLY released for a
-@@ -663,6 +675,13 @@ static void pa_input_poll(void) {
+@@ -663,6 +684,13 @@ static void pa_input_poll(void) {
  		 * persist in the config. Hotkeys above stay on raw physical bits so
  		 * SELECT+START always opens the menu regardless of remapping. */
  		buttons = actions[IN_BINDTYPE_PLAYER12];
@@ -202,7 +218,7 @@ index 25221d8..e9e6df4 100644
  frogui_no_hotkeys: ;
  	} else {
  		buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -820,6 +839,12 @@ int core_load_content(struct content *content) {
+@@ -820,6 +848,12 @@ int core_load_content(struct content *content) {
  		 * bound (controls dead + console spam on button press). */
  		current_core.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
  	}
@@ -215,6 +231,18 @@ index 25221d8..e9e6df4 100644
  
  	DBG("DBG M5e: get_system_av_info\n");
  	current_core.retro_get_system_av_info(&av_info);
+diff --git a/core.h b/core.h
+index dda4e85..23c5a01 100644
+--- a/core.h
++++ b/core.h
+@@ -54,6 +54,7 @@ void sram_autosave(void);
+ 
+ bool state_allowed(void);
+ void state_file_name(char *name, size_t size, int slot);
++int state_last_saved_slot(void);
+ void save_game_screenshot(void);
+ int pa_state_read(void);
+ int pa_state_write(void);
 diff --git a/hwdisp.c b/hwdisp.c
 index 5367b21..2969288 100644
 --- a/hwdisp.c
@@ -574,20 +602,18 @@ index 6e72d66..7f37246 100644
  /* Present an RGB565 frame to the panel via HW.
   * src: RGB565 pixel buffer (16bpp)
 diff --git a/main.c b/main.c
-index 0366317..f4c32fb 100644
+index 0366317..b783ede 100644
 --- a/main.c
 +++ b/main.c
-@@ -9,7 +9,9 @@
+@@ -9,6 +9,7 @@
  #include <errno.h>
  #include <sys/ioctl.h>
  #include <sys/resource.h>
 +#include <sys/stat.h>
  #include <time.h>
-+#include "state_slot_history.h"
  
  #define FROGUI_CORE "/mnt/sdcard/cubegm/cores/frogui_libretro.so"
- #define PICOARCH_BIN    "/mnt/sdcard/cubegm/picoarch"
-@@ -574,6 +576,7 @@ void handle_emu_action(emu_action action)
+@@ -574,6 +575,7 @@ void handle_emu_action(emu_action action)
  		break;
  	case EACTION_MENU:
  	{
@@ -595,7 +621,7 @@ index 0366317..f4c32fb 100644
  #ifdef PLATFORM_SF3000
  		extern int sf3000_use_hwdisp;
  		DBG("DBG EACTION_MENU: use_hwdisp=%d filter=%d\n",
-@@ -637,6 +640,7 @@ void handle_emu_action(emu_action action)
+@@ -637,6 +639,7 @@ void handle_emu_action(emu_action action)
  		}
  #endif
  		rewind_apply();   /* apply rewind on/off toggled in the menu, no restart */
@@ -603,7 +629,7 @@ index 0366317..f4c32fb 100644
  		break;
  	case EACTION_TOGGLE_HUD:
  		show_hud = !show_hud;
-@@ -770,7 +774,14 @@ static void adjust_audio(void) {
+@@ -770,7 +773,14 @@ static void adjust_audio(void) {
  
  	if (current_core.retro_audio_buffer_status) {
  		float occupancy = 1.0 - plat_sound_capacity();
@@ -618,7 +644,7 @@ index 0366317..f4c32fb 100644
  	}
  }
  
-@@ -1045,6 +1056,49 @@ int main(int argc, char **argv) {
+@@ -1045,6 +1055,43 @@ int main(int argc, char **argv) {
  	}
  #endif
  	show_startup_message();
@@ -639,16 +665,10 @@ index 0366317..f4c32fb 100644
 +            fclose(request); unlink("/tmp/switchfrog_state_request");
 +        }
 +        if (explicit_slot < 0 && g_quick_resume) {
-+            char latest[MAX_PATH], state_path[MAX_PATH];
-+            content_based_name(content,latest,sizeof(latest),config_dir,NULL,".laststate");
-+            int recorded = sf_state_slot_read(latest,0,9);
++            int recorded = state_last_saved_slot();
 +            if (recorded >= 0) {
-+                struct stat st;
-+                state_file_name(state_path,sizeof(state_path),recorded);
-+                if (!stat(state_path,&st) && S_ISREG(st.st_mode) && st.st_size > 0) {
-+                    resume_slot = recorded;
-+                    explicit_slot = recorded;
-+                }
++                resume_slot = recorded;
++                explicit_slot = recorded;
 +            }
 +        }
 +        if (explicit_slot < 0 && g_quick_resume) {
