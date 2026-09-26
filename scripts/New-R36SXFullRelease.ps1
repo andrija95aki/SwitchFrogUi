@@ -101,9 +101,7 @@ Get-ChildItem -LiteralPath (Join-Path $repo 'apps/jsdev/examples') -File -Filter
 foreach($file in @('photo (1).jpg','photo (2).jpg','photo (3).jpg')){
     Copy-One (Join-Path $StockPhotoRoot $file) "Photo/$file"
 }
-foreach($dir in @('gba','gb','gbc','nes','snes','ps1','md','arcade','doom','heretic','hexen','Ebook')){
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage "roms/$dir") | Out-Null
-}
+& (Join-Path $PSScriptRoot 'Add-R36SXRomFolders.ps1') -CardRoot $stage
 # PCSX creates memcards/savestates below this parent on first launch.
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'cubegm/cores/.pcsx4all') | Out-Null
 foreach($file in @('LICENSE.md','release-notes.md','cores.md')){Copy-One (Join-Path $repo $file) $file}

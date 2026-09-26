@@ -41,6 +41,9 @@ No separate stock installation is needed. Include hidden files, especially
 Included: board boot files, launcher, emulator cores, Rockbox and its data,
 video/ebook tools, the SwitchFrogUI test video/subtitles and stock `sample.mp4`,
 the Mozart song, three stock-card photos, World English Bible, and JSDev demos.
+Empty platform/emulator ROM folders are included, with `ROM-FOLDERS.md`
+explaining where to put games. Platform cards appear after supported games
+are added.
 
 Excluded: game ROMs, console BIOS files, user saves, favourites, history,
 custom settings, other media and custom content. `MD/dummy.md` is a tiny required

@@ -44,6 +44,10 @@ try {
 
 $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try {
+    foreach($dir in Get-ChildItem -LiteralPath $stage -Recurse -Directory -Force){
+        $name=$dir.FullName.Substring($stage.Length+1).Replace('\','/')+'/'
+        if(-not $archive.GetEntry($name)){throw "ZIP missing directory (including empty folders): $name"}
+    }
     foreach($required in @('rootfs/etc/init.d/rcS','rootfs/dev/','rootfs/proc/',
         'rootfs/sys/','cubegm/rkgame','cubegm/cores/frogui_libretro.so',
         'cubegm/cores/.pcsx4all/','MD/dummy.md','roms/rockbox/.rockbox/rockbox')){

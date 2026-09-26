@@ -1,5 +1,7 @@
 ## SwitchFrogUI 1.4.0 - Controls, save-state launching and full SD-card releases
 
+- Both full-card ZIPs preserve empty platform/emulator folders, with a
+  `ROM-FOLDERS.md` guide explaining where to put games. No ROMs are included.
 - Replaced the button-capture wizard with logical-button and physical-button
   lists. B can be reassigned without leaving the page. Conflicting assignments
   swap to prevent duplicates. This page uses fixed physical A/B and D-pad.
