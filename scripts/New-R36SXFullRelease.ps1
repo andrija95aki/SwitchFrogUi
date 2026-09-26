@@ -24,6 +24,14 @@ function Copy-One([string]$Source,[string]$Relative){
 function Copy-Tree([string]$Source,[string]$Relative){
     if(-not(Test-Path -LiteralPath $Source -PathType Container)){throw "Missing runtime directory: $Source"}
     $resolved=(Resolve-Path -LiteralPath $Source).Path.TrimEnd('\')
+    New-Item -ItemType Directory -Force -Path (Join-Path $stage $Relative) | Out-Null
+    # Preserve empty mount points (dev/proc/sys/tmp/mnt) and app directories.
+    Get-ChildItem -LiteralPath $resolved -Recurse -Directory -Force | ForEach-Object {
+        $tail=$_.FullName.Substring($resolved.Length+1)
+        if($tail -notmatch '(?i)(^|[\\/])(bios|saves?|states?)([\\/]|$)'){
+            New-Item -ItemType Directory -Force -Path (Join-Path (Join-Path $stage $Relative) $tail) | Out-Null
+        }
+    }
     Get-ChildItem -LiteralPath $resolved -Recurse -File -Force | ForEach-Object {
         $tail=$_.FullName.Substring($resolved.Length+1)
         if($tail -match '(?i)(^|[\\/])(bios|saves?|states?)([\\/]|$)|\.pre-|\.log$|\.sav$|\.mcr$|\.zip$|gba_bios|neogeo|pgm\.zip|(^|[\\/])\.ash_history$'){return}
@@ -95,6 +103,8 @@ foreach($file in @('photo (1).jpg','photo (2).jpg','photo (3).jpg')){
 foreach($dir in @('gba','gb','gbc','nes','snes','ps1','md','arcade','doom','heretic','hexen','Ebook')){
     New-Item -ItemType Directory -Force -Path (Join-Path $stage "roms/$dir") | Out-Null
 }
+# PCSX creates memcards/savestates below this parent on first launch.
+New-Item -ItemType Directory -Force -Path (Join-Path $stage 'cubegm/cores/.pcsx4all') | Out-Null
 foreach($file in @('LICENSE.md','release-notes.md','cores.md')){Copy-One (Join-Path $repo $file) $file}
 Copy-One (Join-Path $repo 'cores.md') 'CORE-SOURCES.md'
 foreach($file in @('INSTALL.md','FEATURES.md','THIRD_PARTY_NOTICES.md','JSDEV.md')){
@@ -128,15 +138,6 @@ $hashes=$files | Sort-Object FullName | ForEach-Object {
 [IO.File]::WriteAllLines((Join-Path $stage 'SHA256SUMS.txt'),$hashes,$utf8)
 [IO.File]::WriteAllText((Join-Path $stage 'PUBLISH-AUDIT.txt'),
  "PASS: complete board-specific boot/runtime checks`nPASS: ROM/BIOS/save/history exclusions`nPASS: explicit requested media allow-list`nFiles: $($files.Count)`nBoard: $BoardRevision`n",$utf8)
-# .NET ZipFile includes hidden .rockbox content; Compress-Archive may omit it.
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip=Join-Path $out "$name.zip"
-[IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
-$archive=[IO.Compression.ZipFile]::OpenRead($zip)
-try {
-    foreach($file in $required){if(-not $archive.GetEntry($file)){throw "ZIP missing required entry $file"}}
-    if($archive.Entries.Count -lt $files.Count){throw 'ZIP lost files during creation'}
-} finally {$archive.Dispose()}
-$hash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
-[IO.File]::WriteAllText("$zip.sha256","$hash  $name.zip`n",$utf8)
+& (Join-Path $PSScriptRoot 'Write-R36SXCardZip.ps1') -StageDirectory $stage -ZipPath $zip
 Write-Host "Verified full-card release: $zip"
