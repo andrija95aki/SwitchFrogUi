@@ -1,4 +1,4 @@
 [submodule "frogui"]
 	path = frogui
-	url = git@github.com:tzubertowski/FrogUI.git
+	url = https://github.com/tzubertowski/FrogUI.git
 	branch = sf3000

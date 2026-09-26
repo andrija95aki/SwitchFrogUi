@@ -10,6 +10,8 @@ on:
       - patches/r36sx-pcsx4all-runtime.patch
       - patches/r36sx-picoarch.patch
       - .github/workflows/build-r36sx-gnu.yml
+      - .gitmodules
+      - tests/input_remap_test.c
 
 permissions:
   contents: read
