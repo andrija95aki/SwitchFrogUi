@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$StageDirectory,
-    [Parameter(Mandatory=$true)][string]$ZipPath
+    [Parameter(Mandatory=$true)][string]$ZipPath,
+    [string]$PreviousArchive
 )
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.IO.Compression
@@ -8,15 +9,35 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $stage=(Resolve-Path -LiteralPath $StageDirectory).Path.TrimEnd('\')
 $zip=[IO.Path]::GetFullPath($ZipPath)
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $zip) | Out-Null
-$stream=[IO.File]::Open($zip,[IO.FileMode]::CreateNew)
-$archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
+if (Test-Path -LiteralPath $zip) {throw "Output already exists: $zip"}
+$oldHashes=@{}
+if ($PreviousArchive) {
+    Copy-Item -LiteralPath $PreviousArchive -Destination $zip
+    $stream=[IO.File]::Open($zip,[IO.FileMode]::Open)
+    $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Update,$false)
+    $reader=New-Object IO.StreamReader($archive.GetEntry('SHA256SUMS.txt').Open())
+    try {while(($line=$reader.ReadLine()) -ne $null){
+        if($line -match '^([A-Fa-f0-9]{64})  (.+)$'){$oldHashes[$Matches[2]]=$Matches[1]}
+    }} finally {$reader.Dispose()}
+    foreach($entry in @($archive.Entries)) {
+        if (-not(Test-Path -LiteralPath (Join-Path $stage $entry.FullName))) {$entry.Delete()}
+    }
+} else {
+    $stream=[IO.File]::Open($zip,[IO.FileMode]::CreateNew)
+    $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
+}
 try {
     foreach($dir in Get-ChildItem -LiteralPath $stage -Recurse -Directory -Force){
         $name=$dir.FullName.Substring($stage.Length+1).Replace('\','/')+'/'
-        $archive.CreateEntry($name) | Out-Null
+        if (!$PreviousArchive -or !$archive.GetEntry($name)) {$archive.CreateEntry($name) | Out-Null}
     }
     foreach($file in Get-ChildItem -LiteralPath $stage -Recurse -File -Force){
         $name=$file.FullName.Substring($stage.Length+1).Replace('\','/')
+        if ($PreviousArchive) {
+            if ($oldHashes[$name] -eq (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash) {continue}
+            $oldEntry=$archive.GetEntry($name)
+            if($oldEntry){$oldEntry.Delete()}
+        }
         [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$file.FullName,$name,[IO.Compression.CompressionLevel]::Optimal) | Out-Null
     }
 } finally {$archive.Dispose(); $stream.Dispose()}
