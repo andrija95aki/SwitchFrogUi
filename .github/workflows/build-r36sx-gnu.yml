@@ -12,6 +12,8 @@ on:
       - .github/workflows/build-r36sx-gnu.yml
       - .gitmodules
       - tests/input_remap_test.c
+      - tests/state_slot_history_test.c
+      - apps/state_slot_history.h
 
 permissions:
   contents: read
@@ -35,6 +37,8 @@ jobs:
           git -C frogui apply --whitespace=nowarn ../patches/r36sx-frogui.patch
           gcc -std=gnu99 -Wall tests/input_remap_test.c -o /tmp/input_remap_test
           /tmp/input_remap_test
+          gcc -std=gnu99 -Wall tests/state_slot_history_test.c -o /tmp/state_slot_history_test
+          /tmp/state_slot_history_test
 
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash
@@ -75,6 +79,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/patches/pcsx4all/tf_driver.h" \
             "$RUNNER_TEMP/pcsx4all/src/port/sf3000/tf_driver.h"
           git -C "$RUNNER_TEMP/pcsx4all" apply "$GITHUB_WORKSPACE/patches/r36sx-pcsx4all-runtime.patch"
+          cp "$GITHUB_WORKSPACE/apps/state_slot_history.h" "$RUNNER_TEMP/pcsx4all/src/port/sf3000/"
 
       - name: Assemble the pinned PicoArch source
         shell: bash
@@ -85,6 +90,7 @@ jobs:
           git -C "$RUNNER_TEMP/picoarch" checkout f8ff5ba
           git -C "$RUNNER_TEMP/picoarch" apply "$GITHUB_WORKSPACE/patches/r36sx-picoarch.patch"
           cp "$GITHUB_WORKSPACE/toolchain/mips_syscalls.S" "$RUNNER_TEMP/picoarch/mips_syscalls.S"
+          cp "$GITHUB_WORKSPACE/apps/state_slot_history.h" "$RUNNER_TEMP/picoarch/"
 
       - name: Build the pinned target libpng dependency
         shell: bash

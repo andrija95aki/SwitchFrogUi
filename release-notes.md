@@ -12,6 +12,9 @@
 - Quick Resume loads the most recently modified existing state on opening
   a game in PicoArch or PCSX4ALL. Explicit slot selection takes priority.
   Battery saves and memory cards are separate from emulator save states.
+  Successful saves now write an atomic last-slot marker, which takes priority
+  over dates because some R36SX clocks give all saves the same 1979 timestamp.
+  Old untracked states fall back to dates; use explicit selection if tied.
 - MENU/FN + L1 saves and MENU/FN + R1 loads the selected state slot in PicoArch
   and PCSX4ALL; SELECT also works as modifier. Actions fire once per hold.
   SELECT + START still opens the emulator menu. PicoArch fast-forward moves

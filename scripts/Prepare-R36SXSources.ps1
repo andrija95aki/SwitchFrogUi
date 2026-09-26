@@ -75,5 +75,7 @@ if ($alreadyApplied) {
 
 Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'toolchain\mips_syscalls.S') `
     -Destination (Join-Path $picoRoot 'mips_syscalls.S')
+Copy-Item -Force -LiteralPath (Join-Path $repoRoot 'apps\state_slot_history.h') `
+    -Destination (Join-Path $picoRoot 'state_slot_history.h')
 
 Write-Host "Prepared R36SX sources under $buildRoot"

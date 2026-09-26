@@ -34,6 +34,8 @@ Samples are under Videos, Music, Photo, Ebooks and roms/JSDev.
   PS1 games once so PCSX4ALL can register their disc IDs for the save list.
 - Quick Resume loads the newest state. Explicit slot choice takes priority.
   Battery saves and memory cards remain managed inside each game.
+  New saves record their order independently of the clock. Old saves with
+  identical dates need explicit selection until a new save establishes order.
 - MENU/FN + L1 saves; MENU/FN + R1 loads. SELECT also works as modifier.
 - SELECT + START opens the emulator menu. PicoArch uses MENU + L2 for
   screenshots and MENU + R2 for fast-forward when enabled.

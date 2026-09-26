@@ -22,6 +22,9 @@ No separate stock installation is needed. Include hidden files, especially
   register the disc ID used by its existing save filenames.
 - **Quick Resume:** opening a game loads the newest saved state. Explicit
   slot selection takes priority. Battery saves/memory cards remain in-game data.
+  The last successfully saved slot is recorded independently of the device
+  clock. Older untracked saves use their dates; tied dates cannot establish
+  their original save order, so choose the intended slot manually once.
 - **Shortcuts:** MENU/FN + L1 saves; MENU/FN + R1 loads the selected slot in
   PicoArch and PCSX4ALL. SELECT is also a modifier. SELECT + START opens the
   emulator menu. PicoArch screenshot moves to MENU + L2; fast-forward to
