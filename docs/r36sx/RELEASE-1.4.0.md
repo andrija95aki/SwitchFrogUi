@@ -31,6 +31,8 @@ No separate stock installation is needed. Include hidden files, especially
   emulator menu. PicoArch screenshot moves to MENU + L2; fast-forward to
   MENU + R2. Save states require emulator serialization support.
 - **Keyboard:** all on-screen key rows fit within the display width.
+- **Settings:** removed the Game Switcher toggle; existing Recent presentation
+  preferences remain compatible.
 - **Presentation:** Ocean Depth Gradient is the fresh-install theme; the
   static boot graphic shows SwitchFrogUI Version 1.4.0.
 - Retains the working 1.3.7 video sizing fix and persistent directory locks,

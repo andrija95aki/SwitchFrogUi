@@ -1,5 +1,7 @@
 ## SwitchFrogUI 1.4.0 - Controls, save-state launching and full SD-card releases
 
+- Removed the Game Switcher toggle from Settings without changing existing
+  Recent presentation preferences.
 - Both full-card ZIPs preserve empty platform/emulator folders, with a
   `ROM-FOLDERS.md` guide explaining where to put games. No ROMs are included.
 - Replaced the button-capture wizard with logical-button and physical-button
