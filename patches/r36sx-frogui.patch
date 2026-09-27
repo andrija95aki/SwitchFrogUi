@@ -633,7 +633,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..e4c3270 100644
+index a72c4e6..eaa810a 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -3046,7 +3046,7 @@ index a72c4e6..e4c3270 100644
      const char *core = ov ? ov : get_core_for_folder(folder);
      if (!core) core = get_core_for_extension(path);
      if (ov)
-@@ -1133,648 +2824,4348 @@ static void search_launch(int idx) {
+@@ -1133,648 +2824,4359 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -6039,8 +6039,12 @@ index a72c4e6..e4c3270 100644
 +    return (uint16_t)((r<<11)|(g<<5)|bl);
 +}
 +
++static int virtual_keyboard_panel_top(void) {
++    return SCREEN_HEIGHT - UI_S(258);
++}
++
 +static void render_virtual_keyboard_overlay(int selected_row, int selected_column) {
-+    int panel_x = UI_S(12), panel_y = SCREEN_HEIGHT - UI_S(258);
++    int panel_x = UI_S(12), panel_y = virtual_keyboard_panel_top();
 +    int panel_w = SCREEN_WIDTH - UI_S(24), panel_h = UI_S(238);
 +    int gap = UI_S(5), key_h = UI_S(31);
 +    render_rounded_rect_aa(framebuffer, panel_x, panel_y, panel_w, panel_h,
@@ -6361,7 +6365,14 @@ index a72c4e6..e4c3270 100644
 +static void render_terminal(void) {
 +    int percent=115, line_height=font_mono_line_height(percent);
 +    int columns=(SCREEN_WIDTH-PADDING*2)/font_mono_char_width(percent);
-+    int visible=(SCREEN_HEIGHT-UI_S(42))/line_height;
++    /* Keep the active command above the keyboard and its control legend.
++     * Output must shrink with the viewport, not disappear behind the overlay. */
++    int content_bottom=virtual_keyboard_visible ? virtual_keyboard_panel_top() :
++                       SCREEN_HEIGHT-UI_S(24);
++    int prompt_y=content_bottom-UI_S(8)-line_height;
++    int output_y=UI_S(7);
++    int visible=(prompt_y-UI_S(8)-output_y)/line_height;
++    if(visible<0) visible=0;
 +    int first=terminal_line_count-visible;
 +    render_fill_rect(framebuffer,0,0,SCREEN_WIDTH,SCREEN_HEIGHT,0x0000);
 +    if(first<0) first=0;
@@ -6369,7 +6380,7 @@ index a72c4e6..e4c3270 100644
 +        char shown[TERMINAL_LINE_LEN]; snprintf(shown,sizeof(shown),"%s",terminal_lines[i]);
 +        if(columns>0 && (int)strlen(shown)>columns) shown[columns]='\0';
 +        font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
-+                            UI_S(7)+(i-first)*line_height,shown,0xFFFF,percent);
++                            output_y+(i-first)*line_height,shown,0xFFFF,percent);
 +    }
 +    char prompt[TERMINAL_LINE_LEN+4]; snprintf(prompt,sizeof(prompt),"$ %s_",terminal_input);
 +    if(columns>0 && (int)strlen(prompt)>columns) {
@@ -6378,12 +6389,12 @@ index a72c4e6..e4c3270 100644
 +        prompt[columns]='\0';
 +    }
 +    font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
-+                        SCREEN_HEIGHT-line_height-UI_S(5),prompt,0x07FF,percent);
++                        prompt_y,prompt,0x07FF,percent);
 +    if (virtual_keyboard_visible)
 +        render_virtual_keyboard_overlay(virtual_keyboard_r, virtual_keyboard_c);
 +    else
 +        font_draw_mono_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,
-+                            SCREEN_WIDTH-UI_S(145),UI_S(5),"SELECT KEYBOARD",0xBDF7,70);
++                            PADDING,SCREEN_HEIGHT-UI_S(20),"SELECT KEYBOARD",0xBDF7,70);
 +}
 +
 +static void render_text_editor(void) {
@@ -7944,7 +7955,7 @@ index a72c4e6..e4c3270 100644
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1787,12 +7178,145 @@ void retro_run(void) {
+@@ -1787,12 +7189,145 @@ void retro_run(void) {
          RB(RETRO_DEVICE_ID_JOYPAD_A, 13);    RB(RETRO_DEVICE_ID_JOYPAD_B, 14);
          RB(RETRO_DEVICE_ID_JOYPAD_X, 12);    RB(RETRO_DEVICE_ID_JOYPAD_Y, 15);
          RB(RETRO_DEVICE_ID_JOYPAD_L, 10);    RB(RETRO_DEVICE_ID_JOYPAD_R, 11);
@@ -8090,7 +8101,7 @@ index a72c4e6..e4c3270 100644
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +7326,12 @@ void retro_run(void) {
+@@ -1802,7 +7337,12 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
@@ -8104,7 +8115,7 @@ index a72c4e6..e4c3270 100644
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +7347,8 @@ void retro_run(void) {
+@@ -1818,7 +7358,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -8114,7 +8125,7 @@ index a72c4e6..e4c3270 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +7357,59 @@ void retro_run(void) {
+@@ -1827,20 +7368,59 @@ void retro_run(void) {
          }
      }
  
@@ -8177,7 +8188,7 @@ index a72c4e6..e4c3270 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +7421,73 @@ void retro_run(void) {
+@@ -1852,22 +7432,73 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -8258,7 +8269,7 @@ index a72c4e6..e4c3270 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +7516,24 @@ void retro_run(void) {
+@@ -1896,19 +7527,24 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -8286,7 +8297,7 @@ index a72c4e6..e4c3270 100644
  
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1925,14 +7550,65 @@ void retro_run(void) {
+@@ -1925,14 +7561,65 @@ void retro_run(void) {
              }
          }
  
