@@ -63,6 +63,8 @@ licenses. Release packages include the corresponding notices and source links.
   from upstream TreeFrogUI.
 - GamePocket by AbFarid: SIL Open Font License 1.1.
 - monogram by datagoblin: CC0 1.0.
+  The compiled-in emergency ASCII font (`apps/font_fallback.h`) is rasterized
+  from this face by `tests/make_font_fallback.c` and retains its CC0 provenance.
 
 ## UI fonts
 

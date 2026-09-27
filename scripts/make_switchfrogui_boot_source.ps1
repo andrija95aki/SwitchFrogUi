@@ -1,7 +1,7 @@
 param(
     [string]$InputPng = (Join-Path $PSScriptRoot '..\assets\treefrogui-contributions-boot.png'),
     [string]$OutputPng = (Join-Path $PSScriptRoot '..\assets\switchfrogui-boot.png'),
-    [string]$OsVersion = 'Version 1.4.1'
+    [string]$OsVersion = 'Version 1.4.2'
 )
 
 $ErrorActionPreference = 'Stop'

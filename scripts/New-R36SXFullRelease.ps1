@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$StockCardRoot,
     [Parameter(Mandatory=$true)][ValidateSet('2.6','2.7')][string]$BoardRevision,
     [Parameter(Mandatory=$true)][string]$StockPhotoRoot,
-    [string]$Version='1.4.1',
+    [string]$Version='1.4.2',
     [string]$OutputDirectory=(Join-Path $PSScriptRoot '../dist')
 )
 $ErrorActionPreference='Stop'

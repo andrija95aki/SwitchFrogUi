@@ -1,9 +1,9 @@
-# Install SwitchFrogUI 1.4.1 on R36SX
+# Install SwitchFrogUI 1.4.2 on R36SX
 
 Choose the ZIP for the revision printed on your motherboard:
 
-- `SwitchFrogUI-1.4.1-R36SX-v2.7.zip`: working H.OS 1.2 boot base.
-- `SwitchFrogUI-1.4.1-R36SX-v2.6.zip`: experimental, not hardware-tested or guaranteed.
+- `SwitchFrogUI-1.4.2-R36SX-v2.7.zip`: working H.OS 1.2 boot base.
+- `SwitchFrogUI-1.4.2-R36SX-v2.6.zip`: experimental, not hardware-tested or guaranteed.
 
 Only v2.7 has been tested during development. Some imported TreeFrogUI features
 have not been thoroughly tested; new controls and menu-power changes also need
@@ -16,7 +16,7 @@ yet measured.
 2. Extract **all ZIP contents directly to its root**, including `rootfs`,
    `cubegm`, `frogui`, `roms`, and `MD`. Do not add an enclosing folder.
 3. Include hidden files: `roms/rockbox/.rockbox` is required by Music.
-4. Safely eject and boot. The logo shows SwitchFrogUI Version 1.4.1 and the
+4. Safely eject and boot. The logo shows SwitchFrogUI Version 1.4.2 and the
    default theme is Ocean Depth Gradient.
 
 No separate stock download is required. Do not overwrite this package with a

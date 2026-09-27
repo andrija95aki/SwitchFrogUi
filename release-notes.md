@@ -1,3 +1,28 @@
+## SwitchFrogUI 1.4.2 - Keyboard text resilience and terminal clearance
+
+- Moves the active terminal command above the on-screen keyboard when visible,
+  or above a separate hint footer when hidden. Recent output fits the remaining
+  space; keyboard hints no longer cover the command line.
+- Makes UI font replacement transactional: keep the current face if opening,
+  allocation, full read or basic validation of a replacement fails. Reapplying
+  the same font no longer reloads it unnecessarily.
+- Draws/measures keyboard labels at local scales without modifying global font
+  scale. A compiled-in CC0 monogram fallback renders labels even if fonts or
+  glyph bitmap allocations are unavailable, including terminal/editor text.
+- Host verification covers 12 fonts, three font sizes, 720 keyboard-style render
+  cycles, missing fonts, short reads, allocation failures and fallback text,
+  plus 48 terminal layouts. Intermittent disappearance still needs confirmation
+  on the physical device; no hardware reproduction is claimed.
+- Both complete ROM-free v2.6/v2.7 packages and the static boot graphic now
+  identify version 1.4.2. Existing emulator/video runtimes are unchanged.
+- **Known bug: Quick Resume can still cause instability. Disable it in Settings
+  if affected; the emulator restore fix is not included in 1.4.2.**
+- Only v2.7 has been tested during development; v2.6 remains experimental and
+  is not guaranteed. Some imported TreeFrogUI features are not thoroughly tested.
+- Thank you to SjslTech and MartStratIV for their reviews, and everyone who has
+  tried SwitchFrogUI. Sorry for the bugs! This remains a hobby project: more
+  time goes into developing the OS than playing games on it.
+
 ## SwitchFrogUI 1.4.1 - Menu idle power and consolidated full-card release
 
 ### A note from Andrija

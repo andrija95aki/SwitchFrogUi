@@ -2,12 +2,19 @@
 
 # SwitchFrogUI - R36SX Retro Frontend
 
-## Version 1.4.1 - full SD-card packages
+## Version 1.4.2 - keyboard text and terminal fixes
 
 | Board | Download | Hardware status |
 | --- | --- | --- |
-| R36SX v2.7 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.1/SwitchFrogUI-1.4.1-R36SX-v2.7.zip) | Development tested on v2.7; new changes need testing |
-| R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.1/SwitchFrogUI-1.4.1-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
+| R36SX v2.7 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.2/SwitchFrogUI-1.4.2-R36SX-v2.7.zip) | Development tested on v2.7; new fixes need device testing |
+| R36SX v2.6 | [Complete card ZIP](https://github.com/andrija95aki/SwitchFrogUi/releases/download/switchfrogui-v1.4.2/SwitchFrogUI-1.4.2-R36SX-v2.6.zip) | Experimental, untested; compatibility not guaranteed |
+
+Version 1.4.2 keeps the terminal command line clear of the on-screen keyboard
+and button hints. Font loading now preserves the working face on failure;
+keyboard text scaling cannot change the global UI scale, and a built-in
+fallback keeps labels readable if fonts or glyph allocations are unavailable.
+**Known issue: disable Quick Resume if games become unstable. It is not fixed
+in this release.**
 
 Extract all files directly to an empty FAT32 card. Both ZIPs include the boot
 system and apps; no separate stock copy is needed. No games, proprietary BIOS dumps, saves,

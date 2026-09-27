@@ -26,7 +26,7 @@ $hcFfmpegInclude = Join-Path $HcrtosRoot 'components\ffmpeg\source'
 $pcsxFont = Join-Path $Pcsx4allRoot 'src\port\sf3000\fonts.c'
 $syscalls = Join-Path $repoRoot 'toolchain\mips_syscalls.S'
 $sampleEbookRoot = Join-Path $appsRoot 'assets\ebooks'
-$switchFrogVersion = '1.4.1'
+$switchFrogVersion = '1.4.2'
 
 $required = @(
     $ZigPath,

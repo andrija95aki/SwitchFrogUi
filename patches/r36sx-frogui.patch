@@ -367,14 +367,23 @@ index a23769d..5f4f157 100644
  int favorites_get_count(void);
  
 diff --git a/font.c b/font.c
-index 6a04e1d..50ddc31 100644
+index 6a04e1d..2d69f22 100644
 --- a/font.c
 +++ b/font.c
-@@ -10,12 +10,121 @@ static stbtt_fontinfo font_info;
+@@ -2,6 +2,7 @@
+ #include "stb_truetype.h"
+ #include "font.h"
+ #include "settings.h"
++#include "../apps/font_fallback.h"
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -10,20 +11,177 @@ static stbtt_fontinfo font_info;
  static unsigned char *font_buffer = NULL;
  static float font_scale;
  static int font_loaded = 0;
 +static int font_size_percent = 100;
++static char loaded_font_name[256];
 +static stbtt_fontinfo mono_font_info;
 +static unsigned char *mono_font_buffer = NULL;
 +static int mono_font_loaded = 0;
@@ -384,6 +393,42 @@ index 6a04e1d..50ddc31 100644
  #endif
  #define FONT_SIZE (20.0f * UI_SCALE / 100.0f)
  
++/* This face lives in the executable: no SD access or heap allocation needed. */
++static int fallback_height(int percent) {
++    int h=(int)(FONT_SIZE * percent / 100.0f);
++    return h < 8 ? 8 : h;
++}
++
++static void fallback_char(uint16_t *fb,int w,int h,int x,int y,unsigned char ch,
++                          uint16_t color,int cell_w,int cell_h) {
++    if(!fb)return;
++    if(ch<32 || ch>126)ch='?';
++    for(int dy=0;dy<cell_h;dy++)for(int dx=0;dx<cell_w;dx++){
++        int px=x+dx,py=y+dy;
++        if(px>=0&&px<w&&py>=0&&py<h&&
++           (fallback_ascii[ch-32][dy*16/cell_h] & (1u<<(dx*8/cell_w))))
++            fb[py*w+px]=color;
++    }
++}
++
++/* Reject empty/short reads and out-of-file SFNT tables before handing to stb.
++ * This is corruption screening, not a sandbox for hostile font files. */
++static uint32_t font_be32(const unsigned char *p) {
++    return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];
++}
++static int font_file_valid(const unsigned char *data,size_t size) {
++    if(size<12 || (font_be32(data)!=0x00010000 && memcmp(data,"OTTO",4) &&
++                   memcmp(data,"true",4)))return 0;
++    unsigned tables=((unsigned)data[4]<<8)|data[5];
++    if(!tables || tables>(size-12)/16)return 0;
++    for(unsigned i=0;i<tables;i++){
++        const unsigned char *table=data+12+i*16;
++        uint32_t offset=font_be32(table+8),length=font_be32(table+12);
++        if(offset>size || length>size-offset)return 0;
++    }
++    return 1;
++}
++
 +static int load_mono_font(void) {
 +    static const char *names[] = { "SpaceMono-Regular.ttf", "ShareTechMono-Regular.ttf", "monogram.ttf" };
 +    char path[256];
@@ -399,15 +444,15 @@ index 6a04e1d..50ddc31 100644
 +            fp = fopen(path, "rb");
 +            if (!fp) continue;
 +            fseek(fp, 0, SEEK_END); size = ftell(fp); fseek(fp, 0, SEEK_SET);
-+            if (size <= 0) { fclose(fp); continue; }
++            if (size < 12 || size > 16*1024*1024) { fclose(fp); continue; }
 +            mono_font_buffer = (unsigned char *)malloc((size_t)size);
 +            if (!mono_font_buffer) { fclose(fp); return 0; }
 +            if (fread(mono_font_buffer, 1, (size_t)size, fp) != (size_t)size) {
 +                fclose(fp); free(mono_font_buffer); mono_font_buffer = NULL; continue;
 +            }
 +            fclose(fp);
-+            if (stbtt_InitFont(&mono_font_info, mono_font_buffer,
-+                               stbtt_GetFontOffsetForIndex(mono_font_buffer, 0))) {
++            if (font_file_valid(mono_font_buffer,(size_t)size) &&
++                stbtt_InitFont(&mono_font_info, mono_font_buffer,0)) {
 +                mono_font_loaded = 1;
 +                return 1;
 +            }
@@ -426,7 +471,7 @@ index 6a04e1d..50ddc31 100644
 +
 +int font_mono_char_width(int percent) {
 +    int advance, bearing;
-+    if (!load_mono_font()) return 10 * UI_SCALE / 100;
++    if (!load_mono_font()) return fallback_height(percent)/2;
 +    stbtt_GetCodepointHMetrics(&mono_font_info, 'M', &advance, &bearing);
 +    (void)bearing;
 +    advance = (int)(advance * mono_scale_for(percent) + 0.5f);
@@ -436,7 +481,7 @@ index 6a04e1d..50ddc31 100644
 +int font_mono_line_height(int percent) {
 +    int ascent, descent, gap;
 +    float scale;
-+    if (!load_mono_font()) return 22 * UI_SCALE / 100;
++    if (!load_mono_font()) return fallback_height(percent)+3;
 +    scale = mono_scale_for(percent);
 +    stbtt_GetFontVMetrics(&mono_font_info, &ascent, &descent, &gap);
 +    (void)gap;
@@ -449,7 +494,18 @@ index 6a04e1d..50ddc31 100644
 +    float scale;
 +    int ascent, descent, gap, baseline, advance, bearing;
 +    int start_x = x, char_width, line_height;
-+    if (!framebuffer || !text || !load_mono_font()) return;
++    if (!framebuffer || !text) return;
++    if (!load_mono_font()) {
++        int height=fallback_height(percent),width=height/2;
++        while(*text){
++            unsigned char c=(unsigned char)*text++;
++            if(c=='\n'){x=start_x;y+=height+3;continue;}
++            if(c=='\t'){x+=width*(4-((x-start_x)/width)%4);continue;}
++            fallback_char(framebuffer,screen_width,screen_height,x,y,c,color,width,height);
++            x+=width;
++        }
++        return;
++    }
 +    scale = mono_scale_for(percent);
 +    stbtt_GetFontVMetrics(&mono_font_info, &ascent, &descent, &gap);
 +    baseline = (int)(ascent * scale);
@@ -484,6 +540,9 @@ index 6a04e1d..50ddc31 100644
 +                }
 +            }
 +            stbtt_FreeBitmap(bitmap, NULL);
++        } else if (!stbtt_IsGlyphEmpty(&mono_font_info,glyph)) {
++            fallback_char(framebuffer,screen_width,screen_height,x,y,c,color,
++                          char_width,line_height-3);
 +        }
 +        x += char_width;
 +    }
@@ -491,18 +550,71 @@ index 6a04e1d..50ddc31 100644
 +
  // Internal function to load a font file
  static int load_font_file(const char *font_filename) {
-     // Free previous font if loaded
-@@ -65,7 +174,8 @@ static int load_font_file(const char *font_filename) {
+-    // Free previous font if loaded
+-    if (font_buffer) {
+-        free(font_buffer);
+-        font_buffer = NULL;
+-        font_loaded = 0;
+-    }
++    /* Keep the live font until its replacement is completely ready. Settings
++     * unrelated to fonts must not reread/reallocate the same file. */
++    if(font_loaded && !strcmp(loaded_font_name,font_filename))return 1;
+ 
+     // Build search paths for the font (SF3000 paths first)
+     char font_paths[4][256];
+@@ -43,30 +201,42 @@ static int load_font_file(const char *font_filename) {
      }
+ 
+     // Get file size
+-    fseek(fp, 0, SEEK_END);
++    if(fseek(fp, 0, SEEK_END)){fclose(fp);return 0;}
+     long font_size = ftell(fp);
+-    fseek(fp, 0, SEEK_SET);
++    if(font_size<12 || font_size>16*1024*1024 || fseek(fp,0,SEEK_SET)){
++        fclose(fp);return 0;
++    }
+ 
+     // Allocate buffer and read font
+-    font_buffer = (unsigned char*)malloc(font_size);
+-    if (!font_buffer) {
++    unsigned char *replacement = (unsigned char*)malloc((size_t)font_size);
++    if (!replacement) {
+         fclose(fp);
+         return 0;
+     }
+ 
+-    fread(font_buffer, 1, font_size, fp);
++    size_t got=fread(replacement,1,(size_t)font_size,fp);
+     fclose(fp);
+ 
+     // Initialize font
+-    if (!stbtt_InitFont(&font_info, font_buffer, stbtt_GetFontOffsetForIndex(font_buffer, 0))) {
+-        free(font_buffer);
+-        font_buffer = NULL;
++    stbtt_fontinfo replacement_info = {0};
++    if (got!=(size_t)font_size || !font_file_valid(replacement,(size_t)font_size) ||
++        !stbtt_InitFont(&replacement_info,replacement,0)) {
++        free(replacement);
+         return 0;
+     }
++    int ascent,descent;
++    stbtt_GetFontVMetrics(&replacement_info,&ascent,&descent,NULL);
++    if(ascent<=descent){free(replacement);return 0;}
++    unsigned char *previous=font_buffer;
++    font_buffer=replacement;
++    font_info=replacement_info;
++    snprintf(loaded_font_name,sizeof(loaded_font_name),"%s",font_filename);
  
      // Calculate scale for desired pixel height
 -    font_scale = stbtt_ScaleForPixelHeight(&font_info, FONT_SIZE);
 +    font_scale = stbtt_ScaleForPixelHeight(&font_info,
 +                 FONT_SIZE * (float)font_size_percent / 100.0f);
      font_loaded = 1;
++    free(previous);
      return 1;
  }
-@@ -74,9 +184,21 @@ void font_load_file(const char *font_filename) {
+ 
+@@ -74,9 +244,21 @@ void font_load_file(const char *font_filename) {
      if (!font_filename || !font_filename[0]) return;
      load_font_file(font_filename);
      if (font_loaded)
@@ -525,7 +637,7 @@ index 6a04e1d..50ddc31 100644
  void font_load_from_settings(const char *font_name) {
      const char *font_filename = NULL;
      float custom_size = FONT_SIZE;
-@@ -92,7 +214,8 @@ void font_load_from_settings(const char *font_name) {
+@@ -92,7 +274,8 @@ void font_load_from_settings(const char *font_name) {
      load_font_file(font_filename);
  
      if (font_loaded) {
@@ -535,30 +647,169 @@ index 6a04e1d..50ddc31 100644
      }
  }
  
-@@ -278,3 +401,24 @@ int font_measure_text(const char *text) {
+@@ -101,9 +284,14 @@ void font_init(void) {
+     font_load_from_settings("GamePocket");
+ }
+ 
+-void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
+-                   int x, int y, char c, uint16_t color) {
+-    if (!font_loaded || !framebuffer) return;
++static void draw_char_at_scale(uint16_t *framebuffer, int screen_width, int screen_height,
++                   int x, int y, char c, uint16_t color,float scale,int percent) {
++    if (!framebuffer) return;
++    if(!font_loaded){
++        int h=fallback_height(font_size_percent*percent/100);
++        fallback_char(framebuffer,screen_width,screen_height,x,y,c,color,h/2,h);
++        return;
++    }
+ 
+     // Convert to uppercase
+     if (c >= 'a' && c <= 'z') {
+@@ -116,15 +304,23 @@ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
+ 
+     // Get glyph bitmap
+     int width, height, xoff, yoff;
+-    unsigned char *bitmap = stbtt_GetGlyphBitmap(&font_info, 0, font_scale,
++    unsigned char *bitmap = stbtt_GetGlyphBitmap(&font_info, 0, scale,
+                                                   glyph_index, &width, &height, &xoff, &yoff);
+ 
+-    if (!bitmap) return;
++    if (!bitmap) {
++        if(!stbtt_IsGlyphEmpty(&font_info,glyph_index)){
++            int advance,bearing;
++            stbtt_GetGlyphHMetrics(&font_info,glyph_index,&advance,&bearing);
++            fallback_char(framebuffer,screen_width,screen_height,x,y,c,color,
++                          (int)(advance*scale),fallback_height(font_size_percent*percent/100));
++        }
++        return;
++    }
+ 
+     // Get vertical metrics for proper baseline alignment
+     int ascent, descent, line_gap;
+     stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+-    int baseline = (int)(ascent * font_scale);
++    int baseline = (int)(ascent * scale);
+ 
+     // Draw the glyph
+     for (int row = 0; row < height; row++) {
+@@ -156,11 +352,15 @@ void font_draw_char(uint16_t *framebuffer, int screen_width, int screen_height,
+     stbtt_FreeBitmap(bitmap, NULL);
+ }
+ 
++void font_draw_char(uint16_t *framebuffer,int w,int h,int x,int y,char c,uint16_t color){
++    draw_char_at_scale(framebuffer,w,h,x,y,c,color,font_scale,100);
++}
++
+ /* Vertical metrics for centering: baseline = pixels from glyph-cell top down to
+  * the baseline; cap_height = pixel height of capital letters (all text is
+  * uppercased, so the visible ink is the cap band [baseline-cap_height, baseline]). */
+ void font_cap_metrics(int *baseline_out, int *cap_height_out) {
+-    int baseline = 0, cap = 0;
++    int baseline = fallback_height(font_size_percent), cap = baseline;
+     if (font_loaded) {
+         int ascent, descent, line_gap;
+         stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+@@ -176,9 +376,9 @@ void font_cap_metrics(int *baseline_out, int *cap_height_out) {
+     if (cap_height_out) *cap_height_out = cap;
+ }
+ 
+-void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
+-                   int x, int y, const char *text, uint16_t color) {
+-    if (!font_loaded || !framebuffer || !text) return;
++static void draw_text_at_scale(uint16_t *framebuffer, int screen_width, int screen_height,
++                   int x, int y, const char *text, uint16_t color,float scale,int percent) {
++    if (!framebuffer || !text) return;
+ 
+     int start_x = x;
+     int prev_codepoint = 0;
+@@ -193,6 +393,11 @@ void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
+         }
+ 
+         char c = *text;
++        if(!font_loaded){
++            int h=fallback_height(font_size_percent*percent/100);
++            fallback_char(framebuffer,screen_width,screen_height,x,y,c,color,h/2,h);
++            x+=h/2;text++;continue;
++        }
+ 
+         // Convert to uppercase
+         if (c >= 'a' && c <= 'z') {
+@@ -210,14 +415,14 @@ void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
+             // Apply kerning if we have a previous character
+             if (prev_codepoint != 0) {
+                 int kern = stbtt_GetGlyphKernAdvance(&font_info, prev_codepoint, glyph_index);
+-                x += (int)(kern * font_scale);
++                x += (int)(kern * scale);
+             }
+ 
+             // Draw the character
+-            font_draw_char(framebuffer, screen_width, screen_height, x, y, c, color);
++            draw_char_at_scale(framebuffer,screen_width,screen_height,x,y,c,color,scale,percent);
+ 
+             // Advance cursor
+-            x += (int)(advance_width * font_scale);
++            x += (int)(advance_width * scale);
+             prev_codepoint = glyph_index;
+         } else {
+             // Space or unknown character
+@@ -229,8 +434,8 @@ void font_draw_text(uint16_t *framebuffer, int screen_width, int screen_height,
+     }
+ }
+ 
+-int font_measure_text(const char *text) {
+-    if (!text || !font_loaded) return 0;
++static int measure_text_at_scale(const char *text,float scale,int percent) {
++    if (!text) return 0;
+ 
+     int width = 0;
+     int prev_codepoint = 0;
+@@ -244,6 +449,9 @@ int font_measure_text(const char *text) {
+         }
+ 
+         char c = *text;
++        if(!font_loaded){
++            width+=fallback_height(font_size_percent*percent/100)/2;text++;continue;
++        }
+ 
+         // Convert to uppercase
+         if (c >= 'a' && c <= 'z') {
+@@ -261,11 +469,11 @@ int font_measure_text(const char *text) {
+             // Apply kerning if we have a previous character
+             if (prev_codepoint != 0) {
+                 int kern = stbtt_GetGlyphKernAdvance(&font_info, prev_codepoint, glyph_index);
+-                width += (int)(kern * font_scale);
++                width += (int)(kern * scale);
+             }
+ 
+             // Add character width
+-            width += (int)(advance_width * font_scale);
++            width += (int)(advance_width * scale);
+             prev_codepoint = glyph_index;
+         } else {
+             // Space or unknown character
+@@ -278,3 +486,23 @@ int font_measure_text(const char *text) {
  
      return width;
  }
++
++void font_draw_text(uint16_t *fb,int w,int h,int x,int y,const char *text,uint16_t color){
++    draw_text_at_scale(fb,w,h,x,y,text,color,font_scale,100);
++}
++int font_measure_text(const char *text){return measure_text_at_scale(text,font_scale,100);}
 +
 +void font_draw_text_scaled(uint16_t *framebuffer, int screen_width, int screen_height,
 +                           int x, int y, const char *text, uint16_t color,
 +                           int percent) {
 +    if (percent < 40) percent = 40;
 +    if (percent > 200) percent = 200;
-+    float saved = font_scale;
-+    font_scale = saved * (float)percent / 100.0f;
-+    font_draw_text(framebuffer, screen_width, screen_height, x, y, text, color);
-+    font_scale = saved;
++    draw_text_at_scale(framebuffer,screen_width,screen_height,x,y,text,color,
++                       font_scale*(float)percent/100.0f,percent);
 +}
 +
 +int font_measure_text_scaled(const char *text, int percent) {
 +    if (percent < 40) percent = 40;
 +    if (percent > 200) percent = 200;
-+    float saved = font_scale;
-+    font_scale = saved * (float)percent / 100.0f;
-+    int width = font_measure_text(text);
-+    font_scale = saved;
-+    return width;
++    return measure_text_at_scale(text,font_scale*(float)percent/100.0f,percent);
 +}
 diff --git a/font.h b/font.h
 index 4a0fa5e..8b4fbcf 100644
