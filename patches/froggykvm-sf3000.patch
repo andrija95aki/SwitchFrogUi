@@ -15,3 +15,29 @@ index cc19a9d..3faa658 100644
  else
      TARGET = $(NAME)_libretro.so
      CC = gcc
+diff --git a/pspkvm/platform_gb300/audio.c b/pspkvm/platform_gb300/audio.c
+index 78ad32a..097a225 100644
+--- a/pspkvm/platform_gb300/audio.c
++++ b/pspkvm/platform_gb300/audio.c
+@@ -110,6 +110,7 @@ static fluid_synth_t     *g_fl_synth = NULL;
+ static int                g_fl_probed = 0;
+ 
+ static const char *g_fl_soundfonts[] = {
++    FROGGY_SD_ROOT "/cubegm/bios/j2me.sf2",
+     "/mnt/sda1/bios/Roland_SC-55.sf2",
+     "/mnt/sda1/system/Roland_SC-55.sf2",
+     "/home/Sajnaps/gb300/bios/Roland_SC-55.sf2",
+diff --git a/pspkvm/platform_gb300/platform.c b/pspkvm/platform_gb300/platform.c
+index 5024432..b1a789c 100644
+--- a/pspkvm/platform_gb300/platform.c
++++ b/pspkvm/platform_gb300/platform.c
+@@ -37,6 +37,9 @@ extern void dly_tsk(int ms);
+ 
+ #include <stdarg.h>
+ __attribute__((weak)) void xlog(const char *fmt, ...) {
++    static int logging=-1;
++    if(logging<0)logging=access(FROGGY_SD_ROOT "/log.txt",F_OK)==0;
++    if(!logging)return;
+     va_list ap;
+     va_start(ap, fmt);
+     vprintf(fmt, ap);

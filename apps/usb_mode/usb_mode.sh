@@ -599,10 +599,10 @@ status_mode() {
     if [ -n "$active" ]; then printf 'active (%s, UDC %s)\n' "$state" "$active"; else printf 'inactive (%s)\n' "$state"; fi
 }
 
-case "${1:-run}" in
-    run|start) run_mode ;;
+case "${1:-mtp}" in
+    run|start) printf 'Raw USB mass storage is disabled in SwitchFrogUI. Use MTP.\n' >&2; exit 2 ;;
     mtp) run_mtp_mode ;;
     status) status_mode ;;
     stop) fail "stop is intentionally disabled; eject on the PC and unplug the cable" ;;
-    *) printf 'Usage: %s {run|start|mtp|status}\n' "$0" >&2; exit 2 ;;
+    *) printf 'Usage: %s {mtp|status}\n' "$0" >&2; exit 2 ;;
 esac

@@ -629,7 +629,7 @@ index 6e72d66..7f37246 100644
  /* Present an RGB565 frame to the panel via HW.
   * src: RGB565 pixel buffer (16bpp)
 diff --git a/main.c b/main.c
-index 0366317..2ddbf81 100644
+index 0366317..71417c2 100644
 --- a/main.c
 +++ b/main.c
 @@ -9,6 +9,7 @@
@@ -640,6 +640,15 @@ index 0366317..2ddbf81 100644
  #include <time.h>
  
  #define FROGUI_CORE "/mnt/sdcard/cubegm/cores/frogui_libretro.so"
+@@ -19,7 +20,7 @@
+  * free for their fixed memory maps — run them via the high-linked picoarch_hi
+  * (text @0x20000000). Everything else uses the normal picoarch. */
+ static const char *picoarch_for_core(const char *core) {
+-	if (core && (strstr(core, "gpsp") || strstr(core, "pcsx") || strstr(core, "ps1")))
++	if (core && (strstr(core, "gpsp") || strstr(core, "pcsx") || strstr(core, "qpsx") || strstr(core, "ps1")))
+ 		if (access(PICOARCH_HI_BIN, F_OK) == 0)   /* vfat has no exec bit → F_OK */
+ 			return PICOARCH_HI_BIN;
+ 	return PICOARCH_BIN;
 @@ -574,6 +575,7 @@ void handle_emu_action(emu_action action)
  		break;
  	case EACTION_MENU:

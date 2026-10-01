@@ -201,7 +201,7 @@ while true; do
             sleep 0.3
             BIN="$PICOARCH"
             case "$CORE_PATH" in
-                *gpsp*|*pcsx*|*ps1*) [ -f "$PICOARCH_HI" ] && BIN="$PICOARCH_HI" ;;
+                *gpsp*|*pcsx*|*qpsx*|*ps1*) [ -f "$PICOARCH_HI" ] && BIN="$PICOARCH_HI" ;;
             esac
             echo "--- iter $ITER: game [$CORE_PATH] via $BIN ---" >> "$LOG"
             run_with_displayfix "$BIN" "$CORE_PATH" "$ROM_PATH" >> "$LOG" 2>&1

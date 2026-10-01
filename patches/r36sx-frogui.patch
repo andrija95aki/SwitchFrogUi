@@ -1280,7 +1280,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..a29dc84 100644
+index a72c4e6..e8d6452 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -1835,7 +1835,7 @@ index a72c4e6..a29dc84 100644
 +    settings_menu_idx=rows[0];
 +}
 +#define HARDWARE_INFO_ROW_COUNT 13
-+#define ABOUT_ROW_COUNT 37
++#define ABOUT_ROW_COUNT 45
 +static const char *sound_pack_names[] = {"Off", "Classic", "Bright", "Soft", "Cyber"};
 +#define SOUND_PACK_COUNT ((int)(sizeof(sound_pack_names)/sizeof(sound_pack_names[0])))
  
@@ -2170,7 +2170,7 @@ index a72c4e6..a29dc84 100644
          const char *sub = path + roms_len;
          if (*sub == '/') {
              sub++;
-@@ -593,60 +1179,605 @@ static const char* get_console_folder(const char *path) {
+@@ -593,67 +1179,615 @@ static const char* get_console_folder(const char *path) {
          console[i] = '\0';
          return console;
      }
@@ -2800,15 +2800,17 @@ index a72c4e6..a29dc84 100644
              if (folder_has_games(full, depth + 1)) { found = 1; break; }
          } else {
              size_t nlen = strlen(e->d_name);
-@@ -654,6 +1785,7 @@ static int folder_has_games(const char *path, int depth) {
+             int is_p8png = nlen >= 7 && strcasecmp(e->d_name + nlen - 7, ".p8.png") == 0;
              const char *ext = strrchr(e->d_name, '.');
++            const char *platform=get_console_folder(full);
++            if(ext && platform && ext_filter_should_hide(platform,ext+1))continue;
              if (ext && !is_p8png &&
                  (strcasecmp(ext,".csv")==0 || strcasecmp(ext,".txt")==0 ||
 +                 strcasecmp(ext,".md")==0  || strcasecmp(ext,".sh")==0 ||
                   strcasecmp(ext,".xml")==0 || strcasecmp(ext,".jpg")==0 ||
                   strcasecmp(ext,".png")==0)) continue;
              found = 1; break;
-@@ -663,36 +1795,280 @@ static int folder_has_games(const char *path, int depth) {
+@@ -663,36 +1797,280 @@ static int folder_has_games(const char *path, int depth) {
      return found;
  }
  
@@ -3098,7 +3100,7 @@ index a72c4e6..a29dc84 100644
          if (entry_count >= entry_capacity) {
              entry_capacity = entry_capacity ? entry_capacity*2 : INITIAL_ENTRIES_CAPACITY;
              entries = realloc(entries, entry_capacity * sizeof(DirEntry));
-@@ -700,48 +2076,70 @@ static void scan_directory(const char *path) {
+@@ -700,48 +2078,70 @@ static void scan_directory(const char *path) {
          }
          strncpy(entries[entry_count].name, e->d_name, 255);
          entries[entry_count].name[255] = '\0';
@@ -3202,7 +3204,7 @@ index a72c4e6..a29dc84 100644
      }
  done:
      if (!entries) entry_count = 0;   /* belt: renderer must never walk NULL */
-@@ -749,6 +2147,9 @@ done:
+@@ -749,6 +2149,9 @@ done:
      viewing_favourites = false;
      selected_index = 0;
      scroll_offset  = 0;
@@ -3212,7 +3214,7 @@ index a72c4e6..a29dc84 100644
  }
  
  /* Total seconds played for a game, from picoarch's playtime.txt. */
-@@ -766,6 +2167,85 @@ static long playtime_lookup(const char *path) {
+@@ -766,6 +2169,85 @@ static long playtime_lookup(const char *path) {
      return sec;
  }
  
@@ -3298,7 +3300,7 @@ index a72c4e6..a29dc84 100644
  /* ---------------- OnionOS-style game switcher (recents as box-art carousel) ----
   * Art = box art (.res/<name>.rgb565); if missing, the newest save-state
   * screenshot picoarch wrote (.st<N>.bmp). Toggled by settings_game_switcher. */
-@@ -815,6 +2295,217 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
+@@ -815,6 +2297,217 @@ static void switcher_blit565(uint16_t *fb, const uint16_t *src, const uint8_t *a
      }
  }
  
@@ -3516,7 +3518,7 @@ index a72c4e6..a29dc84 100644
  static void render_game_switcher(uint16_t *framebuffer) {
      const RecentGame *list = recent_games_get_list();
      int n = recent_games_get_count();
-@@ -837,28 +2528,10 @@ static void render_game_switcher(uint16_t *framebuffer) {
+@@ -837,28 +2530,10 @@ static void render_game_switcher(uint16_t *framebuffer) {
      render_fill_rect(framebuffer, bx, by, bw, bh, 0x0000);
  
      int drawn = 0;
@@ -3549,7 +3551,7 @@ index a72c4e6..a29dc84 100644
      }
      if (!drawn)
          font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, bx + UI_S(16), by + bh/2,
-@@ -895,10 +2568,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
+@@ -895,10 +2570,8 @@ static void render_boxart_panel(uint16_t *fb, const char *full_path, const char
      int ph   = bot - top;
      if (pw < UI_S(60) || ph < UI_S(60)) return;          /* too narrow to bother */
  
@@ -3561,7 +3563,7 @@ index a72c4e6..a29dc84 100644
  
      int nameh = UI_S(22);
      int aw = pw, ah = ph - nameh;
-@@ -936,6 +2607,7 @@ static void enter_recents_view(void) {
+@@ -936,6 +2609,7 @@ static void enter_recents_view(void) {
          strncpy(entries[entry_count].name, rg[i].game_name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -3569,10 +3571,12 @@ index a72c4e6..a29dc84 100644
          entry_count++;
      }
      viewing_recents = true;
-@@ -968,6 +2640,12 @@ static void write_picoarch_skin(void) {
+@@ -968,6 +2642,14 @@ static void write_picoarch_skin(void) {
  }
  
  static void request_game_launch(const char *core_path, const char *rom_path) {
++    if(!core_path || access(core_path,R_OK)!=0) {ui_notice("Emulator is not installed");return;}
++    if(!rom_path || access(rom_path,R_OK)!=0) {ui_notice("Game unavailable; check its SD or OTG source");return;}
 +    FILE *request = fopen("/tmp/switchfrog_state_request", "w");
 +    if (request) {
 +        fprintf(request, "%s\n%d\n%d\n", rom_path, requested_state_slot, requested_state_pcsx);
@@ -3582,7 +3586,7 @@ index a72c4e6..a29dc84 100644
      write_picoarch_skin();
      FILE *f = fopen(LAUNCH_FILE, "w");
      if (!f) { dbg("failed to write launch file"); return; }
-@@ -982,18 +2660,37 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
+@@ -982,18 +2664,36 @@ static void request_game_launch(const char *core_path, const char *rom_path) {
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
      recent_games_add(core_path, game_name, rom_path);
@@ -3601,10 +3605,9 @@ index a72c4e6..a29dc84 100644
 +     * except a real file below the ROM library.  opendir is used instead of
 +     * stat because this firmware's portable struct-stat ABI is incompatible. */
 +    if (bin_path && strcmp(bin_path, PCSX4ALL_BIN) == 0) {
-+        size_t root_len = strlen(ROMS_PATH);
 +        DIR *directory = rom_path ? opendir(rom_path) : NULL;
-+        int below_roms = rom_path && strncmp(rom_path, ROMS_PATH, root_len) == 0 &&
-+                         rom_path[root_len] == '/' && rom_path[root_len + 1] != '\0';
++        const char *console=rom_path?get_console_folder(rom_path):NULL;
++        int below_roms = console && *console && !strstr(rom_path,"/../");
 +        if (directory) closedir(directory);
 +        if (!below_roms || directory || access(rom_path, R_OK) != 0) {
 +            dbg("standalone_launch: rejected invalid PCSX4ALL ROM path");
@@ -3626,7 +3629,7 @@ index a72c4e6..a29dc84 100644
      const char *rom_base = strrchr(rom_path, '/');
      rom_base = rom_base ? rom_base + 1 : rom_path;
      char game_name[256];
-@@ -1001,11 +2698,66 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
+@@ -1001,11 +2701,66 @@ static void request_standalone_launch(const char *bin_path, const char *rom_path
      game_name[sizeof(game_name) - 1] = '\0';
      char *dot = strrchr(game_name, '.');
      if (dot) *dot = '\0';
@@ -3698,7 +3701,7 @@ index a72c4e6..a29dc84 100644
  }
  
  static bool is_ps1_folder(const char *folder) {
-@@ -1015,20 +2767,37 @@ static bool is_ps1_folder(const char *folder) {
+@@ -1015,20 +2770,40 @@ static bool is_ps1_folder(const char *folder) {
             strcasecmp(folder, "PS")  == 0;
  }
  
@@ -3732,9 +3735,12 @@ index a72c4e6..a29dc84 100644
 +        return;
 +    }
 +    const char *folder = get_console_folder(full_path);
-+    const char *override = core_override_lookup(full_path, NULL);
++    char parent[MAX_PATH_LEN];snprintf(parent,sizeof(parent),"%s",full_path);
++    char *slash=strrchr(parent,'/');if(slash)*slash=0;
++    const char *override = core_override_lookup(full_path, slash?parent:NULL);
 +    if (override) {
-+        request_game_launch(override, full_path);
++        if(is_standalone_bin(override)) request_standalone_launch(override,full_path);
++        else request_game_launch(override, full_path);
 +    } else if (is_ps1_folder(folder) && access(PCSX4ALL_BIN, F_OK) == 0) {
 +        request_standalone_launch(PCSX4ALL_BIN, full_path);
 +    } else if (is_standalone_bin(saved_core) && access(saved_core, F_OK) == 0) {
@@ -3745,7 +3751,7 @@ index a72c4e6..a29dc84 100644
  }
  
  /* ----------------------------- Search (X button) ----------------------------- */
-@@ -1038,14 +2807,96 @@ static const char *KBD_ROWS[4] = {
+@@ -1038,14 +2813,96 @@ static const char *KBD_ROWS[4] = {
      "1234567890",
      "QWERTYUIOP",
      "ASDFGHJKL",
@@ -3845,7 +3851,7 @@ index a72c4e6..a29dc84 100644
  }
  
  static int str_icontains(const char *hay, const char *needle) {
-@@ -1072,6 +2923,7 @@ static void search_add_result(const char *name, const char *path) {
+@@ -1072,6 +2929,7 @@ static void search_add_result(const char *name, const char *path) {
  }
  
  static void search_walk(const char *dir, int depth) {
@@ -3853,7 +3859,7 @@ index a72c4e6..a29dc84 100644
      DIR *d = opendir(dir);
      if (!d) return;
      struct dirent *e;
-@@ -1079,9 +2931,8 @@ static void search_walk(const char *dir, int depth) {
+@@ -1079,9 +2937,8 @@ static void search_walk(const char *dir, int depth) {
          if (e->d_name[0] == '.') continue;
          char p[MAX_PATH_LEN];
          snprintf(p, sizeof(p), "%s/%s", dir, e->d_name);
@@ -3865,7 +3871,7 @@ index a72c4e6..a29dc84 100644
              if (depth < 3) search_walk(p, depth + 1);
          } else if (str_icontains(e->d_name, search_query)) {
              search_add_result(e->d_name, p);
-@@ -1106,22 +2957,46 @@ static void run_search(void) {
+@@ -1106,22 +2963,46 @@ static void run_search(void) {
          strncpy(entries[entry_count].name, search_results[i].name, 255);
          entries[entry_count].name[255] = '\0';
          entries[entry_count].is_dir = 0;
@@ -3918,7 +3924,7 @@ index a72c4e6..a29dc84 100644
      else if (core) {
          /* ps1 folder maps to pcsx_rearmed by default but we prefer the standalone
           * pcsx4all when present; every other standalone (pico286/lgpt/rockbox) is
-@@ -1133,648 +3008,4577 @@ static void search_launch(int idx) {
+@@ -1133,648 +3014,4585 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -5014,7 +5020,7 @@ index a72c4e6..a29dc84 100644
 +        *start = editor_cursor; *end = editor_selection_anchor;
 +    } else {
 +        *start = editor_selection_anchor; *end = editor_cursor;
-     }
++    }
 +}
 +
 +static void editor_replace_selection(const char *text, size_t length) {
@@ -5023,7 +5029,7 @@ index a72c4e6..a29dc84 100644
 +    editor_selection_bounds(&start, &end); removed = end - start;
 +    if (editor_length - removed + length > EDITOR_BUFFER_CAP) {
 +        ui_notice("128KB editor limit reached"); return;
-+    }
+     }
 +    editor_history_checkpoint();
 +    memmove(editor_text + start + length, editor_text + end,
 +            editor_length - end + 1);
@@ -6646,7 +6652,8 @@ index a72c4e6..a29dc84 100644
 +                if (!core)
 +                    core = get_core_for_extension(entries[selected_index].name);
 +                if (ov) {
-+                    request_game_launch(ov, rom_path);   /* override → always libretro */
++                    if(is_standalone_bin(ov))request_standalone_launch(ov,rom_path);
++                    else request_game_launch(ov, rom_path);
 +                } else if (core) {
 +                    if (is_ps1_folder(folder) && access(PCSX4ALL_BIN, F_OK) == 0)
 +                        request_standalone_launch(PCSX4ALL_BIN, rom_path);
@@ -7222,8 +7229,9 @@ index a72c4e6..a29dc84 100644
 +        "Close any transfers before leaving USB Mode.",
 +        "No games or file operations run at the same time.",
 +        "In USB Mode: B exits and returns to Home.",
-+        "Kernel/USB support varies; back up important data."};
-+    for(int i=0;i<6;i++)font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
++        "Kernel/USB support varies; back up important data.",
++        "Folder locks do not block PC access or encrypt data."};
++    for(int i=0;i<7;i++)font_draw_text_scaled(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,
 +        START_Y+i*UI_S(30),lines[i],COLOR_TEXT,72);
 +    font_draw_text(framebuffer,SCREEN_WIDTH,SCREEN_HEIGHT,PADDING,SCREEN_HEIGHT-UI_S(24),
 +        "A START USB MODE     B CANCEL",COLOR_LEGEND);
@@ -7530,7 +7538,9 @@ index a72c4e6..a29dc84 100644
 +        "Kenney UI Audio", "Art Book Next", "GamePocket font", "monogram font",
 +        "SF3000-RE", "Emulator cores", "Build toolchains", "Mozart test audio",
 +        "FrogUI UI code", "PicoArch wrapper", "libpicofe code", "Font files",
-+        "UI sound files", "Core licenses", "Full notices / source"
++        "UI sound files", "Core licenses", "Full notices / source",
++        "HarfBuzz", "SheenBidi", "FreeType", "DejaVu fonts", "Unicode fallback font",
++        "QPSX", "FroggyKVM", "DSperate / ebook / music"
 +    };
 +    static const char *const values[ABOUT_ROW_COUNT] = {
 +        "SwitchFrogUI " SWITCHFROGUI_VERSION " for R36SX", SWITCHFROGUI_BUILD_COMMIT,
@@ -7548,7 +7558,11 @@ index a72c4e6..a29dc84 100644
 +        "Zig / LLVM / GNU tools", "Mozart / La Pianista - PD / CC0",
 +        "CC BY-NC-SA 4.0", "BSD 3-Clause", "GPL2+ / LGPL2.1+ / MAME",
 +        "SIL OFL 1.1 and CC0", "CC0 1.0", "GPL / LGPL / BSD / MIT / MAME",
-+        "github.com/andrija95aki"
++        "github.com/andrija95aki",
++        "HarfBuzz authors - MIT-style", "Tehreer authors - Apache 2.0",
++        "FreeType authors - FTL/GPL", "Bitstream Vera / DejaVu license",
++        "WenQuanYi - GPL + font exception", "angree and PCSX4ALL contributors",
++        "Synaps33 / PSPKVM / Sun contributors", "TreeFrogUI ports; see integration notices"
 +    };
 +    const int visible=7;
 +    int max_scroll=ABOUT_ROW_COUNT-visible;
@@ -8382,7 +8396,7 @@ index a72c4e6..a29dc84 100644
 +}
 +
 +static int collect_game_save_states(const char *game_path, GameSaveState *states, int cap) {
-+    char base[256], parent[MAX_PATH_LEN], tag[64]; int count=0;
++    char base[256], parent[MAX_PATH_LEN], tag[256]; int count=0;
 +    game_display_name(game_path,base,sizeof(base));
 +    strncpy(parent,game_path,sizeof(parent)-1); parent[sizeof(parent)-1]='\0';
 +    char *slash=strrchr(parent,'/'); if(!slash) return 0; *slash='\0';
@@ -8428,7 +8442,7 @@ index a72c4e6..a29dc84 100644
 -        font_draw_text(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, PADDING, y7, line, COLOR_TEXT);
 +    if (override && strstr(override,"/qpsx_libretro.so")) {
 +        char isolated[sizeof(tag)];
-+        snprintf(isolated,sizeof(isolated),"qpsx-%.58s",tag);
++        snprintf(isolated,sizeof(isolated),"qpsx-%.240s",tag);
 +        snprintf(tag,sizeof(tag),"%s",isolated);
      }
 -    /* Button Mapping row */
@@ -9045,7 +9059,7 @@ index a72c4e6..a29dc84 100644
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1787,12 +7591,146 @@ void retro_run(void) {
+@@ -1787,12 +7605,146 @@ void retro_run(void) {
          RB(RETRO_DEVICE_ID_JOYPAD_A, 13);    RB(RETRO_DEVICE_ID_JOYPAD_B, 14);
          RB(RETRO_DEVICE_ID_JOYPAD_X, 12);    RB(RETRO_DEVICE_ID_JOYPAD_Y, 15);
          RB(RETRO_DEVICE_ID_JOYPAD_L, 10);    RB(RETRO_DEVICE_ID_JOYPAD_R, 11);
@@ -9192,7 +9206,7 @@ index a72c4e6..a29dc84 100644
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +7740,12 @@ void retro_run(void) {
+@@ -1802,7 +7754,12 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
@@ -9206,7 +9220,7 @@ index a72c4e6..a29dc84 100644
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +7761,8 @@ void retro_run(void) {
+@@ -1818,7 +7775,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -9216,7 +9230,7 @@ index a72c4e6..a29dc84 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +7771,63 @@ void retro_run(void) {
+@@ -1827,20 +7785,63 @@ void retro_run(void) {
          }
      }
  
@@ -9283,7 +9297,7 @@ index a72c4e6..a29dc84 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +7839,73 @@ void retro_run(void) {
+@@ -1852,22 +7853,73 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -9364,7 +9378,7 @@ index a72c4e6..a29dc84 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +7934,24 @@ void retro_run(void) {
+@@ -1896,19 +7948,24 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -9392,7 +9406,7 @@ index a72c4e6..a29dc84 100644
  
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1925,14 +7968,65 @@ void retro_run(void) {
+@@ -1925,14 +7982,65 @@ void retro_run(void) {
              }
          }
  

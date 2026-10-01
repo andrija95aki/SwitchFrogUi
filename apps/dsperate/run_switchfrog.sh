@@ -3,7 +3,7 @@ set -u
 runtime=/mnt/sdcard/cubegm/dsperate
 save_root=/mnt/sdcard/frogui/dsperate
 mkdir -p "$save_root" || exit 1
-[ -f "$1" ] || exit 1
+[ "$#" -eq 1 ] && [ -f "$1" ] || exit 1
 # This upstream interpreter build is experimental. JIT and native code remain
 # off; no-audio matches the audited upstream SF3000 package's supported path.
 export DS_HCGE=1 DS_HCGE_DIAG=0 DS_MIPS_JIT=0 DS_MIPS_NATIVE=0

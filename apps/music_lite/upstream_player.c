@@ -464,7 +464,7 @@ static bool is_audio_path(const char *path) {
     return !strcasecmp(ext, ".mp3") || !strcasecmp(ext, ".m4a") ||
            !strcasecmp(ext, ".aac") || !strcasecmp(ext, ".wav") ||
            !strcasecmp(ext, ".flac") || !strcasecmp(ext, ".ogg") ||
-           !strcasecmp(ext, ".opus");
+             !strcasecmp(ext, ".opus") || !strcasecmp(ext, ".wma");
 }
 
 static bool is_media_path(const char *path) {
