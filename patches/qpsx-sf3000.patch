@@ -96,7 +96,7 @@ index 5419027..adc1a95 100644
  {
 +#ifdef SF3000
 +    (void)enabled;
-+    g_debug_log_enabled = qpsx_config.debug_log;
++    g_debug_log_enabled = enabled;
 +#else
      g_debug_log_enabled = enabled;
 +#endif

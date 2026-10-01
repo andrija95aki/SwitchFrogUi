@@ -128,7 +128,7 @@ if ($BuildPicoarch) {
 
 $frogSources = @(
     'frogui_libretro.c','io_diagnostics.c','render.c','font.c','recent_games.c','settings.c',
-    'theme.c','favorites.c','banner.c','backlight.c','input.c','core_override.c','ext_filter.c',
+    'theme.c','favorites.c','banner.c','backlight.c','input.c','core_override.c','ext_filter.c','i18n.c',
     $syscalls
 )
 $buildCommit = (& git -C $repoRoot rev-parse --short=8 HEAD 2>$null)

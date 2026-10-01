@@ -41,3 +41,5 @@ for app in "$stage/ebook" "$stage/music_lite" "$stage/qpsx_libretro.so"; do
   "${SF_PREFIX}readelf" -d "$app" >> "$stage/elf-dependencies.txt"
 done
 sha256sum "$stage/qpsx_libretro.so" >> "$stage/SHA256SUMS.txt"
+cd "$repo"
+bash scripts/build-unicode.sh
