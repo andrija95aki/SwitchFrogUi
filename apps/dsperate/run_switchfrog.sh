@@ -10,6 +10,9 @@ export DS_HCGE=1 DS_HCGE_DIAG=0 DS_MIPS_JIT=0 DS_MIPS_NATIVE=0
 log=/dev/null
 [ -f /mnt/sdcard/log.txt ] && log=/mnt/sdcard/log.txt
 cd "$save_root" || exit 1
+# This runtime carries a different libc. Do not inject the stock-libc display
+# shim into its loader; DS display correction needs separate hardware testing.
+unset LD_PRELOAD
 env HOME="$save_root" "$runtime/lib/ld.so.1" \
     --library-path "$runtime/lib:/mnt/sdcard/cubegm/usr/lib:/mnt/sdcard/cubegm/lib" \
     "$runtime/dsperate" "$1" --no-mic --no-audio --interp >>"$log" 2>&1
