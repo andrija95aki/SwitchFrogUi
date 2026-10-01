@@ -27,3 +27,17 @@ for app in ebook music_lite usb_exit_watcher; do "${SF_PREFIX}strip" "$stage/$ap
 git -C ebook rev-parse HEAD > "$stage/ebook-source.txt"
 git -C mupdf rev-parse HEAD > "$stage/mupdf-source.txt"
 sha256sum "$stage/ebook" "$stage/music_lite" "$stage/usb_exit_watcher" > "$stage/SHA256SUMS.txt"
+git clone --filter=blob:none https://github.com/angree/sf2000-qpsx-playstation-emulator.git qpsx
+git -C qpsx checkout 9b4e4581bcc4022b2e9084b50e1231130387d104
+git -C qpsx apply "$repo/patches/qpsx-sf3000.patch"
+make -C qpsx -f Makefile.libretro platform=sf3000 -j2 \
+  CC="$SF_GCC --sysroot=$SF_SYSROOT" CXX="${SF_PREFIX}g++ --sysroot=$SF_SYSROOT" \
+  AR="${SF_PREFIX}ar" RANLIB="${SF_PREFIX}ranlib" \
+  LDFLAGS="-shared -EL --sysroot=$SF_SYSROOT -static-libstdc++ -static-libgcc"
+cp qpsx/pcsx4all_libretro.so "$stage/qpsx_libretro.so"
+"${SF_PREFIX}strip" "$stage/qpsx_libretro.so"
+git -C qpsx rev-parse HEAD > "$stage/qpsx-source.txt"
+for app in "$stage/ebook" "$stage/music_lite" "$stage/qpsx_libretro.so"; do
+  "${SF_PREFIX}readelf" -d "$app" >> "$stage/elf-dependencies.txt"
+done
+sha256sum "$stage/qpsx_libretro.so" >> "$stage/SHA256SUMS.txt"

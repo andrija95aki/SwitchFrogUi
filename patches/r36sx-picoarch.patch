@@ -106,7 +106,7 @@ index 599031e..b31fdd4 100644
  	CFLAGS  := $(filter-out -flto,$(CFLAGS))
  	LDFLAGS := $(filter-out -flto,$(LDFLAGS))
 diff --git a/core.c b/core.c
-index 25221d8..94667fd 100644
+index 25221d8..eceffc7 100644
 --- a/core.c
 +++ b/core.c
 @@ -15,6 +15,7 @@
@@ -156,7 +156,29 @@ index 25221d8..94667fd 100644
  unsigned disc_get_count(void) {
  	if (disk_control_ext.get_num_images)
  		return disk_control_ext.get_num_images();
-@@ -605,6 +619,8 @@ static void pa_input_poll(void) {
+@@ -599,12 +613,27 @@ static void pa_input_poll(void) {
+ 		uint32_t raw = sf3000_keys_filtered;  /* race-filtered (see plat_sdl.c) */
+ 		static uint32_t prev_raw = 0;   /* for rising-edge combo detection */
+ 
+-		/* OnionOS-style hotkeys, SELECT acts as the MENU/function modifier:
+-		 *   SELECT+START = menu, SELECT+R2 = save, SELECT+L2 = load,
+-		 *   SELECT+R1 = fast-forward. (Rewind stays SELECT+B, handled in main.) */
++		/* Preserve SwitchFrog bindings: Menu/Select+L1 save, +R1 load,
++		 * +R2 fast-forward, Select+Start menu. Optional FN-alone opens on
++		 * release, never on press, so a save/load chord cannot open the menu. */
++		static int fn_enabled = -1, fn_held = 0, fn_chord = 0;
++		if (fn_enabled < 0) {
++			FILE *f = fopen("/mnt/sdcard/frogui/settings.txt", "r");
++			char line[256]; fn_enabled = 0;
++			while (f && fgets(line, sizeof(line), f))
++				if (!strncmp(line, "fn_game_menu=on", 15) && (line[15] == '\n' || line[15] == '\r' || !line[15])) fn_enabled = 1;
++			if (f) fclose(f);
++		}
++		int fn_now = !!(raw & (1u << 16));
++		if (fn_now && !fn_held) fn_chord = 0;
++		if ((fn_now || fn_held) && (raw & 0xffffu)) fn_chord = 1;
++		int fn_menu = fn_enabled && fn_held && !fn_now && !fn_chord;
++		fn_held = fn_now;
  		const uint32_t SEL_BIT   = (1u << 0);   /* SELECT = bit 0  */
  		const uint32_t START_BIT = (1u << 3);   /* START  = bit 3  */
  		const uint32_t R1_BIT    = (1u << 11);  /* R1     = bit 11 */
@@ -165,7 +187,7 @@ index 25221d8..94667fd 100644
  		const uint32_t L2_BIT    = (1u << 8);   /* L2     = bit 8  */
  		const uint32_t R2_BIT    = (1u << 9);   /* R2     = bit 9  */
  
-@@ -623,6 +639,7 @@ static void pa_input_poll(void) {
+@@ -623,31 +652,38 @@ static void pa_input_poll(void) {
  		static int menu_armed = 1;
  		static int ss_armed = 1;   /* save/load-state latch */
  		static int sel_off_cnt = 0;
@@ -173,7 +195,12 @@ index 25221d8..94667fd 100644
  		if (g_is_frogui) {
  			prev_raw = raw;
  			buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -632,22 +649,26 @@ static void pa_input_poll(void) {
++			/* L3 is the transport for the new fifteenth logical UI control. */
++			if (fn_now) buttons |= 1u << RETRO_DEVICE_ID_JOYPAD_L3;
+ 			goto frogui_no_hotkeys;
+ 		}
+-		if (menu_armed && (raw & (SEL_BIT | START_BIT)) == (SEL_BIT | START_BIT)) {
++		if (menu_armed && (fn_menu || (raw & (SEL_BIT | START_BIT)) == (SEL_BIT | START_BIT))) {
  			menu_armed = 0;
  			sel_off_cnt = 0;
  			handle_emu_action(EACTION_MENU);
@@ -204,7 +231,7 @@ index 25221d8..94667fd 100644
  		#undef COMBO_EDGE
  
  		/* Re-arm the menu only after SELECT has been CONTINUOUSLY released for a
-@@ -663,6 +684,13 @@ static void pa_input_poll(void) {
+@@ -663,6 +699,13 @@ static void pa_input_poll(void) {
  		 * persist in the config. Hotkeys above stay on raw physical bits so
  		 * SELECT+START always opens the menu regardless of remapping. */
  		buttons = actions[IN_BINDTYPE_PLAYER12];
@@ -218,7 +245,7 @@ index 25221d8..94667fd 100644
  frogui_no_hotkeys: ;
  	} else {
  		buttons = actions[IN_BINDTYPE_PLAYER12];
-@@ -820,6 +848,12 @@ int core_load_content(struct content *content) {
+@@ -820,6 +863,12 @@ int core_load_content(struct content *content) {
  		 * bound (controls dead + console spam on button press). */
  		current_core.retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
  	}
@@ -602,7 +629,7 @@ index 6e72d66..7f37246 100644
  /* Present an RGB565 frame to the panel via HW.
   * src: RGB565 pixel buffer (16bpp)
 diff --git a/main.c b/main.c
-index 0366317..b783ede 100644
+index 0366317..2ddbf81 100644
 --- a/main.c
 +++ b/main.c
 @@ -9,6 +9,7 @@
@@ -644,7 +671,21 @@ index 0366317..b783ede 100644
  	}
  }
  
-@@ -1045,6 +1055,43 @@ int main(int argc, char **argv) {
+@@ -979,6 +989,13 @@ int main(int argc, char **argv) {
+ 	}
+ 	
+ 	get_tag_name(content_path, tag_name);
++	/* Experimental QPSX states and options are not interchangeable with
++	 * ReARMed or native PCSX4ALL. Keep them out of the legacy PS1 namespace. */
++	if (strstr(core_path, "/qpsx_libretro.so")) {
++		char isolated[MAX_PATH];
++		snprintf(isolated, sizeof(isolated), "qpsx-%.240s", tag_name);
++		snprintf(tag_name, sizeof(tag_name), "%s", isolated);
++	}
+ 	core_extract_name(core_path, core_name, sizeof(core_name));
+ 
+ 	if (core_open(core_path, tag_name)) {
+@@ -1045,6 +1062,43 @@ int main(int argc, char **argv) {
  	}
  #endif
  	show_startup_message();
@@ -896,7 +937,7 @@ index 1e955f4..556d4dc 100644
  void* plat_clean_screen(void);
  
 diff --git a/plat_sdl.c b/plat_sdl.c
-index 9978411..79bff31 100644
+index 9978411..fa9edd2 100644
 --- a/plat_sdl.c
 +++ b/plat_sdl.c
 @@ -4,6 +4,7 @@
@@ -907,7 +948,7 @@ index 9978411..79bff31 100644
  #include "core.h"
  #include "libpicofe/fonts.h"
  #include "libpicofe/plat.h"
-@@ -23,13 +24,25 @@ static SDL_Surface* screen;
+@@ -23,13 +24,26 @@ static SDL_Surface* screen;
  #include <errno.h>
  #include <sys/mman.h>
  #include <sys/ioctl.h>
@@ -917,6 +958,7 @@ index 9978411..79bff31 100644
  #include <sys/ipc.h>
  #include <sys/shm.h>
  #include "hwdisp.h"
++#include "sf_system_volume.h"
  
  int sf3000_use_hwdisp = 0;
  
@@ -933,7 +975,7 @@ index 9978411..79bff31 100644
  /* Self-healing HW→SW fallback (SF3000-class disp_frame devices). Some units
   * can't render via the HW path (black screen / hang after logo). zhijack sets
   * TF_FORCE_SW=1 once it has detected that (watchdog + crash count) and dropped
-@@ -69,6 +82,84 @@ static pthread_t sf3000_input_thread;
+@@ -69,6 +83,84 @@ static pthread_t sf3000_input_thread;
  extern struct sf3000_btn sf3000_keymap[];
  extern const int sf3000_keymap_count;
  
@@ -941,7 +983,7 @@ index 9978411..79bff31 100644
 + * mapping file is written by FrogUI and reloaded live, so it applies to the UI,
 + * every libretro core, and PicoArch hotkeys without touching joy_key shm. */
 +#define SF_KBD_MAX 8
-+#define SF_KBD_MAP_COUNT 14
++#define SF_KBD_MAP_COUNT 15
 +#define SF_BITS_PER_LONG (sizeof(unsigned long) * 8u)
 +#define SF_BIT_WORD(b) ((unsigned)(b) / SF_BITS_PER_LONG)
 +#define SF_BIT_MASK(b) (1ul << ((unsigned)(b) % SF_BITS_PER_LONG))
@@ -950,14 +992,14 @@ index 9978411..79bff31 100644
 +static unsigned char sf_kbd_held[KEY_MAX + 1];
 +static const char *sf_kbd_labels[SF_KBD_MAP_COUNT] = {
 +    "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right",
-+    "A", "B", "X", "Y", "L1", "R1", "L2", "R2", "Select", "Start"
++    "A", "B", "X", "Y", "L1", "R1", "L2", "R2", "Select", "Start", "FN"
 +};
 +static const int sf_kbd_default[SF_KBD_MAP_COUNT] = {
 +    KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_SPACE,
-+    KEY_LEFTSHIFT, KEY_Q, KEY_E, KEY_1, KEY_3, KEY_BACKSPACE, KEY_RIGHTSHIFT
++    KEY_LEFTSHIFT, KEY_Q, KEY_E, KEY_1, KEY_3, KEY_BACKSPACE, KEY_RIGHTSHIFT, KEY_F1
 +};
 +static const int sf_kbd_raw_bits[SF_KBD_MAP_COUNT] = {
-+    4, 6, 7, 5, 13, 14, 12, 15, 10, 11, 8, 9, 0, 3
++    4, 6, 7, 5, 13, 14, 12, 15, 10, 11, 8, 9, 0, 3, 16
 +};
 +static int sf_kbd_codes[SF_KBD_MAP_COUNT];
 +static time_t sf_kbd_cfg_mtime;
@@ -1018,7 +1060,7 @@ index 9978411..79bff31 100644
  /* Each PHYSICAL button (joy_key bit) emits a FIXED SDL key. libpicofe then maps
   * that SDL key → a retro button via its (remappable) bind table — see
   * in_sdl_defbinds in plat_sf3000.c, whose defaults match these keys exactly. This
-@@ -107,7 +198,15 @@ static void *sf3000_input_thread_fn(void *unused) {
+@@ -107,7 +199,15 @@ static void *sf3000_input_thread_fn(void *unused) {
      while (1) {
          usleep(8000);                  /* ~8ms sample */
          if (!sf3000_keys_ptr) continue;
@@ -1035,7 +1077,7 @@ index 9978411..79bff31 100644
          /* Per-bit debounce: reject flicker in BOTH directions (press AND release).
           * A bit must hold its new value for N samples before we accept it — this
           * kills the rkgame+cubevol two-writer race AND short analog-stick drift
-@@ -150,6 +249,8 @@ static void sf3000_keys_init(void) {
+@@ -150,6 +250,8 @@ static void sf3000_keys_init(void) {
      void *p = shmat(id, NULL, 0);
      if (p == (void *)-1) { fprintf(stderr, "SF3000 input: shmat failed\n"); return; }
      sf3000_keys_ptr = (volatile uint32_t *)p;
@@ -1044,7 +1086,32 @@ index 9978411..79bff31 100644
      fprintf(stderr, "SF3000 input: joy_key shm OK, initial keys=0x%08X\n", *sf3000_keys_ptr);
      pthread_create(&sf3000_input_thread, NULL, sf3000_input_thread_fn, NULL);
  }
-@@ -1016,9 +1117,10 @@ static void sf3000_load_snd_gain(void) {
+@@ -998,9 +1100,11 @@ static int sf3000_snd_gain_q8 = 256;     /* 8.8 fixed derived value (256 = 1.0)
+ void sf3000_apply_snd_gain(void) {
+ 	if (sf3000_snd_gain_pct < 0)   sf3000_snd_gain_pct = 0;
+ 	if (sf3000_snd_gain_pct > 100) sf3000_snd_gain_pct = 100;
+-	sf3000_snd_gain_q8 = sf3000_snd_gain_pct * 256 / 100;
++	int shared = sf_volume_write(sf3000_snd_gain_pct) == 0;
++	int output_gain = shared ? sf_volume_gain(sf3000_snd_gain_pct) : sf3000_snd_gain_pct;
++	sf3000_snd_gain_q8 = output_gain * 256 / 100;
+ 	FILE *f = fopen(SF3000_SNDGAIN_PATH, "w");
+-	if (f) { fprintf(f, "%d\n", sf3000_snd_gain_pct); fflush(f); fsync(fileno(f)); fclose(f); sync(); }
++	if (f) { fprintf(f, "%d\n", output_gain); fflush(f); fsync(fileno(f)); fclose(f); }
+ }
+ 
+ static void sf3000_load_snd_gain(void) {
+@@ -1010,15 +1114,21 @@ static void sf3000_load_snd_gain(void) {
+ 	if (sf3000_snd_gain_pct < 0)   sf3000_snd_gain_pct = 0;
+ 	if (sf3000_snd_gain_pct > 100) sf3000_snd_gain_pct = 100;
+ 	sf3000_snd_gain_q8 = sf3000_snd_gain_pct * 256 / 100;
++	int shared = sf_volume_read();
++	if (shared >= 0) {
++		sf3000_snd_gain_pct = shared;
++		sf3000_snd_gain_q8 = sf_volume_gain(shared) * 256 / 100;
++	}
+ }
+ 
+ /* Non-blocking audio: a dedicated consumer thread owns the *blocking*
   * sound_driver_playframe() DAC write. The emu thread only enqueues into this
   * SPSC ring and never blocks, so audio over/underrun can never freeze the
   * emulator. Video stays the sole frame pacer. */
@@ -1057,7 +1124,7 @@ index 9978411..79bff31 100644
  
  static struct audio_frame sf3000_aring[SF3000_ARING_FRAMES];
  static unsigned           sf3000_aring_w = 0;   /* producer: emu thread   */
-@@ -1026,15 +1128,46 @@ static unsigned           sf3000_aring_r = 0;   /* consumer: audio thread */
+@@ -1026,15 +1136,46 @@ static unsigned           sf3000_aring_r = 0;   /* consumer: audio thread */
  static pthread_mutex_t    sf3000_aring_mtx = PTHREAD_MUTEX_INITIALIZER;
  static pthread_t          sf3000_audio_thread;
  static volatile int       sf3000_audio_running = 0;
@@ -1104,7 +1171,7 @@ index 9978411..79bff31 100644
  
  	/* Init the DAC ON THIS THREAD. The SF3500/HD/SF3100 driver keeps its audio
  	 * handle thread-local, so sound_driver_init() and sound_driver_playframe()
-@@ -1045,35 +1178,49 @@ static void *sf3000_audio_thread_fn(void *unused)
+@@ -1045,35 +1186,49 @@ static void *sf3000_audio_thread_fn(void *unused)
  	 * RETRY on failure: at menu→game transitions the previous process's
  	 * deinit settles asynchronously in the audio daemon; a first-try init can
  	 * fail and giving up left the whole system silent until reboot. */
@@ -1170,7 +1237,7 @@ index 9978411..79bff31 100644
  		}
  		pthread_mutex_unlock(&sf3000_aring_mtx);
  
-@@ -1094,11 +1241,32 @@ static void *sf3000_audio_thread_fn(void *unused)
+@@ -1094,11 +1249,32 @@ static void *sf3000_audio_thread_fn(void *unused)
  		}
  
  		/* Blocks until the DAC drains — but on THIS thread, not the emu. */
@@ -1206,7 +1273,7 @@ index 9978411..79bff31 100644
  		sf3000_sound_driver_deinit();
  	return NULL;
  }
-@@ -1159,6 +1327,7 @@ static int plat_sound_init(void)
+@@ -1159,6 +1335,7 @@ static int plat_sound_init(void)
  	/* Start the non-blocking audio consumer thread (it init's the DAC itself). */
  	sf3000_load_snd_gain();   /* re-read cubegm/sndgain.txt each game launch */
  	sf3000_aring_w = sf3000_aring_r = 0;
@@ -1214,7 +1281,7 @@ index 9978411..79bff31 100644
  	sf3000_rs_phase = 0;
  	sf3000_rs_prev.left = sf3000_rs_prev.right = 0;
  	sf3000_audio_init_rc = 0;
-@@ -1204,7 +1373,12 @@ static int plat_sound_init(void)
+@@ -1204,7 +1381,12 @@ static int plat_sound_init(void)
  float plat_sound_capacity(void)
  {
  #ifdef PLATFORM_SF3000
@@ -1228,7 +1295,27 @@ index 9978411..79bff31 100644
  #else
  	int buffered = 0;
  	if (audio.buf_len == 0)
-@@ -1329,6 +1503,25 @@ void plat_sound_resize_buffer(void) {
+@@ -1223,6 +1405,19 @@ float plat_sound_capacity(void)
+ #define BATCH_SIZE 100
+ void plat_sound_write(const struct audio_frame *data, int frames)
+ {
++#ifdef PLATFORM_SF3000
++	/* Poll on the producer thread, not the blocking DAC consumer.  No writes,
++	 * no per-frame opens, and keep the legacy gain if this kernel lacks pmem. */
++	static unsigned volume_poll;
++	if (++volume_poll >= 30) {
++		volume_poll = 0;
++		int shared = sf_volume_read();
++		if (shared >= 0) {
++			sf3000_snd_gain_pct = shared;
++			sf3000_snd_gain_q8 = sf_volume_gain(shared) * 256 / 100;
++		}
++	}
++#endif
+ #ifdef PLATFORM_SF3000
+ 	/* Non-blocking enqueue: hand frames to the consumer thread and return
+ 	 * immediately. On overrun we drop the excess rather than block the emu.
+@@ -1329,6 +1524,25 @@ void plat_sound_resize_buffer(void) {
  #endif
  }
  
@@ -1254,7 +1341,7 @@ index 9978411..79bff31 100644
  void plat_sdl_event_handler(void *event_)
  {
      SDL_Event *event = (SDL_Event *)event_;
-@@ -2092,8 +2285,8 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2092,8 +2306,8 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      {
          extern volatile uint32_t sf3000_keys_filtered;
          static int prev_combo = 0;
@@ -1265,7 +1352,7 @@ index 9978411..79bff31 100644
          if (now && !prev_combo) sf3000_screenshot(src, width, height, pitch);
          prev_combo = now;
      }
-@@ -2139,8 +2332,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2139,8 +2353,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
          if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
              return;
      }
@@ -1278,7 +1365,7 @@ index 9978411..79bff31 100644
      /* SF3500: always present via the real driver's disp_frame (decrypted driver
       * handles panel-size frames cleanly — proven by rkgame's own FrogUI render).
       * The SW transpose path is SF3000-geometry-tuned → squish + page-flip churn
-@@ -2152,7 +2347,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2152,7 +2368,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      sf3000_detect_device();
      if (!sf3000_use_hwdisp && !sf3000_force_sw() &&
          (sf3000_is_r36sx() || sf3000_is_sf3500() ||
@@ -1290,7 +1377,7 @@ index 9978411..79bff31 100644
          if (hwdisp_init() == 0) {
              sf3000_use_hwdisp = 1;
              fprintf(stderr, "sf3000_fb_blit: HW path active\n");
-@@ -2163,43 +2361,43 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2163,43 +2382,43 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
  if (sf3000_use_hwdisp) {
          sf3000_hw_heartbeat();  /* mark HW as alive once it has drawn a few frames */
  
@@ -1366,7 +1453,7 @@ index 9978411..79bff31 100644
              }
          }
          /* HW edge-sharpen: skip only for frames that actually take the pixel-exact
-@@ -2224,19 +2422,32 @@ if (sf3000_use_hwdisp) {
+@@ -2224,19 +2443,32 @@ if (sf3000_use_hwdisp) {
              int div = (g_ff_level == 3) ? 2 : (g_ff_level + 1);
              if ((++ff_ctr) % div) ff_skip = 1;
          }
@@ -1411,3 +1498,52 @@ index 9978411..79bff31 100644
          hwdisp_set_filter(fmode);
  
          /* FPS / overlay text: render into a copy of src (RGB565), since src
+diff --git a/sf_system_volume.h b/sf_system_volume.h
+new file mode 100644
+index 0000000..cb37c20
+--- /dev/null
++++ b/sf_system_volume.h
+@@ -0,0 +1,43 @@
++/* Shared cubevol volume ABI; upstream TreeFrogUI PicoArch, adapted for
++ * SwitchFrog's perceptual curve. Polling never writes persistent storage. */
++#ifndef SF_SYSTEM_VOLUME_H
++#define SF_SYSTEM_VOLUME_H
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++struct sf_volume_request { unsigned short flag, id, len, pad; void *buf; };
++static int sf_volume_gain(int level) {
++    static const unsigned char gain[]={0,1,2,3,4,5,6,7,8,10,13,16,20,25,32,40,50,63,75,87,100};
++    if(level<=0)return 0;
++    if(level>=100)return 100;
++    int p=level/5,r=level%5;
++    return (gain[p]*(5-r)+gain[p+1]*r+2)/5;
++}
++static int sf_volume_read(void) {
++    unsigned char buf[260]={0};
++    int fd=open("/dev/persistentmem",O_RDONLY);
++    if(fd<0)return -1;
++    struct sf_volume_request req={3,0,260,0,buf};
++    int rc=ioctl(fd,0x400c2602u,&req);
++    close(fd);
++    return rc==0 && buf[0]<=100 ? buf[0] : -1;
++}
++static int sf_volume_write(int level) {
++    if(level<0 || level>100)return -1;
++    unsigned char byte=(unsigned char)level;
++    int current=sf_volume_read();
++    /* Unknown hardware/ABI: use the legacy software-gain path, no blind SET. */
++    if(current<0)return -1;
++    if(current!=level) {
++        int fd=open("/dev/persistentmem",O_RDWR);
++        if(fd<0)return -1;
++        struct sf_volume_request req={3,0,1,0,&byte};
++        int rc=ioctl(fd,0x800c2603u,&req);
++        close(fd);
++        if(rc<0)return -1;
++    }
++    int fd=open("/dev/sndC0i2so",O_WRONLY);
++    if(fd>=0){ioctl(fd,0x8001080bu,&byte);close(fd);}
++    return 0;
++}
++#endif
