@@ -1,10 +1,16 @@
 # SwitchFrogUI for R36SX
 
-**1.4.0 full-card releases:** download the v2.7 or experimental v2.6 ZIP from
+> **1.5.0-dev: development build, untested on physical hardware.** Automated
+> checks passed; this integration has not yet been tested on either v2.7 or
+> v2.6. Back up your card and saves. See the
+> [integration guide](docs/r36sx/UPSTREAM-1.6-INTEGRATION.md) before testing.
+> The downloadable release ZIPs below are older releases, not this dev build.
+
+**1.4.2 full-card releases:** download the v2.7 or experimental v2.6 ZIP from
 [Releases](https://github.com/andrija95aki/SwitchFrogUi/releases/latest) and
 extract its contents directly to an empty FAT32 card. See
 [current installation instructions](docs/r36sx/INSTALL.md) and
-[1.4.0 changes and testing limits](release-notes.md). Only v2.7 has been tested
+[release changes and testing limits](release-notes.md). Only v2.7 has been tested
 during development; v2.6 is not guaranteed. Some imported TreeFrogUI features
 have not been thoroughly tested.
 

@@ -2,7 +2,17 @@
 
 # SwitchFrogUI - R36SX Retro Frontend
 
-## Version 1.4.2 - keyboard text and terminal fixes
+> **1.5.0-dev — DEVELOPMENT BUILD, UNTESTED ON HARDWARE.**
+> This integration has passed builds and automated regression checks, but has
+> **not yet been tested on a physical R36SX v2.7 or v2.6**. Expect bugs,
+> crashes and compatibility issues. Back up your card, saves and settings before
+> testing. It is not a stable release or a replacement for the release ZIPs below.
+>
+> See the [development changes and limitations](docs/r36sx/UPSTREAM-1.6-INTEGRATION.md)
+> and [development notes](release-notes.md). The source is on
+> `integration/treefrog-1.6-20261001`; no 1.5.0-dev release ZIP is published.
+
+## Previous release: Version 1.4.2 - keyboard text and terminal fixes
 
 | Board | Download | Hardware status |
 | --- | --- | --- |

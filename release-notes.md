@@ -1,3 +1,31 @@
+## SwitchFrogUI 1.5.0-dev - Unreleased development integration
+
+**DEVELOPMENT BUILD — UNTESTED ON PHYSICAL HARDWARE.** This integration has
+not yet been tested on R36SX v2.7 or v2.6. Passing builds and automated tests
+does not establish device stability. Expect bugs, crashes and compatibility
+issues; back up your card, saves and settings before testing.
+
+- Selective imports from TreeFrogUI v1.6.0_c: library/artwork caches, FN mapping,
+  grouped Settings, platform filters, volume synchronization and updated reader.
+- Optional MTP/OTG support, Java, experimental QPSX and DSperate, language packs
+  and Unicode rendering, Allium palettes/Nunito, on-screen Ctrl/Alt modifiers,
+  lightweight music backend and PS1 compatibility reports.
+- Existing SwitchFrogUI interface, merged video player and defaults are retained.
+  Already-present core/scaling improvements were audited; MAME failed-load
+  handling was added. No games or personal card data are committed.
+- **Known limitations:** native PCSX4ALL Quick Resume instability remains;
+  disable it if affected. DS uses the interpreter with audio/JIT disabled.
+  Some translations fall back to English. USB, new emulators and app lifecycles
+  require on-device validation. v2.6 compatibility is not guaranteed.
+- Source/build commit `69e5e697`; GNU workflow `36867378799` and automated
+  regression checks passed. Test-card file verification is not a hardware test.
+- Source branch: `integration/treefrog-1.6-20261001`. No 1.5.0-dev release ZIP
+  is published; existing release downloads remain unchanged. Further license
+  and corresponding-source review is required before a public binary release.
+
+See the [complete integration guide](docs/r36sx/UPSTREAM-1.6-INTEGRATION.md)
+for controls, source pins, caveats and the physical-device test checklist.
+
 ## SwitchFrogUI 1.4.2 - Keyboard text resilience and terminal clearance
 
 - Moves the active terminal command above the on-screen keyboard when visible,

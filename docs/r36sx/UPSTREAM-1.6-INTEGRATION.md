@@ -1,5 +1,10 @@
 # SwitchFrogUI 1.5.0-dev: selective TreeFrogUI integration
 
+> **DEVELOPMENT BUILD — UNTESTED ON PHYSICAL HARDWARE.** Builds and automated
+> regression checks passed, but this integration has not yet been tested on
+> R36SX v2.7 or v2.6. Expect bugs, crashes and compatibility problems. Back up
+> your card, saves and settings before testing. This is not a stable release.
+
 Development/test build, not a public release. Based on TreeFrogUI **v1.6.0_c**
 (a2219113), a prerelease. Existing SwitchFrogUI Home, video fixes, display
 correction, file tools, power policy and default Ocean Depth theme are retained.
