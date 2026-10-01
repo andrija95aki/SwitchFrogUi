@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(pwd)
+stage="$repo/artifacts/upstream"
+cd "$RUNNER_TEMP/switchfrog-apps"
+git clone --filter=blob:none https://github.com/libretro/mame2000-libretro.git mame2000
+git -C mame2000 checkout 181b42e5da0d2f0c7a2e59244f23633ed594de2e
+git -C mame2000 apply "$repo/patches/mame2000-load-failure.patch"
+make -C mame2000 -j2 platform=unix
+gcc -O2 "$repo/tests/mame2000_bad_load_test.c" -ldl -o mame-bad-load-test
+timeout 30 ./mame-bad-load-test "$PWD/mame2000/mame2000_libretro.so"
+make -C mame2000 clean
+make -C mame2000 -j2 platform=unix \
+  CC="$SF_GCC -EL -mips32r2 -mfp32 -mhard-float -fPIC --sysroot=$SF_SYSROOT" \
+  AR="${SF_PREFIX}ar" \
+  LDFLAGS="-shared -EL --sysroot=$SF_SYSROOT -Wl,--no-undefined"
+cp mame2000/mame2000_libretro.so "$stage/mame2000_libretro.so"
+"${SF_PREFIX}strip" "$stage/mame2000_libretro.so"
+git -C mame2000 rev-parse HEAD > "$stage/mame2000-source.txt"
+sha256sum "$stage/mame2000_libretro.so" >> "$stage/SHA256SUMS.txt"

@@ -228,7 +228,7 @@ index 5419027..adc1a95 100644
      if (!base) base = strrchr(game_path, '\\');
      if (base) base++; else base = game_path;
 -    snprintf(path, maxlen, "/mnt/sda1/cores/config/%s.cfg", base);
-+    snprintf(path, maxlen, QPSX_SDCARD "/cores/config/%s.cfg", base);
++    snprintf(path, maxlen, QPSX_SDCARD "/picoarch/qpsx-config/%s.cfg", base);
  }
  
  static void get_slus_config_path(char *path, int maxlen)
@@ -236,7 +236,7 @@ index 5419027..adc1a95 100644
      /* Secondary: SLUS/SCES/SLES-based config */
      if (CdromId[0] != '\0') {
 -        snprintf(path, maxlen, "/mnt/sda1/cores/config/%s.cfg", CdromId);
-+        snprintf(path, maxlen, QPSX_SDCARD "/cores/config/%s.cfg", CdromId);
++        snprintf(path, maxlen, QPSX_SDCARD "/picoarch/qpsx-config/%s.cfg", CdromId);
      } else {
          path[0] = '\0';
      }
@@ -245,7 +245,7 @@ index 5419027..adc1a95 100644
      XLOG("v340: Scanning for SLUS config matching CdromId=%s, game=%s", CdromId, game_name);
  
 -    int dir = fs_opendir("/mnt/sda1/cores/config");
-+    int dir = fs_opendir(QPSX_SDCARD "/cores/config");
++    int dir = fs_opendir(QPSX_SDCARD "/picoarch/qpsx-config");
      if (dir < 0) {
          XLOG("v340: Cannot open config directory");
          return 0;
@@ -254,7 +254,7 @@ index 5419027..adc1a95 100644
          /* Build full path and read config */
          char cfg_path[300];
 -        snprintf(cfg_path, sizeof(cfg_path), "/mnt/sda1/cores/config/%s", entry.d_name);
-+        snprintf(cfg_path, sizeof(cfg_path), QPSX_SDCARD "/cores/config/%s", entry.d_name);
++        snprintf(cfg_path, sizeof(cfg_path), QPSX_SDCARD "/picoarch/qpsx-config/%s", entry.d_name);
  
          FILE *f = fopen(cfg_path, "r");
          if (!f) continue;
@@ -262,8 +262,8 @@ index 5419027..adc1a95 100644
  
  static int write_config_file(const char *path, const char *orig_name)
  {
-+    fs_mkdir(QPSX_SDCARD "/cores", 0755);
-+    fs_mkdir(QPSX_SDCARD "/cores/config", 0755);
++    fs_mkdir(QPSX_SDCARD "/picoarch", 0755);
++    fs_mkdir(QPSX_SDCARD "/picoarch/qpsx-config", 0755);
      FILE *f = fopen(path, "w");
      if (!f) return 0;
  
@@ -272,7 +272,7 @@ index 5419027..adc1a95 100644
      Config.Cpu = 0;
  
 -    snprintf(Config.BiosDir, sizeof(Config.BiosDir), "/mnt/sda1/bios");
-+    snprintf(Config.BiosDir, sizeof(Config.BiosDir), QPSX_SDCARD "/bios");
++    snprintf(Config.BiosDir, sizeof(Config.BiosDir), QPSX_SDCARD "/cubegm/bios");
      snprintf(Config.Bios, sizeof(Config.Bios), "%s", qpsx_config.bios_file);
      XLOG("BIOS: %s/%s", Config.BiosDir, Config.Bios);
  
@@ -281,7 +281,7 @@ index 5419027..adc1a95 100644
       */
      {
 -        static const char* PSX_SAVE_DIR = "/mnt/sda1/ROMS/SAVE/PSX";
-+        static const char* PSX_SAVE_DIR = QPSX_SDCARD "/roms/SAVE/PSX";
++        static const char* PSX_SAVE_DIR = QPSX_SDCARD "/picoarch/qpsx-memcards";
          char game_name_buf[256];
  
          /* Get game name from loaded game path */
@@ -290,7 +290,7 @@ index 5419027..adc1a95 100644
  
          /* Create save directories if they don't exist */
 -        fs_mkdir("/mnt/sda1/ROMS/SAVE", 0755);
-+        fs_mkdir(QPSX_SDCARD "/roms/SAVE", 0755);
++        fs_mkdir(QPSX_SDCARD "/picoarch", 0755);
          fs_mkdir(PSX_SAVE_DIR, 0755);
  
          /* Build per-game memory card path */

@@ -1,0 +1,17 @@
+diff --git a/Makefile b/Makefile
+index cc19a9d..3faa658 100644
+--- a/Makefile
++++ b/Makefile
+@@ -13,6 +13,12 @@ ifeq ($(platform), sf2000)
+     override CFLAGS += $(MIPS_FLAGS)
+     override CXXFLAGS += $(MIPS_FLAGS) -fno-use-cxa-atexit -fno-exceptions -fno-rtti
+     STATIC_LINKING = 1
++else ifeq ($(platform), sf3000)
++    TARGET = $(NAME)_libretro.so
++    override CFLAGS += -EL -mips32r2 -mfp32 -mhard-float -fPIC -G0 -O2 -Wno-incompatible-pointer-types -Wno-implicit-function-declaration
++    override CXXFLAGS += -EL -mips32r2 -mfp32 -mhard-float -fPIC -G0 -O2 -fpermissive -fno-exceptions -fno-rtti
++    override CFLAGS += -DFROGGY_SD_ROOT='"/mnt/sdcard"'
++    override CXXFLAGS += -DFROGGY_SD_ROOT='"/mnt/sdcard"'
+ else
+     TARGET = $(NAME)_libretro.so
+     CC = gcc

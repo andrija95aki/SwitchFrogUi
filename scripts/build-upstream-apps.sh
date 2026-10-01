@@ -43,3 +43,5 @@ done
 sha256sum "$stage/qpsx_libretro.so" >> "$stage/SHA256SUMS.txt"
 cd "$repo"
 bash scripts/build-unicode.sh
+bash scripts/build-mame-fix.sh
+bash scripts/build-j2me.sh

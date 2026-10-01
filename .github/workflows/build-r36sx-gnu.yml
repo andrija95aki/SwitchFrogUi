@@ -47,6 +47,10 @@ jobs:
           /tmp/ext_filter_test
           gcc -std=gnu99 -Wall tests/library_cache_test.c -o /tmp/library_cache_test
           (cd "$(mktemp -d)" && /tmp/library_cache_test)
+          gcc -std=gnu99 -Wall tests/ps1_compat_test.c -o /tmp/ps1_compat_test
+          /tmp/ps1_compat_test
+          gcc -std=gnu99 -Wall tests/i18n_test.c -o /tmp/i18n_test
+          (cd assets/upstream-160 && /tmp/i18n_test)
 
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash
