@@ -43,6 +43,10 @@ jobs:
           /tmp/state_slot_history_test
           gcc -std=gnu99 -Wall -Wextra tests/menu_power_test.c -o /tmp/menu_power_test
           /tmp/menu_power_test "$(mktemp -d)"
+          gcc -std=gnu99 -Wall tests/ext_filter_test.c -o /tmp/ext_filter_test
+          /tmp/ext_filter_test
+          gcc -std=gnu99 -Wall tests/library_cache_test.c -o /tmp/library_cache_test
+          (cd "$(mktemp -d)" && /tmp/library_cache_test)
 
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash
@@ -148,6 +152,11 @@ jobs:
           cp "$RUNNER_TEMP/pcsx4all/pcsx4all" artifacts/pcsx4all
           file artifacts/video_player artifacts/picoarch artifacts/picoarch_hi artifacts/pcsx4all
           sha256sum artifacts/video_player artifacts/picoarch artifacts/picoarch_hi artifacts/pcsx4all > artifacts/SHA256SUMS.txt
+
+      - name: Build pinned upstream optional apps
+        if: startsWith(github.ref, 'refs/heads/integration/')
+        shell: bash
+        run: bash scripts/build-upstream-apps.sh
 
       - name: Upload runtime binaries
         uses: actions/upload-artifact@v4
