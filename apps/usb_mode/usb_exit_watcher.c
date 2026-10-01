@@ -39,7 +39,7 @@ static int get_back_bit(void) {
         return bit;
     while (fgets(line, sizeof(line), f)) {
         int value;
-        if (sscanf(line, "B=%d", &value) == 1 && value >= 0 && value <= 15) {
+        if (sscanf(line, "B=%d", &value) == 1 && value >= 0 && value <= 16) {
             bit = value;
             break;
         }
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     int held_samples = 0;
     int armed = 0;
     for (;;) {
-        uint32_t raw = *keys & 0xFFFFu;
+        uint32_t raw = *keys & 0x1FFFFu;
         int down = (raw & back_mask) != 0;
         /* Only state changes involving B or directions are recorded.  This is
          * enough to diagnose reports that a D-pad/stick action exits MTP,
