@@ -1280,7 +1280,7 @@ index 2426a64..e97ddce 100644
  
      int visible_count = min(entry_count - scroll_offset, VISIBLE_ENTRIES);
 diff --git a/frogui_libretro.c b/frogui_libretro.c
-index a72c4e6..e8d6452 100644
+index a72c4e6..8cf10f1 100644
 --- a/frogui_libretro.c
 +++ b/frogui_libretro.c
 @@ -13,12 +13,19 @@
@@ -3924,7 +3924,7 @@ index a72c4e6..e8d6452 100644
      else if (core) {
          /* ps1 folder maps to pcsx_rearmed by default but we prefer the standalone
           * pcsx4all when present; every other standalone (pico286/lgpt/rockbox) is
-@@ -1133,648 +3014,4585 @@ static void search_launch(int idx) {
+@@ -1133,648 +3014,4590 @@ static void search_launch(int idx) {
          else
              request_game_launch(core, path);
      } else {
@@ -9054,12 +9054,17 @@ index a72c4e6..e8d6452 100644
 +          if(live_volume>=0 && live_volume!=settings_volume) {
 +              settings_volume=live_volume; ui_rendered_once=0;
 +          }
++          if(settings_battery_estimate) {
++              static const char *last_estimate;
++              const char *estimate=frogui_battery_estimate();
++              if(estimate!=last_estimate){last_estimate=estimate;ui_rendered_once=0;}
++          }
 +      }
 +    }
      /* Take input from the libretro frontend (rkgame feeds cores this way; the
       * cubevol joy_key shm isn't updated when rkgame owns evdev). Build FrogUI's
       * raw bit layout from the joypad → input_set_ext_raw (OR'd with shm). */
-@@ -1787,12 +7605,146 @@ void retro_run(void) {
+@@ -1787,12 +7610,146 @@ void retro_run(void) {
          RB(RETRO_DEVICE_ID_JOYPAD_A, 13);    RB(RETRO_DEVICE_ID_JOYPAD_B, 14);
          RB(RETRO_DEVICE_ID_JOYPAD_X, 12);    RB(RETRO_DEVICE_ID_JOYPAD_Y, 15);
          RB(RETRO_DEVICE_ID_JOYPAD_L, 10);    RB(RETRO_DEVICE_ID_JOYPAD_R, 11);
@@ -9206,7 +9211,7 @@ index a72c4e6..e8d6452 100644
      /* Reload banner when view, path, or selection changes.
       * On the main SYSTEMS menu, preview the highlighted folder's banner. */
      static char banner_last_path[MAX_PATH_LEN] = "";
-@@ -1802,7 +7754,12 @@ void retro_run(void) {
+@@ -1802,7 +7759,12 @@ void retro_run(void) {
      {
          const char *banner_path = current_path;
          char sel_path[MAX_PATH_LEN];
@@ -9220,7 +9225,7 @@ index a72c4e6..e8d6452 100644
              banner_path = "settings";
          } else if (!viewing_recents && !viewing_favourites &&
                     selected_index >= 0 && selected_index < entry_count) {
-@@ -1818,7 +7775,8 @@ void retro_run(void) {
+@@ -1818,7 +7780,8 @@ void retro_run(void) {
              viewing_favourites != banner_last_favourites ||
              strcmp(banner_path, banner_last_path) != 0 ||
              selected_index != banner_last_sel) {
@@ -9230,7 +9235,7 @@ index a72c4e6..e8d6452 100644
              banner_last_recents = viewing_recents;
              banner_last_favourites = viewing_favourites;
              banner_last_sel = selected_index;
-@@ -1827,20 +7785,63 @@ void retro_run(void) {
+@@ -1827,20 +7790,63 @@ void retro_run(void) {
          }
      }
  
@@ -9297,7 +9302,7 @@ index a72c4e6..e8d6452 100644
      } else {
          if (banner_is_loaded())
              banner_render(framebuffer);
-@@ -1852,22 +7853,73 @@ void retro_run(void) {
+@@ -1852,22 +7858,73 @@ void retro_run(void) {
              snprintf(search_title, sizeof(search_title), "SEARCH: %s (%d)", search_query, entry_count);
              title = search_title;
          } else {
@@ -9378,7 +9383,7 @@ index a72c4e6..e8d6452 100644
              selected_index >= 0 && selected_index < entry_count &&
              !entries[selected_index].is_dir &&
              strcmp(entries[selected_index].name, SETTINGS_ENTRY_NAME) != 0 &&
-@@ -1896,19 +7948,24 @@ void retro_run(void) {
+@@ -1896,19 +7953,24 @@ void retro_run(void) {
                  game_name[sizeof(game_name)-1] = '\0';
                  char *dot = strrchr(game_name, '.');
                  if (dot) *dot = '\0';
@@ -9406,7 +9411,7 @@ index a72c4e6..e8d6452 100644
  
          /* Play-time for the selected game (Recents list only). */
          if (viewing_recents && selected_index < entry_count &&
-@@ -1925,14 +7982,65 @@ void retro_run(void) {
+@@ -1925,14 +7987,65 @@ void retro_run(void) {
              }
          }
  

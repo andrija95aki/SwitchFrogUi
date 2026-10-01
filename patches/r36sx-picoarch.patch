@@ -946,7 +946,7 @@ index 1e955f4..556d4dc 100644
  void* plat_clean_screen(void);
  
 diff --git a/plat_sdl.c b/plat_sdl.c
-index 9978411..fa9edd2 100644
+index 9978411..76615bc 100644
 --- a/plat_sdl.c
 +++ b/plat_sdl.c
 @@ -4,6 +4,7 @@
@@ -1180,7 +1180,7 @@ index 9978411..fa9edd2 100644
  
  	/* Init the DAC ON THIS THREAD. The SF3500/HD/SF3100 driver keeps its audio
  	 * handle thread-local, so sound_driver_init() and sound_driver_playframe()
-@@ -1045,35 +1186,49 @@ static void *sf3000_audio_thread_fn(void *unused)
+@@ -1045,35 +1186,53 @@ static void *sf3000_audio_thread_fn(void *unused)
  	 * RETRY on failure: at menu→game transitions the previous process's
  	 * deinit settles asynchronously in the audio daemon; a first-try init can
  	 * fail and giving up left the whole system silent until reboot. */
@@ -1243,10 +1243,14 @@ index 9978411..fa9edd2 100644
  			have_chunk = 1;
 +		} else if (sf3000_audio_primed && avail < SF3000_ACHUNK) {
 +			sf3000_audio_primed = 0;
++			static unsigned underruns;
++			underruns++;
++			if(underruns<=4 || !(underruns & (underruns-1)))
++				dbg_log("DBG A: underrun #%u, queued=%u (48kHz prefill retained)\n",underruns,avail);
  		}
  		pthread_mutex_unlock(&sf3000_aring_mtx);
  
-@@ -1094,11 +1249,32 @@ static void *sf3000_audio_thread_fn(void *unused)
+@@ -1094,11 +1253,32 @@ static void *sf3000_audio_thread_fn(void *unused)
  		}
  
  		/* Blocks until the DAC drains — but on THIS thread, not the emu. */
@@ -1282,7 +1286,7 @@ index 9978411..fa9edd2 100644
  		sf3000_sound_driver_deinit();
  	return NULL;
  }
-@@ -1159,6 +1335,7 @@ static int plat_sound_init(void)
+@@ -1159,6 +1339,7 @@ static int plat_sound_init(void)
  	/* Start the non-blocking audio consumer thread (it init's the DAC itself). */
  	sf3000_load_snd_gain();   /* re-read cubegm/sndgain.txt each game launch */
  	sf3000_aring_w = sf3000_aring_r = 0;
@@ -1290,7 +1294,7 @@ index 9978411..fa9edd2 100644
  	sf3000_rs_phase = 0;
  	sf3000_rs_prev.left = sf3000_rs_prev.right = 0;
  	sf3000_audio_init_rc = 0;
-@@ -1204,7 +1381,12 @@ static int plat_sound_init(void)
+@@ -1204,7 +1385,12 @@ static int plat_sound_init(void)
  float plat_sound_capacity(void)
  {
  #ifdef PLATFORM_SF3000
@@ -1304,7 +1308,7 @@ index 9978411..fa9edd2 100644
  #else
  	int buffered = 0;
  	if (audio.buf_len == 0)
-@@ -1223,6 +1405,19 @@ float plat_sound_capacity(void)
+@@ -1223,6 +1409,19 @@ float plat_sound_capacity(void)
  #define BATCH_SIZE 100
  void plat_sound_write(const struct audio_frame *data, int frames)
  {
@@ -1324,7 +1328,7 @@ index 9978411..fa9edd2 100644
  #ifdef PLATFORM_SF3000
  	/* Non-blocking enqueue: hand frames to the consumer thread and return
  	 * immediately. On overrun we drop the excess rather than block the emu.
-@@ -1329,6 +1524,25 @@ void plat_sound_resize_buffer(void) {
+@@ -1329,6 +1528,25 @@ void plat_sound_resize_buffer(void) {
  #endif
  }
  
@@ -1350,7 +1354,7 @@ index 9978411..fa9edd2 100644
  void plat_sdl_event_handler(void *event_)
  {
      SDL_Event *event = (SDL_Event *)event_;
-@@ -2092,8 +2306,8 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2092,8 +2310,8 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      {
          extern volatile uint32_t sf3000_keys_filtered;
          static int prev_combo = 0;
@@ -1361,7 +1365,7 @@ index 9978411..fa9edd2 100644
          if (now && !prev_combo) sf3000_screenshot(src, width, height, pitch);
          prev_combo = now;
      }
-@@ -2139,8 +2353,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2139,8 +2357,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
          if (sf3000_use_hwdisp && hwdisp_present_direct(src, width, height, pitch))
              return;
      }
@@ -1374,7 +1378,7 @@ index 9978411..fa9edd2 100644
      /* SF3500: always present via the real driver's disp_frame (decrypted driver
       * handles panel-size frames cleanly — proven by rkgame's own FrogUI render).
       * The SW transpose path is SF3000-geometry-tuned → squish + page-flip churn
-@@ -2152,7 +2368,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2152,7 +2372,10 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
      sf3000_detect_device();
      if (!sf3000_use_hwdisp && !sf3000_force_sw() &&
          (sf3000_is_r36sx() || sf3000_is_sf3500() ||
@@ -1386,7 +1390,7 @@ index 9978411..fa9edd2 100644
          if (hwdisp_init() == 0) {
              sf3000_use_hwdisp = 1;
              fprintf(stderr, "sf3000_fb_blit: HW path active\n");
-@@ -2163,43 +2382,43 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
+@@ -2163,43 +2386,43 @@ void sf3000_fb_blit(const void *src, int width, int height, int pitch) {
  if (sf3000_use_hwdisp) {
          sf3000_hw_heartbeat();  /* mark HW as alive once it has drawn a few frames */
  
@@ -1462,7 +1466,7 @@ index 9978411..fa9edd2 100644
              }
          }
          /* HW edge-sharpen: skip only for frames that actually take the pixel-exact
-@@ -2224,19 +2443,32 @@ if (sf3000_use_hwdisp) {
+@@ -2224,19 +2447,32 @@ if (sf3000_use_hwdisp) {
              int div = (g_ff_level == 3) ? 2 : (g_ff_level + 1);
              if ((++ff_ctr) % div) ff_skip = 1;
          }

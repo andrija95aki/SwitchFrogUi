@@ -51,6 +51,8 @@ jobs:
           /tmp/ps1_compat_test
           gcc -std=gnu99 -Wall tests/i18n_test.c -o /tmp/i18n_test
           (cd assets/upstream-160 && /tmp/i18n_test)
+          gcc -std=gnu99 -Wall tests/system_volume_test.c -o /tmp/system_volume_test
+          /tmp/system_volume_test
 
       - name: Download and relocate the official SF3000 GNU SDK
         shell: bash
